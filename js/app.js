@@ -12,6 +12,7 @@ import { renderFatalError } from './ui/error-screen.js';
 import { createToast } from './ui/toast.js';
 import { clear } from './ui/dom.js';
 import { setGamepadMode, watchPointer } from './ui/input-mode.js';
+import { registerServiceWorker } from './pwa.js';
 
 const screen = document.getElementById('screen');
 const toast = createToast(document.getElementById('toast'));
@@ -79,3 +80,4 @@ async function main() {
 }
 
 main();
+registerServiceWorker(); // T8 : hors ligne et installation ; sans effet hors HTTPS/localhost
