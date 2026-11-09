@@ -11,13 +11,12 @@ import { renderGameGrid, initialFocusId, EMPTY_NAV_ID } from './ui/game-grid.js'
 import { renderFatalError } from './ui/error-screen.js';
 import { createToast } from './ui/toast.js';
 import { clear } from './ui/dom.js';
+import { setGamepadMode, watchPointer } from './ui/input-mode.js';
 
 const screen = document.getElementById('screen');
 const toast = createToast(document.getElementById('toast'));
 
-/** Mode manette : l'anneau de focus s'affiche même sans :focus-visible (docs/ux.md 4.3). La souris ou le tactile le coupent. */
-const setGamepadMode = (on) => document.body.classList.toggle('input-gamepad', on);
-window.addEventListener('pointerdown', () => setGamepadMode(false));
+watchPointer();
 
 async function main() {
   let data;

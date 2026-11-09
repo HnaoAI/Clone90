@@ -14,3 +14,6 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `dom.test.mjs` : helpers `el` et `clear` avec document factice (T3).
 - `machine-grid.test.mjs` : accueil (tuiles, 0 jeu en fin de liste, 12 machines, messages games.json, choix d'écran, rendu avec document factice) (T5).
 - `game-grid.test.mjs` : grille de jeux (initiales, tuiles, focus de retour, état vide, repli de jaquette) et boîte de confirmation (T6).
+- `launcher.test.mjs` : plan de lancement EmulatorJS (variables EJS_*, BIOS, chemins encodés), fichiers manquants, chargement avec fenêtre factice (T7).
+- `exit-guard.test.mjs` : sortie du jeu (F10, Échap maintenu, Select+Start), aucune autre touche captée (T7).
+- `player-ui.test.mjs` : rappel de sortie, textes, anneau de progression, mode d'entrée (T7).

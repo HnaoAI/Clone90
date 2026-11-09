@@ -187,6 +187,7 @@ Téléphone en portrait : on laisse EmulatorJS gérer son affichage (jeu en haut
 - Gauche/Droite (croix ou flèches) pour changer, A/Entrée pour valider, B/Échap = Continuer.
 - Répéter la combinaison de sortie pendant que la boîte est ouverte (Select + Start 1 s, F10, ou Échap maintenu 1 s) = Quitter. Échap court = Continuer.
 - Le bouton Menu tactile/souris ouvre la même boîte (pas de sortie directe : un tap accidentel est fréquent sur téléphone).
+- Précisions validées à T7 : à la manette, Start seul ne valide pas tant que Select ou Start est tenu (il faut A) ; au clavier, Échap court = Continuer, Échap maintenu 1 s = Quitter, Retour arrière inactif ; sur l'écran Jouer le bouton Menu sert de Retour (avec B/Échap) ; pas de toast "Manette connectée" en jeu ; le bouton Menu est à opacité pleine hors jeu en cours.
 - Si la sauvegarde d'état arrive plus tard, le texte deviendra "Progression non sauvegardée" ou proposera "Sauvegarder et quitter".
 
 ### 3.5 Écarts validés à l'implémentation de T5 (accueil)

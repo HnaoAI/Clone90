@@ -14,6 +14,7 @@ export const BIOS_DIR = 'bios';
 
 /** Pages de l'application. */
 export const PLAYER_PAGE = 'player.html';
+export const HOME_PAGE = 'index.html';
 
 /** Dernière vague de machines livrée (systems.json, champ `wave`). À relever quand la vague 2 est livrée (arbitrage PO, T5). */
 export const MAX_VISIBLE_WAVE = 1;

@@ -13,6 +13,7 @@ Modules ES sans framework ni build. Chemins relatifs uniquement.
 - `app.js` : point d'entrée de `index.html` (données, routeur, couche d'entrée, écran courant).
 - `ui/machine-grid.js` : accueil (`buildMachineTiles`, `describeGamesStatus`, `renderHome`). `ui/logo.js` : logo machine et couleur d'accent (`createLogo`, `accentVar`). `ui/format.js` : libellés partagés. `ui/toast.js` : message temporaire. `ui/error-screen.js` : erreur bloquante.
 - `ui/game-grid.js` : grille de jeux (`gameInitials`, `buildGameTiles`, `initialFocusId`, `describeEmptyState`, `renderGameGrid`). `ui/dialog.js` : boîte de confirmation réutilisable (`createConfirmDialog`, actions transmises par l'écran hôte).
-- À venir : `player/` (T7).
+- `player/launcher.js` : SEUL module qui connaît EmulatorJS (`buildLaunchPlan` pur, `findMissingFiles`, `loadEmulator`, `pauseEmulator`/`resumeEmulator`). `player/exit-guard.js` : détection de sortie en lecture seule (Select+Start 1 s, F10, Échap maintenu 1 s). `player/exit-hint.js` : rappel de sortie des 3 premiers lancements. `player/player-ui.js` : écran Jouer, messages, bouton Menu et anneau. `player/player-main.js` : point d'entrée de `player.html`.
+- `ui/input-mode.js` : mode manette de l'anneau de focus (partagé par `app.js` et `player-main.js`).
 
-Tests : `tests/actions.test.mjs`, `tests/focus-nav.test.mjs`, `tests/data.test.mjs`, `tests/router.test.mjs`, `tests/dom.test.mjs`, `tests/machine-grid.test.mjs`, `tests/game-grid.test.mjs`.
+Tests : `tests/actions.test.mjs`, `tests/focus-nav.test.mjs`, `tests/data.test.mjs`, `tests/router.test.mjs`, `tests/dom.test.mjs`, `tests/machine-grid.test.mjs`, `tests/game-grid.test.mjs`, `tests/launcher.test.mjs`, `tests/exit-guard.test.mjs`, `tests/player-ui.test.mjs`.

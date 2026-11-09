@@ -191,3 +191,20 @@ test('la racine servie ne dépend pas du dossier courant (défaut : racine du pr
     enfant.kill();
   }
 });
+
+test('liste blanche sur le vrai projet : les pages et fichiers publics de l\'app sont servis (T7), les dossiers privés non', async () => {
+  const realServer = createStaticServer({ root: PROJECT_ROOT });
+  await new Promise((resolve) => realServer.listen(0, '127.0.0.1', resolve));
+  const realPort = realServer.address().port;
+  try {
+    const status = async (path) => (await fetch(`http://127.0.0.1:${realPort}${path}`)).status;
+    for (const path of ['/player.html', '/css/player.css', '/js/player/launcher.js', '/js/player/exit-guard.js', '/js/player/player-main.js']) {
+      assert.equal(await status(path), 200, path);
+    }
+    for (const path of ['/tickets/T7-lancement.md', '/docs/architecture.md', '/tests/launcher.test.mjs', '/scripts/serve.mjs']) {
+      assert.equal(await status(path), 403, path);
+    }
+  } finally {
+    await new Promise((resolve) => realServer.close(resolve));
+  }
+});

@@ -87,6 +87,12 @@ node --test "tests/*.test.mjs"
 
 Le guide de publication sur GitHub Pages arrivera avec le ticket T8.
 
+## Jouer : limites connues (T7)
+
+- Quitter un jeu ramène à la grille de la machine avec le jeu quitté sélectionné. Le bouton Retour du navigateur, depuis cette grille, peut ramener à l'écran Jouer du même jeu.
+- Sortie du jeu : Select + Start maintenus 1 s (manette), F10 ou Échap maintenu 1 s (clavier), bouton Menu (souris, tactile), geste Retour d'Android. Tous ouvrent une confirmation.
+- Pas encore validé avec de vraies ROMs et de vrais BIOS (ticket T0) : chemin des BIOS Kickstart et `neogeo.zip`, formats IPF et multi-disquettes, pause et reprise, F10 libre dans EmulatorJS.
+
 ## Notes techniques
 
 - `package.json` minimal (`"type": "module"`, aucune dépendance) : il permet à Node 18 et plus d'importer les modules `js/*.js` (par exemple `js/sort.js`, partagé avec `scripts/generate-games.mjs`).

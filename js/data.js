@@ -8,8 +8,8 @@ const SYSTEM_ID = /^[a-z0-9]+$/;
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isNonEmptyString = (v) => typeof v === 'string' && v.length > 0;
 
-/** Chemin relatif sûr : pas de schéma (http:), pas de / initial, pas de segment `..`. */
-const isRelativePath = (p) => isNonEmptyString(p)
+/** Chemin relatif sûr (aussi utilisé par player/launcher.js pour la BIOS d'un jeu) : pas de schéma (http:), pas de / initial, pas de segment `..`. */
+export const isRelativePath = (p) => isNonEmptyString(p)
   && !/^[a-z][a-z0-9+.-]*:/i.test(p) && !p.startsWith('/') && !p.split('/').includes('..');
 
 /**
