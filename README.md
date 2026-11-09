@@ -86,3 +86,7 @@ node --test "tests/*.test.mjs"
 ```
 
 Le guide de publication sur GitHub Pages arrivera avec le ticket T8.
+
+## Notes techniques
+
+- `package.json` minimal (`"type": "module"`, aucune dépendance) : il permet à Node 18 et plus d'importer les modules `js/*.js` (par exemple `js/sort.js`, partagé avec `scripts/generate-games.mjs`).
