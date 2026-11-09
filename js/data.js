@@ -1,6 +1,7 @@
 // Chargement et validation de systems.json et games.json (T3). Aucune dépendance DOM : fetch est injectable.
 // INVARIANT : systems.json est la seule source de vérité des machines (CLAUDE.md règle 2) ; rien ici n'en liste.
 import { SYSTEMS_URL, GAMES_URL } from './config.js';
+import { compareTitles } from './sort.js';
 
 const SYSTEM_ID = /^[a-z0-9]+$/;
 
@@ -92,14 +93,13 @@ export async function loadData(fetchJson = defaultFetchJson) {
 
 /**
  * Regroupe les jeux par machine. Toutes les machines sont présentes (liste vide = "0 jeu"),
- * jeux triés par titre sans tenir compte de la casse ni des accents.
+ * jeux triés par titre (js/sort.js).
  * @returns {Map<string, object[]>}
  */
 export function groupGamesBySystem(systems, games) {
   const map = new Map(systems.map((s) => [s.id, []]));
   for (const g of games) map.get(g.system)?.push(g);
-  const collator = new Intl.Collator('fr', { sensitivity: 'base' });
-  for (const list of map.values()) list.sort((a, b) => collator.compare(a.title, b.title));
+  for (const list of map.values()) list.sort((a, b) => compareTitles(a.title, b.title));
   return map;
 }
 

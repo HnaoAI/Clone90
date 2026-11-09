@@ -4,9 +4,9 @@ import { readFile, readdir, stat, writeFile, rename, rm, access } from 'node:fs/
 import { posix, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { PROJECT_ROOT } from './project-root.mjs';
+import { compareTitles } from '../js/sort.js';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp']; // ordre = priorité de la jaquette
-const TITLE_COLLATOR = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
 
 const extOf = (name) => {
   const ext = posix.extname(name).slice(1).toLowerCase();
@@ -137,7 +137,7 @@ export function buildSystemGames({ system, files, texts, titles }) {
     byId.set(id, game);
   }
   const games = [...byId.values()].sort((a, b) =>
-    TITLE_COLLATOR.compare(a.title, b.title) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+    compareTitles(a.title, b.title) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
   return { games, warnings };
 }
 
