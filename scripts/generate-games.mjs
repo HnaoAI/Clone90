@@ -1,9 +1,9 @@
 // Générateur de games.json (T2) : scanne roms/<machine>/ d'après systems.json. Docs : architecture.md sections 6.2 et 7.
-// Usage : node scripts/generate-games.mjs [--check]. Node 18+, sans dépendance. Réutilise PROJECT_ROOT de serve.mjs.
+// Usage : node scripts/generate-games.mjs [--check]. Node 18+, sans dépendance. Racine : project-root.mjs.
 import { readFile, readdir, stat, writeFile, rename, rm, access } from 'node:fs/promises';
 import { posix, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { PROJECT_ROOT } from './serve.mjs';
+import { PROJECT_ROOT } from './project-root.mjs';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp']; // ordre = priorité de la jaquette
 const TITLE_COLLATOR = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });

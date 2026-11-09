@@ -4,13 +4,14 @@ import http from 'node:http';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
-import { extname, resolve, sep, join, dirname, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { extname, resolve, sep, join, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { PROJECT_ROOT } from './project-root.mjs';
 
 export const DEFAULT_PORT = 8080;
 
-// INVARIANT : la racine servie est celle du projet, jamais le dossier courant (voir revue T1).
-export const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+// Ré-exportée pour les tests ; définie dans project-root.mjs (partagée avec generate-games.mjs).
+export { PROJECT_ROOT };
 
 // INVARIANT : liste blanche. Le serveur écoute sur toutes les interfaces : .git, config-equipe/,
 // tickets/, docs/, scripts/, tests/ ne doivent jamais être lisibles depuis le réseau local.
