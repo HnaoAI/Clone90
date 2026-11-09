@@ -104,9 +104,15 @@ test('systems.json : neogeo est complète (alias arcade, neogeo.zip, wave 1)', (
   assert.equal(neogeo.bios[0].keepZipped, true, 'fbneo veut neogeo.zip entier (T0)');
 });
 
-test('systems.json : keepZipped n\'existe que sur neogeo.zip (booléen)', () => {
-  const flagged = systems.flatMap((s) => s.bios.filter((b) => 'keepZipped' in b).map((b) => `${s.id}/${b.file}`));
-  assert.deepEqual(flagged, ['neogeo/neogeo.zip']);
+test('systems.json : neogeo.zip est déclaré de la même façon partout (keepZipped), neogeo et arcade ne divergent pas', () => {
+  const entries = systems.flatMap((s) => s.bios.filter((b) => b.file === 'neogeo.zip').map((b) => [s.id, b]));
+  assert.deepEqual(entries.map(([id]) => id).sort(), ['arcade', 'neogeo']);
+  for (const [id, b] of entries) assert.equal(b.keepZipped, true, `${id} : neogeo.zip doit être keepZipped (fbneo veut le zip entier)`);
+});
+
+test('systems.json : keepZipped ne figure que sur neogeo.zip (booléen)', () => {
+  const flagged = systems.flatMap((s) => s.bios.filter((b) => 'keepZipped' in b).map((b) => `${s.id}/${b.file}/${b.keepZipped}`));
+  assert.deepEqual(flagged.sort(), ['arcade/neogeo.zip/true', 'neogeo/neogeo.zip/true']);
 });
 
 test('systems.json : les autres machines sont marquées wave 2', () => {
