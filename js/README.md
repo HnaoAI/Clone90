@@ -7,6 +7,8 @@ Modules ES sans framework ni build. Chemins relatifs uniquement.
 - `router.js` : routes hash `#/` et `#/<machine>?focus=<id>` (`parseHash`, `buildHash`, `createRouter`) et `buildPlayerUrl`. Aucune logique d'écran.
 - `sort.js` : `compareTitles`, règle de tri des titres partagée avec `scripts/generate-games.mjs`.
 - `ui/dom.js` : helpers `el` et `clear` (pas d'`innerHTML`).
-- À venir : `input/` (T4), écrans et `player/` (T5 à T7).
+- `input/actions.js` : clavier + manette vers `up/down/left/right/confirm/back` (`createActionSource`, répétition, front montant, réveil de manette).
+- `input/focus-nav.js` : navigation spatiale du focus sur les éléments `data-nav` (`pickNext`, `createFocusNavigator`).
+- À venir : écrans et `player/` (T5 à T7).
 
-Tests : `tests/data.test.mjs`, `tests/router.test.mjs`, `tests/dom.test.mjs`.
+Tests : `tests/actions.test.mjs`, `tests/focus-nav.test.mjs`, `tests/data.test.mjs`, `tests/router.test.mjs`, `tests/dom.test.mjs`.
