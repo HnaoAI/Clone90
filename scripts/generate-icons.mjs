@@ -5,15 +5,10 @@ import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROJECT_ROOT } from './project-root.mjs';
+import { GLYPHS } from './pixel-font.mjs';
 
 const BG = [0x0f, 0x11, 0x17];
 const FG = [0xff, 0xb0, 0x00];
-// Police 5x7 : C, 9, 0.
-const GLYPHS = {
-  C: ['01110', '10001', '10000', '10000', '10000', '10001', '01110'],
-  9: ['01110', '10001', '10001', '01111', '00001', '10001', '01110'],
-  0: ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
-};
 const TEXT = ['C', '9', '0'];
 
 /** Image RGB de `size` pixels : texte centré, occupant `fill` (0 à 1) de la largeur ; le reste est le fond. */

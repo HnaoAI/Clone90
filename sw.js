@@ -4,10 +4,10 @@
 // INVARIANT (CLAUDE.md règle 6) : JAMAIS de roms/, bios/, games.json ni de ressource d'une autre origine (CDN EmulatorJS)
 // dans le cache. Le service worker ne répond même pas à ces requêtes : elles vont directement au réseau.
 // Décision (architecture 8.4) : EmulatorJS garde lui-même ses cœurs en cache navigateur ; le CDN n'est pas pris en charge ici.
-// INVARIANT : tout fichier de js/, css/ ou assets/icons/ doit figurer dans SHELL_FILES (vérifié par tests/sw.test.mjs).
+// INVARIANT : tout fichier de js/, css/ ou assets/icons/ ou assets/fonts/ doit figurer dans SHELL_FILES (les logos de assets/logos/ viennent de systems.json, voir logoPaths) (vérifié par tests/sw.test.mjs).
 // Relever CACHE_VERSION quand la liste change : l'activation supprime les anciens caches.
 // Chemins relatifs à la portée du service worker (GitHub Pages sous /<dépôt>/).
-const CACHE_VERSION = 'clone90-shell-v1';
+const CACHE_VERSION = 'clone90-shell-v2';
 const CACHE_PREFIX = 'clone90-shell-';
 
 const SHELL_FILES = [
@@ -20,6 +20,7 @@ const SHELL_FILES = [
   'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js',
   'js/pwa.js',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/icon-192-maskable.png', 'assets/icons/icon-512-maskable.png',
+  'assets/fonts/PressStart2P-Regular.ttf', 'assets/fonts/OFL.txt',
 ];
 
 /** Dossiers et fichiers qui ne doivent JAMAIS entrer dans le cache (jeux, BIOS, liste des jeux). */

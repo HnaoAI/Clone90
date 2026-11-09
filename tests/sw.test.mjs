@@ -27,11 +27,19 @@ const listFiles = (dir) => readdirSync(dir).flatMap((name) => {
 });
 const rel = (f) => relative(PROJECT_ROOT, f).split('\\').join('/');
 
-test('liste de fichiers : tout js/, css/ et assets/icons/ du projet est dans la coquille (sinon hors ligne cassé)', () => {
-  const onDisk = ['js', 'css', 'assets/icons'].flatMap((d) => listFiles(join(PROJECT_ROOT, d))).map(rel)
+test('liste de fichiers : tout js/, css/, assets/icons/ et assets/fonts/ du projet est dans la coquille (sinon hors ligne cassé)', () => {
+  const onDisk = ['js', 'css', 'assets/icons', 'assets/fonts'].flatMap((d) => listFiles(join(PROJECT_ROOT, d))).map(rel)
     .filter((f) => !f.endsWith('README.md') && !f.split('/').pop().startsWith('.'));
   const missing = onDisk.filter((f) => !sw.SHELL_FILES.includes(f));
   assert.deepEqual(missing, [], 'fichiers absents de SHELL_FILES');
+});
+
+test('logos : tous les fichiers de assets/logos/ sont déclarés dans systems.json, donc ajoutés à la coquille par logoPaths', () => {
+  const systems = JSON.parse(readFileSync(join(PROJECT_ROOT, 'systems.json'), 'utf8'));
+  const declared = [...sw.logoPaths(systems)];
+  const onDisk = listFiles(join(PROJECT_ROOT, 'assets/logos')).map(rel).filter((f) => !f.split('/').pop().startsWith('.'));
+  assert.deepEqual(onDisk.sort(), declared.sort());
+  for (const logo of declared) assert.equal(sw.isShellPath(logo, declared), true, logo);
 });
 
 test('liste de fichiers : chaque entrée de la coquille existe sur le disque', () => {

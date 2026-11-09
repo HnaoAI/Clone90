@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100" data-lines="1">
+<title>32X</title>
+<rect width="160" height="100" fill="#8e2a2a"/>
+<rect x="3" y="3" width="154" height="94" fill="none" stroke="#f2f0e9" stroke-width="2"/>
+<circle cx="80" cy="20" r="11" fill="#f2f0e9"/>
+<path data-text="1" d="M29 42h24v6h-24zM71 42h18v6h-18zM101 42h6v6h-6zM125 42h6v6h-6zM53 48h6v6h-6zM65 48h6v6h-6zM89 48h6v6h-6zM101 48h6v6h-6zM125 48h6v6h-6zM53 54h6v6h-6zM89 54h6v6h-6zM107 54h6v6h-6zM119 54h6v6h-6zM35 60h18v6h-18zM83 60h6v6h-6zM113 60h6v6h-6zM53 66h6v6h-6zM77 66h6v6h-6zM107 66h6v6h-6zM119 66h6v6h-6zM53 72h6v6h-6zM71 72h6v6h-6zM101 72h6v6h-6zM125 72h6v6h-6zM29 78h24v6h-24zM65 78h30v6h-30zM101 78h6v6h-6zM125 78h6v6h-6z" fill="#f2f0e9"/>
+</svg>

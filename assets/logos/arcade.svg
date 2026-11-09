@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100" data-lines="1">
+<title>Arcade</title>
+<rect width="160" height="100" fill="#c0392b"/>
+<rect x="3" y="3" width="154" height="94" fill="none" stroke="#f2f0e9" stroke-width="2"/>
+<polygon points="80,8 92,30 68,30" fill="#f2f0e9"/>
+<path data-text="1" d="M14 49h12v4h-12zM34 49h16v4h-16zM62 49h12v4h-12zM86 49h12v4h-12zM106 49h16v4h-16zM130 49h20v4h-20zM10 53h4v4h-4zM26 53h4v4h-4zM34 53h4v4h-4zM50 53h4v4h-4zM58 53h4v4h-4zM74 53h4v4h-4zM82 53h4v4h-4zM98 53h4v4h-4zM106 53h4v4h-4zM122 53h4v4h-4zM130 53h4v4h-4zM10 57h4v4h-4zM26 57h4v4h-4zM34 57h4v4h-4zM50 57h4v4h-4zM58 57h4v4h-4zM82 57h4v4h-4zM98 57h4v4h-4zM106 57h4v4h-4zM122 57h4v4h-4zM130 57h4v4h-4zM10 61h20v4h-20zM34 61h16v4h-16zM58 61h4v4h-4zM82 61h20v4h-20zM106 61h4v4h-4zM122 61h4v4h-4zM130 61h16v4h-16zM10 65h4v4h-4zM26 65h4v4h-4zM34 65h4v4h-4zM42 65h4v4h-4zM58 65h4v4h-4zM82 65h4v4h-4zM98 65h4v4h-4zM106 65h4v4h-4zM122 65h4v4h-4zM130 65h4v4h-4zM10 69h4v4h-4zM26 69h4v4h-4zM34 69h4v4h-4zM46 69h4v4h-4zM58 69h4v4h-4zM74 69h4v4h-4zM82 69h4v4h-4zM98 69h4v4h-4zM106 69h4v4h-4zM122 69h4v4h-4zM130 69h4v4h-4zM10 73h4v4h-4zM26 73h4v4h-4zM34 73h4v4h-4zM50 73h4v4h-4zM62 73h12v4h-12zM82 73h4v4h-4zM98 73h4v4h-4zM106 73h16v4h-16zM130 73h20v4h-20z" fill="#f2f0e9"/>
+</svg>

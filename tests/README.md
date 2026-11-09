@@ -19,3 +19,4 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `player-ui.test.mjs` : rappel de sortie, textes, anneau de progression, mode d'entrée (T7).
 - `sw.test.mjs` : logique pure de `sw.js` (liste de la coquille complète, filtre : jamais roms/, bios/, games.json ni le CDN, nettoyage des caches) (T8).
 - `pwa.test.mjs` : manifest, icônes PNG, liens dans les pages, enregistrement du service worker (T8).
+- `generate-logos.test.mjs` : logos SVG (un par machine, valides, sans doublon, couleurs et contraste, fichiers à jour) (T5b).

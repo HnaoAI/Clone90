@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100" data-lines="1">
+<title>NES</title>
+<rect width="160" height="100" fill="#b03a2e"/>
+<rect x="3" y="3" width="154" height="94" fill="none" stroke="#f2f0e9" stroke-width="2"/>
+<polygon points="80,8 92,20 80,32 68,20" fill="#f2f0e9"/>
+<path data-text="1" d="M29 42h6v6h-6zM53 42h6v6h-6zM65 42h30v6h-30zM107 42h24v6h-24zM29 48h12v6h-12zM53 48h6v6h-6zM65 48h6v6h-6zM101 48h6v6h-6zM29 54h6v6h-6zM41 54h6v6h-6zM53 54h6v6h-6zM65 54h6v6h-6zM101 54h6v6h-6zM29 60h6v6h-6zM47 60h12v6h-12zM65 60h24v6h-24zM107 60h18v6h-18zM29 66h6v6h-6zM53 66h6v6h-6zM65 66h6v6h-6zM125 66h6v6h-6zM29 72h6v6h-6zM53 72h6v6h-6zM65 72h6v6h-6zM125 72h6v6h-6zM29 78h6v6h-6zM53 78h6v6h-6zM65 78h30v6h-30zM101 78h24v6h-24z" fill="#f2f0e9"/>
+</svg>

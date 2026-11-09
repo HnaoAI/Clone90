@@ -209,14 +209,16 @@ test('liste blanche sur le vrai projet : les pages et fichiers publics de l\'app
   }
 });
 
-test('liste blanche sur le vrai projet : manifest, service worker, icônes et js/pwa.js sont servis (T8)', async () => {
+test('liste blanche sur le vrai projet : manifest, service worker, icônes, polices, logos et js/pwa.js sont servis (T8, T5b)', async () => {
   const realServer = createStaticServer({ root: PROJECT_ROOT });
   await new Promise((resolve) => realServer.listen(0, '127.0.0.1', resolve));
   const realPort = realServer.address().port;
   try {
-    for (const path of ['/manifest.webmanifest', '/sw.js', '/js/pwa.js', '/assets/icons/icon-192.png', '/assets/icons/icon-512.png']) {
+    for (const path of ['/manifest.webmanifest', '/sw.js', '/js/pwa.js', '/assets/icons/icon-192.png', '/assets/icons/icon-512.png',
+      '/assets/fonts/PressStart2P-Regular.ttf', '/assets/fonts/OFL.txt', '/assets/logos/amiga.svg']) {
       assert.equal((await fetch(`http://127.0.0.1:${realPort}${path}`)).status, 200, path);
     }
+    assert.equal((await fetch(`http://127.0.0.1:${realPort}/assets/fonts/PressStart2P-Regular.ttf`)).headers.get('content-type'), 'font/ttf');
     assert.equal((await fetch(`http://127.0.0.1:${realPort}/scripts/generate-icons.mjs`)).status, 403);
   } finally {
     await new Promise((resolve) => realServer.close(resolve));
