@@ -65,7 +65,7 @@
         {
           "file": "neogeo.zip",
           "required": false,
-          "role": "optional",
+          "role": "default",
           "keepZipped": true,
           "note": "Utile pour les jeux de la famille Neo Geo, laisser zippé"
         }

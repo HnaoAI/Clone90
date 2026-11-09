@@ -107,6 +107,7 @@ test('systems.json : neogeo est complète (alias arcade, neogeo.zip, wave 1)', (
 test('systems.json : neogeo.zip est déclaré de la même façon partout (keepZipped), neogeo et arcade ne divergent pas', () => {
   const entries = systems.flatMap((s) => s.bios.filter((b) => b.file === 'neogeo.zip').map((b) => [s.id, b]));
   assert.deepEqual(entries.map(([id]) => id).sort(), ['arcade', 'neogeo']);
+  for (const [id, b] of entries) assert.equal(b.role, 'default', `${id} : neogeo.zip doit être le BIOS par défaut (sinon jamais fourni au cœur)`);
   for (const [id, b] of entries) assert.equal(b.keepZipped, true, `${id} : neogeo.zip doit être keepZipped (fbneo veut le zip entier)`);
 });
 

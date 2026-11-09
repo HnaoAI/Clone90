@@ -260,3 +260,28 @@ test('buildLaunchPlan : sans coreOptions, ni EJS_defaultOptions ni EJS_disableLo
   assert.equal('EJS_defaultOptions' in plan.globals, false);
   assert.equal('EJS_disableLocalStorage' in plan.globals, false);
 });
+
+// --- T0 : la machine arcade reçoit neogeo.zip s'il est présent (jeux de la famille Neo Geo), sans 404 sinon ---
+const realSystems = JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../systems.json', import.meta.url), 'utf8')).systems;
+const arcade = realSystems.find((s) => s.id === 'arcade');
+const pacman = { id: 'arcade/pacman', system: 'arcade', title: 'Pac-Man', file: 'roms/arcade/pacman.zip', cover: null };
+
+test('arcade (systems.json réel) : neogeo.zip présent donne /neogeo.zip dans rawFiles, jamais EJS_biosUrl', async () => {
+  const { missing, plan } = await checkPlanFiles(buildLaunchPlan({ system: arcade, game: pacman }), async () => true);
+  assert.deepEqual(missing, []);
+  assert.deepEqual(plan.rawFiles, [{ url: 'bios/neogeo.zip', fsPath: '/neogeo.zip' }]);
+  assert.equal('EJS_biosUrl' in plan.globals, false);
+});
+
+test('arcade (systems.json réel) : neogeo.zip absent, aucune erreur, rien à télécharger (pas de 404)', async () => {
+  const asked = [];
+  const head = async (u) => { asked.push(u); return !u.startsWith('bios/'); };
+  const { missing, plan } = await checkPlanFiles(buildLaunchPlan({ system: arcade, game: pacman }), head);
+  assert.deepEqual(missing, []);
+  assert.deepEqual(plan.rawFiles, []);
+  const { win, doc } = fakeEnv();
+  const fetched = [];
+  await loadEmulator(plan, { win, doc, getBytes: async (u) => { fetched.push(u); return new Uint8Array(); } });
+  assert.deepEqual(fetched, [], 'aucun téléchargement du BIOS absent');
+  assert.equal('EJS_externalFiles' in win, false);
+});
