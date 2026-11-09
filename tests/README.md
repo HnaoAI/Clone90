@@ -17,3 +17,5 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `launcher.test.mjs` : plan de lancement EmulatorJS (variables EJS_*, BIOS, chemins encodés), fichiers manquants, chargement avec fenêtre factice (T7).
 - `exit-guard.test.mjs` : sortie du jeu (F10, Échap maintenu, Select+Start), aucune autre touche captée (T7).
 - `player-ui.test.mjs` : rappel de sortie, textes, anneau de progression, mode d'entrée (T7).
+- `sw.test.mjs` : logique pure de `sw.js` (liste de la coquille complète, filtre : jamais roms/, bios/, games.json ni le CDN, nettoyage des caches) (T8).
+- `pwa.test.mjs` : manifest, icônes PNG, liens dans les pages, enregistrement du service worker (T8).
