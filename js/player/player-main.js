@@ -12,7 +12,7 @@ import { createConfirmDialog } from '../ui/dialog.js';
 import { setGamepadMode, watchPointer } from '../ui/input-mode.js';
 import { createToast } from '../ui/toast.js';
 import { clear } from '../ui/dom.js';
-import { buildLaunchPlan, findMissingFiles, headExists, describeMissing, loadEmulator, pauseEmulator, resumeEmulator } from './launcher.js';
+import { buildLaunchPlan, checkPlanFiles, headExists, describeMissing, loadEmulator, pauseEmulator, resumeEmulator } from './launcher.js';
 import { createExitGuard } from './exit-guard.js';
 import { shouldShowExitHint, EXIT_HINT_MS } from './exit-hint.js';
 import {
@@ -188,7 +188,9 @@ async function main() {
     showMessage({ title: 'Impossible de lancer ce jeu.', details: [e.message] });
     return;
   }
-  const missing = await findMissingFiles(plan, headExists);
+  const checked = await checkPlanFiles(plan, headExists);
+  plan = checked.plan;
+  const { missing } = checked;
   if (missing.length) {
     showMessage({ title: describeMissing(missing)[0].title, details: describeMissing(missing).map((m) => m.detail) });
     return;

@@ -59,17 +59,24 @@ export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL }) {
 }
 
 /**
- * Fichiers requis introuvables. Une erreur réseau compte comme introuvable (jamais de rejet).
- * @param {{files: object[]}} plan
+ * Contrôle les fichiers du plan. Une erreur réseau compte comme introuvable (jamais de rejet).
+ * Un BIOS optionnel absent est retiré du plan (EJS_biosUrl supprimé) : sinon EmulatorJS tenterait un téléchargement en 404
+ * et pourrait échouer au démarrage (revue tech-lead T7).
+ * @param {{globals: object, files: object[]}} plan
  * @param {(url: string) => Promise<boolean>} head vrai si le fichier répond (défaut du navigateur : headExists)
+ * @returns {Promise<{missing: object[], plan: object}>} `missing` : fichiers requis introuvables ; `plan` : plan épuré
  */
-export async function findMissingFiles(plan, head) {
-  const checked = await Promise.all(plan.files.map(async (f) => {
-    const ok = await head(f.url).catch(() => false);
-    return !ok && f.required ? f : null;
-  }));
-  return checked.filter(Boolean);
+export async function checkPlanFiles(plan, head) {
+  const results = await Promise.all(plan.files.map(async (file) => ({ file, ok: await head(file.url).catch(() => false) })));
+  const missing = results.filter((r) => !r.ok && r.file.required).map((r) => r.file);
+  const absentOptional = results.filter((r) => !r.ok && !r.file.required).map((r) => r.file);
+  const globals = { ...plan.globals };
+  if (absentOptional.some((f) => f.kind === 'bios')) delete globals.EJS_biosUrl;
+  return { missing, plan: { ...plan, globals, files: plan.files.filter((f) => !absentOptional.includes(f)) } };
 }
+
+/** Fichiers requis introuvables (voir checkPlanFiles). */
+export const findMissingFiles = async (plan, head) => (await checkPlanFiles(plan, head)).missing;
 
 /** Contrôle par requête HEAD (le serveur local la gère, GitHub Pages aussi). */
 export const headExists = async (url) => (await fetch(url, { method: 'HEAD', cache: 'no-cache' })).ok;

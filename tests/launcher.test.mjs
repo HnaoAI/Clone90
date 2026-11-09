@@ -2,7 +2,7 @@
 // Aucun vrai EmulatorJS : fenêtre et document factices.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveBios, buildLaunchPlan, findMissingFiles, describeMissing, loadEmulator, pauseEmulator, resumeEmulator, GAME_ELEMENT_ID } from '../js/player/launcher.js';
+import { resolveBios, buildLaunchPlan, findMissingFiles, checkPlanFiles, describeMissing, loadEmulator, pauseEmulator, resumeEmulator, GAME_ELEMENT_ID } from '../js/player/launcher.js';
 import { EJS_CDN_URL } from '../js/config.js';
 
 const neogeo = {
@@ -170,4 +170,23 @@ test('pauseEmulator / resumeEmulator : ne lèvent jamais, même si EmulatorJS n\
   const broken = { EJS_emulator: { pause: () => { throw new TypeError('toggleMainLoop'); }, play: () => { throw new TypeError('toggleMainLoop'); } } };
   assert.equal(pauseEmulator(broken), false);
   assert.equal(resumeEmulator(broken), false);
+});
+
+test('checkPlanFiles : un BIOS optionnel absent est retiré du plan (pas de EJS_biosUrl en 404), sans erreur', async () => {
+  const optional = { ...neogeo, bios: [{ file: 'neogeo.zip', required: false, role: 'default' }] };
+  const plan = buildLaunchPlan({ system: optional, game: mslug });
+  assert.equal(plan.globals.EJS_biosUrl, 'bios/neogeo.zip');
+  const { missing, plan: cleaned } = await checkPlanFiles(plan, async (u) => !u.startsWith('bios/'));
+  assert.deepEqual(missing, []);
+  assert.equal('EJS_biosUrl' in cleaned.globals, false);
+  assert.deepEqual(cleaned.files.map((f) => f.kind), ['game']);
+  assert.equal(plan.globals.EJS_biosUrl, 'bios/neogeo.zip', 'le plan d\'origine n\'est pas modifié');
+});
+
+test('checkPlanFiles : un BIOS optionnel présent est conservé, un BIOS requis absent reste une erreur', async () => {
+  const optional = { ...neogeo, bios: [{ file: 'neogeo.zip', required: false, role: 'default' }] };
+  const kept = await checkPlanFiles(buildLaunchPlan({ system: optional, game: mslug }), async () => true);
+  assert.equal(kept.plan.globals.EJS_biosUrl, 'bios/neogeo.zip');
+  const req = await checkPlanFiles(buildLaunchPlan({ system: neogeo, game: mslug }), async (u) => !u.startsWith('bios/'));
+  assert.deepEqual(req.missing.map((f) => f.kind), ['bios']);
 });
