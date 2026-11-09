@@ -93,6 +93,12 @@ Le guide de publication sur GitHub Pages arrivera avec le ticket T8.
 - Sortie du jeu : Select + Start maintenus 1 s (manette), F10 ou Échap maintenu 1 s (clavier), bouton Menu (souris, tactile), geste Retour d'Android. Tous ouvrent une confirmation.
 - Pas encore validé avec de vraies ROMs et de vrais BIOS (ticket T0) : chemin des BIOS Kickstart et `neogeo.zip`, formats IPF et multi-disquettes, pause et reprise, F10 libre dans EmulatorJS.
 
+## Installation PWA et hors ligne (T8)
+
+- Le service worker (`sw.js`) ne met en cache que la coquille de l'application (pages, CSS, JS, icônes). Jamais `roms/`, `bios/`, `games.json` ni le CDN EmulatorJS.
+- Hors ligne, on ouvre l'application, mais la liste des jeux (`games.json`) et les jeux demandent le serveur local. La reprise hors ligne d'un cœur EmulatorJS déjà chargé dépend du cache propre d'EmulatorJS : non vérifié (à tester en T9).
+- Installation : localhost ou HTTPS seulement (pas en HTTP sur le réseau local).
+
 ## Notes techniques
 
 - `package.json` minimal (`"type": "module"`, aucune dépendance) : il permet à Node 18 et plus d'importer les modules `js/*.js` (par exemple `js/sort.js`, partagé avec `scripts/generate-games.mjs`).
