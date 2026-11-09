@@ -1,13 +1,33 @@
 // Serveur statique local de Clone90, sans dépendance (Node 18+). Voir docs/architecture.md section 9.
-// Usage : node scripts/serve.mjs [--port 8080]   (ou PORT=8080). Sert le dossier courant.
+// Usage : node scripts/serve.mjs [--port 8080]   (ou PORT=8080). Sert la racine du projet (liste blanche).
 import http from 'node:http';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
-import { extname, resolve, sep, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { extname, resolve, sep, join, dirname, relative } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const DEFAULT_PORT = 8080;
+
+// INVARIANT : la racine servie est celle du projet, jamais le dossier courant (voir revue T1).
+export const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+// INVARIANT : liste blanche. Le serveur écoute sur toutes les interfaces : .git, config-equipe/,
+// tickets/, docs/, scripts/, tests/ ne doivent jamais être lisibles depuis le réseau local.
+// Ajouter ici tout nouveau fichier ou dossier public (ex. nouvelles icônes PWA sous assets/).
+const PUBLIC_FILES = new Set(['index.html', 'player.html', 'manifest.webmanifest', 'sw.js',
+  'systems.json', 'games.json']);
+const PUBLIC_DIRS = new Set(['css', 'js', 'data', 'assets', 'roms', 'bios']);
+
+/** Vrai si le chemin (relatif à la racine) est public : liste blanche, et aucun segment caché. */
+function isPublicPath(relPath) {
+  const segments = relPath.split(sep).filter(Boolean);
+  if (segments.some((s) => s.startsWith('.'))) return false;
+  if (segments.length === 0) return true; // la racine : index.html
+  return segments.length === 1 && !PUBLIC_DIRS.has(segments[0])
+    ? PUBLIC_FILES.has(segments[0])
+    : PUBLIC_DIRS.has(segments[0]);
+}
 
 // INVARIANT : .wasm doit être servi en application/wasm (sinon l'instanciation en flux échoue).
 // Tout type inconnu (.adf, .ipf, .hdf, .chd, ...) tombe sur application/octet-stream.
@@ -57,16 +77,17 @@ function reply(res, status, text, headers = {}) {
 }
 
 /**
- * Convertit l'URL demandée en chemin de fichier sous `root`.
+ * Convertit l'URL demandée en chemin de fichier public sous `root`.
  * INVARIANT : ne jamais renvoyer un chemin hors de `root` (protection contre ../).
- * @returns {string|null} chemin absolu, ou null si la requête sort du dossier
+ * @returns {string|null} chemin absolu, ou null si hors de la racine ou hors liste blanche
  * @throws {URIError|RangeError} si l'encodage est invalide ou contient un octet nul
  */
 function resolveInsideRoot(root, urlPath) {
   const decoded = decodeURIComponent(urlPath);
   if (decoded.includes('\0')) throw new RangeError('octet nul');
   const target = resolve(root, `.${decoded.startsWith('/') ? decoded : `/${decoded}`}`);
-  return target === root || target.startsWith(root + sep) ? target : null;
+  if (target !== root && !target.startsWith(root + sep)) return null;
+  return isPublicPath(relative(root, target)) ? target : null;
 }
 
 /** Lit un en-tête Range à un seul intervalle. Renvoie {start,end}, null (aucun) ou 'invalid'. */
@@ -88,7 +109,7 @@ function parseRange(header, size) {
 
 /**
  * Crée le serveur HTTP statique (non démarré : l'appelant appelle `listen`).
- * @param {{root: string}} options dossier à servir
+ * @param {{root: string}} options racine à servir
  * @returns {http.Server}
  */
 export function createStaticServer({ root }) {
@@ -158,7 +179,7 @@ function main() {
     console.error(err.message);
     process.exit(1);
   }
-  const server = createStaticServer({ root: process.cwd() });
+  const server = createStaticServer({ root: PROJECT_ROOT });
   server.on('error', (err) => {
     console.error(err.code === 'EADDRINUSE'
       ? `Le port ${port} est déjà utilisé. Essayez : node scripts/serve.mjs --port ${port + 1}`
