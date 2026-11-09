@@ -1,0 +1,13 @@
+# Jeux et BIOS : jamais dans le dépôt (droits d'auteur, dépôt public)
+roms/
+bios/
+# Généré par scripts/generate-games.mjs
+games.json
+
+# Copie locale de la config de l'équipe, et réglages personnels de Claude Code
+config-equipe/
+.claude/settings.local.json
+
+node_modules/
+.DS_Store
+*.log
