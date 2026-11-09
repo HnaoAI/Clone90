@@ -9,6 +9,9 @@ Modules ES sans framework ni build. Chemins relatifs uniquement.
 - `ui/dom.js` : helpers `el` et `clear` (pas d'`innerHTML`).
 - `input/actions.js` : clavier + manette vers `up/down/left/right/confirm/back` (`createActionSource`, répétition, front montant, réveil de manette).
 - `input/focus-nav.js` : navigation spatiale du focus sur les éléments `data-nav` (`pickNext`, `createFocusNavigator`).
-- À venir : écrans et `player/` (T5 à T7).
+- `screens.js` : choix de l'écran (`visibleSystems`, `resolveRoute`), logique pure.
+- `app.js` : point d'entrée de `index.html` (données, routeur, couche d'entrée, écran courant).
+- `ui/machine-grid.js` : accueil (`buildMachineTiles`, `describeGamesStatus`, `renderHome`). `ui/format.js` : libellés partagés. `ui/toast.js` : message temporaire. `ui/error-screen.js` : erreur bloquante.
+- À venir : grille de jeux, dialogue et `player/` (T6, T7).
 
-Tests : `tests/actions.test.mjs`, `tests/focus-nav.test.mjs`, `tests/data.test.mjs`, `tests/router.test.mjs`, `tests/dom.test.mjs`.
+Tests : `tests/actions.test.mjs`, `tests/focus-nav.test.mjs`, `tests/data.test.mjs`, `tests/router.test.mjs`, `tests/dom.test.mjs`, `tests/machine-grid.test.mjs`.

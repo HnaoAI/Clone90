@@ -1,0 +1,76 @@
+/* Accueil (T5) : cartes des machines, docs/ux.md 3.1 et 5.4.
+   Flex centré (et non grid) : avec 2 machines la rangée est centrée, les cartes gardent leur taille. */
+.machine-list {
+  --cols: 4;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--gap);
+  max-width: calc(4 * 280px + 3 * var(--gap));
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.machine-item { flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols)); max-width: 280px; }
+
+@media (min-width: 600px) and (max-width: 1023px) { .machine-list { --cols: 3; } }
+@media (max-width: 599px) { .machine-list { --cols: 2; } }
+
+.machine-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-height: 140px;
+  aspect-ratio: 4 / 3;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  text-decoration: none;
+  transition: transform 150ms, background-color 150ms;
+}
+@media (max-width: 599px) { .machine-tile { aspect-ratio: auto; min-height: 132px; padding: 8px; } }
+
+@media (hover: hover) { .machine-tile:hover { background: var(--surface-2); } }
+.machine-tile:focus-visible, .input-gamepad .machine-tile:focus { transform: scale(1.05); z-index: 1; }
+
+.machine-logo {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 8px;
+  background: var(--tile-accent, var(--surface-2));
+  border-radius: 4px;
+}
+.machine-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+.logo-fallback {
+  font-family: var(--font-pixel);
+  font-size: 1rem;
+  line-height: 1.4;
+  text-align: center;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.machine-name { font-weight: 600; font-size: 1rem; text-align: center; }
+.machine-count { color: var(--text-muted); font-size: 0.9375rem; text-align: center; }
+
+/* 0 jeu : grisé mais lisible (le texte reste en --text-muted, la mention "0 jeu" porte l'information). */
+.machine-tile.is-empty { border-style: dashed; }
+.machine-tile.is-empty .machine-logo { background: var(--disabled); filter: grayscale(1); }
+.machine-tile.is-empty .machine-name { color: var(--text-muted); }
+.machine-tile:focus-visible .machine-name, .input-gamepad .machine-tile:focus .machine-name { font-weight: 700; color: var(--text); }
+
+.key-hint { margin: 32px 0 0; text-align: center; }
+@media (hover: none) and (pointer: coarse) { .key-hint { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .machine-tile:focus-visible, .input-gamepad .machine-tile:focus { transform: none; }
+}
