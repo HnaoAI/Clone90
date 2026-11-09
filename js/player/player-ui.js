@@ -3,7 +3,7 @@
 // Maquettes : docs/ux.md 3.4.
 import { el } from '../ui/dom.js';
 import { createCover, buildGameTiles } from '../ui/game-grid.js';
-import { EXIT_HINT_TEXT } from './exit-hint.js';
+import { exitHintText } from './exit-hint.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 export const MENU_NAV_ID = 'menu';
@@ -76,8 +76,8 @@ export const renderLoading = (title, doc = globalThis.document) => el('div', { c
   el('p', { class: 'muted', text: 'Chargement...' }, [], doc),
 ], doc);
 
-/** Bandeau de rappel de la sortie. */
-export const renderExitHint = (doc = globalThis.document) => el('p', { class: 'exit-hint', text: EXIT_HINT_TEXT, attrs: { role: 'status' } }, [], doc);
+/** Bandeau de rappel de la sortie. @param {boolean} touchOnly tactile sans manette : texte court */
+export const renderExitHint = (touchOnly, doc = globalThis.document) => el('p', { class: 'exit-hint', text: exitHintText(touchOnly), attrs: { role: 'status' } }, [], doc);
 
 /**
  * Bouton Menu (maison + texte) entouré d'un anneau de progression (maintien Select+Start ou Échap).

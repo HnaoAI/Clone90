@@ -80,7 +80,7 @@ export const headExists = async (url) => (await fetch(url, { method: 'HEAD', cac
  * @returns {{title: string, detail: string}[]}
  */
 export const describeMissing = (missing) => missing.map((f) => (f.kind === 'bios'
-  ? { title: 'BIOS manquant', detail: `BIOS manquant : ${f.path.slice(BIOS_DIR.length + 1)} dans ${BIOS_DIR}/ (nom exact, voir le README).` }
+  ? { title: 'BIOS manquant', detail: `Placez ${f.path.slice(BIOS_DIR.length + 1)} dans le dossier ${BIOS_DIR}/ (nom exact, voir le README).` }
   : { title: 'Jeu introuvable', detail: `Le fichier ${f.path} n'existe plus. Relancez node scripts/generate-games.mjs puis rechargez la liste.` }));
 
 /**

@@ -106,7 +106,7 @@ test('describeMissing : message clair "BIOS manquant : nom dans bios/" et jeu in
   const plan = buildLaunchPlan({ system: amiga, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } });
   const [msg] = describeMissing(plan.files.filter((f) => f.kind === 'bios'));
   assert.equal(msg.title, 'BIOS manquant');
-  assert.match(msg.detail, /kick40068\.A1200/);
+  assert.match(msg.detail, /^Placez kick40068\.A1200 dans le dossier bios\//);
   assert.match(msg.detail, /bios\//);
   const [g] = describeMissing(plan.files.filter((f) => f.kind === 'game'));
   assert.equal(g.title, 'Jeu introuvable');

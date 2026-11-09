@@ -2,6 +2,10 @@
 // (compteur en localStorage). Aucune dépendance ; le stockage est injectable.
 
 export const EXIT_HINT_TEXT = 'Quitter : Select + Start (maintenir) - F10 - bouton Menu';
+/** Rappel court pour un appareil tactile sans manette (ni clavier ni Select+Start à citer). */
+export const EXIT_HINT_TEXT_TOUCH = 'Quitter : bouton Menu';
+/** @param {boolean} touchOnly appareil tactile sans manette détectée */
+export const exitHintText = (touchOnly) => (touchOnly ? EXIT_HINT_TEXT_TOUCH : EXIT_HINT_TEXT);
 export const EXIT_HINT_MS = 4000;
 export const EXIT_HINT_MAX_LAUNCHES = 3;
 export const EXIT_HINT_STORAGE_KEY = 'clone90.exitHintCount';

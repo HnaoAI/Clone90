@@ -43,11 +43,13 @@ body.is-playing .player-screen:empty { display: none; }
   top: calc(8px + env(safe-area-inset-top, 0px));
   left: calc(8px + env(safe-area-inset-left, 0px));
   pointer-events: auto;
-  opacity: 0.6;
+  opacity: 1; /* écrans Jouer, chargement, erreurs : contraste plein (CA-V2) */
   transition: opacity 200ms;
 }
-@media (hover: none) { .menu-wrap { opacity: 0.4; } }
-.menu-wrap:hover, .menu-wrap:focus-within, .menu-wrap.is-holding { opacity: 1; }
+/* Pendant le jeu seulement : semi-transparent (docs/ux.md 3.4). */
+body.is-playing .menu-wrap { opacity: 0.6; }
+@media (hover: none) { body.is-playing .menu-wrap { opacity: 0.4; } }
+.menu-wrap:hover, .menu-wrap:focus-within, .menu-wrap.is-holding, body.is-playing .menu-wrap:hover, body.is-playing .menu-wrap:focus-within, body.is-playing .menu-wrap.is-holding { opacity: 1; }
 .is-idle .menu-wrap:not(:focus-within):not(.is-holding) { opacity: 0; }
 
 .menu-button {

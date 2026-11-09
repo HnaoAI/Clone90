@@ -1,7 +1,7 @@
 // Tests des parties pures de l'écran de jeu (T7) : rappel de sortie, textes, anneau de progression, mode d'entrée.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shouldShowExitHint, EXIT_HINT_MAX_LAUNCHES, EXIT_HINT_STORAGE_KEY } from '../js/player/exit-hint.js';
+import { exitHintText, shouldShowExitHint, EXIT_HINT_MAX_LAUNCHES, EXIT_HINT_STORAGE_KEY } from '../js/player/exit-hint.js';
 import { exitDialogOptions, ringDashOffset, describeLoadError, playScreenModel } from '../js/player/player-ui.js';
 import { setGamepadMode, watchPointer } from '../js/ui/input-mode.js';
 
@@ -67,4 +67,9 @@ test('setGamepadMode / watchPointer : la souris coupe le mode manette', () => {
   watchPointer(win);
   handlers.pointerdown();
   assert.ok(!classes.has('input-gamepad'));
+});
+
+test('exitHintText : texte court sur tactile sans manette, complet sinon', () => {
+  assert.equal(exitHintText(true), 'Quitter : bouton Menu');
+  assert.match(exitHintText(false), /Select \+ Start.*F10.*Menu/);
 });

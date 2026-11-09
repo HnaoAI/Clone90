@@ -125,7 +125,9 @@ function showExitHint() {
   let storage = null;
   try { storage = window.localStorage; } catch { /* accès refusé */ }
   if (!shouldShowExitHint(storage)) return;
-  const hint = renderExitHint();
+  const noPointerHover = window.matchMedia?.('(hover: none)').matches === true;
+  const hasGamepad = Array.from(navigator.getGamepads?.() ?? []).some(Boolean);
+  const hint = renderExitHint(noPointerHover && !hasGamepad);
   chrome.append(hint);
   setTimeout(() => hint.remove(), EXIT_HINT_MS);
 }
