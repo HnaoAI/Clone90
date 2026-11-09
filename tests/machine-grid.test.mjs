@@ -131,3 +131,11 @@ test('renderMachineGrid : sans logo déclaré, le repli est affiché d\'emblée'
   assert.equal(find(root, (n) => n.tag === 'img').length, 0);
   assert.ok(find(root, (n) => /logo-fallback/.test(n.attrs.class ?? '')).length === 1);
 });
+
+import { splitCode } from '../js/ui/format.js';
+test('splitCode : isole chemins et commandes pour la police mono, le reste reste du texte', () => {
+  const parts = splitCode('Déposez dans roms/<machine>/ puis node scripts/generate-games.mjs ok');
+  assert.deepEqual(parts.filter((p) => p.code).map((p) => p.text), ['roms/<machine>/', 'node scripts/generate-games.mjs']);
+  assert.equal(parts.map((p) => p.text).join(''), 'Déposez dans roms/<machine>/ puis node scripts/generate-games.mjs ok');
+  assert.deepEqual(splitCode('rien'), [{ text: 'rien', code: false }]);
+});

@@ -35,7 +35,7 @@
 }
 @media (max-width: 599px) { .machine-tile { aspect-ratio: auto; min-height: 132px; padding: 8px; } }
 
-.machine-tile:hover { background: var(--surface-2); }
+@media (hover: hover) { .machine-tile:hover { background: var(--surface-2); } }
 .machine-tile:focus-visible, .input-gamepad .machine-tile:focus { transform: scale(1.05); z-index: 1; }
 
 .machine-logo {

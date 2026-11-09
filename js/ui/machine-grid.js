@@ -5,7 +5,7 @@
 import { assetUrl } from '../data.js';
 import { buildHash } from '../router.js';
 import { el } from './dom.js';
-import { formatGameCount } from './format.js';
+import { formatGameCount, splitCode } from './format.js';
 
 const NEUTRAL_ACCENT = 'var(--surface-2)';
 
@@ -108,7 +108,7 @@ export function renderHome({ tiles, gamesStatus, skipped = 0 }, doc = globalThis
     el('h2', { class: 'screen-title', text: 'Choisis une machine' }, [], doc),
     status && el('div', { class: 'banner', attrs: { role: 'status' } }, [
       el('strong', { text: status.title }, [], doc),
-      el('p', { text: status.text }, [], doc),
+      el('p', {}, splitCode(status.text).map((s) => (s.code ? el('code', { text: s.text }, [], doc) : s.text)), doc),
     ], doc),
     renderMachineGrid(tiles, doc),
     el('p', { class: 'key-hint', text: 'Flèches : choisir  -  Entrée / A : ouvrir' }, [], doc),
