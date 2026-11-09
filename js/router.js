@@ -1,0 +1,60 @@
+// Routes hash `#/` et `#/<machine>?focus=<idJeu>` (T3). Aucune logique d'écran, aucune liste de machines :
+// savoir si la machine existe est l'affaire de l'appelant (app.js). Le jeu est une page (player.html), pas une route.
+import { PLAYER_PAGE } from './config.js';
+import { encodeGameId } from './data.js';
+
+const SYSTEM_SEGMENT = /^[a-z0-9]+$/;
+
+/**
+ * Lit un hash. Formes : '', '#', '#/' (accueil) ; '#/<machine>[?focus=<id>]' ; sinon notfound.
+ * @param {string} [hash] valeur de location.hash
+ * @returns {{name: 'home'} | {name: 'system', system: string, focus: string|null} | {name: 'notfound'}}
+ */
+export function parseHash(hash = '') {
+  const [path, query = ''] = hash.replace(/^#/, '').split('?', 2);
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length === 0 && (path === '' || path === '/')) return { name: 'home' };
+  if (segments.length !== 1 || !path.startsWith('/') || !SYSTEM_SEGMENT.test(segments[0])) return { name: 'notfound' };
+  return { name: 'system', system: segments[0], focus: readFocus(query) };
+}
+
+/** Lit `focus` à la main : URLSearchParams décoderait déjà une fois (et lirait + comme espace), d'où un double décodage. */
+function readFocus(query) {
+  const pair = query.split('&').find((p) => p.startsWith('focus='));
+  if (!pair) return null;
+  try { return decodeURIComponent(pair.slice('focus='.length)) || null; } catch { return null; }
+}
+
+/**
+ * Construit le hash d'une route (inverse de parseHash).
+ * @param {{name: string, system?: string, focus?: string|null}} route
+ */
+export function buildHash(route) {
+  if (route.name !== 'system') return '#/';
+  const focus = route.focus ? `?focus=${encodeGameId(route.focus)}` : '';
+  return `#/${route.system}${focus}`;
+}
+
+/** URL de la page de jeu : player.html?system=<machine>&game=<id encodé>. */
+export const buildPlayerUrl = (system, gameId) => `${PLAYER_PAGE}?system=${system}&game=${encodeGameId(gameId)}`;
+
+/**
+ * Routeur lié à une fenêtre (injectable : un faux objet suffit pour les tests).
+ * @param {{location: {hash: string}, addEventListener: Function, removeEventListener: Function}} [win]
+ */
+export function createRouter(win = globalThis.window) {
+  let listener = null;
+  const stop = () => { if (listener) win.removeEventListener('hashchange', listener); listener = null; };
+  return {
+    /** Appelle onRoute tout de suite avec la route courante, puis à chaque changement de hash. */
+    start(onRoute) {
+      stop();
+      listener = () => onRoute(parseHash(win.location.hash));
+      win.addEventListener('hashchange', listener);
+      listener();
+    },
+    stop,
+    /** Change de route en écrivant le hash (déclenche hashchange). */
+    navigate(route) { win.location.hash = buildHash(route); },
+  };
+}
