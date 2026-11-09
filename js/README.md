@@ -11,7 +11,7 @@ Modules ES sans framework ni build. Chemins relatifs uniquement.
 - `input/focus-nav.js` : navigation spatiale du focus sur les éléments `data-nav` (`pickNext`, `createFocusNavigator`).
 - `screens.js` : choix de l'écran (`visibleSystems`, `resolveRoute`), logique pure.
 - `app.js` : point d'entrée de `index.html` (données, routeur, couche d'entrée, écran courant).
-- `ui/machine-grid.js` : accueil (`buildMachineTiles`, `describeGamesStatus`, `renderHome`). `ui/format.js` : libellés partagés. `ui/toast.js` : message temporaire. `ui/error-screen.js` : erreur bloquante.
+- `ui/machine-grid.js` : accueil (`buildMachineTiles`, `describeGamesStatus`, `renderHome`). `ui/logo.js` : logo machine et couleur d'accent (`createLogo`, `accentVar`). `ui/format.js` : libellés partagés. `ui/toast.js` : message temporaire. `ui/error-screen.js` : erreur bloquante.
 - `ui/game-grid.js` : grille de jeux (`gameInitials`, `buildGameTiles`, `initialFocusId`, `describeEmptyState`, `renderGameGrid`). `ui/dialog.js` : boîte de confirmation réutilisable (`createConfirmDialog`, actions transmises par l'écran hôte).
 - À venir : `player/` (T7).
 

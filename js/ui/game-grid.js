@@ -1,5 +1,5 @@
 // Écran grille de jeux d'une machine (T6) : tuiles 3:4, jaquette ou repli, état vide (docs/ux.md 3.2 et 3.3).
-// Dépend de data.js, router.js, ui/dom.js, ui/format.js, ui/machine-grid.js (logo et couleur machine partagés).
+// Dépend de data.js, router.js, ui/dom.js, ui/format.js, ui/logo.js.
 // Logique pure (gameInitials, buildGameTiles, initialFocusId, describeEmptyState) séparée du rendu (renderGameGrid).
 // INVARIANT : les tuiles sont des liens vers player.html (T7, hors périmètre ici) marqués `data-nav` ;
 // les boutons retour ont `data-nav-id` "back" et "back-empty" (jamais un id de jeu : ceux-ci contiennent "/").
@@ -8,7 +8,7 @@ import { buildHash, buildPlayerUrl } from '../router.js';
 import { ROMS_DIR } from '../config.js';
 import { el } from './dom.js';
 import { formatGameCount } from './format.js';
-import { accentVar, createLogo } from './machine-grid.js';
+import { accentVar, createLogo } from './logo.js';
 
 /** Identifiants data-nav-id du bouton retour de l'en-tête et du bouton de l'état vide (focus d'arrivée, CA-C1). */
 export const BACK_NAV_ID = 'back';
