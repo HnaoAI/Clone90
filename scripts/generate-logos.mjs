@@ -11,10 +11,10 @@ import { GLYPHS, GLYPH_WIDTH, GLYPH_HEIGHT } from './pixel-font.mjs';
 export const LOGO_TEXT_COLOR = '#f2f0e9'; // --text de docs/ux.md 5.2
 const MIN_CONTRAST = 4.5;
 const VIEW = { width: 160, height: 100 };
-const MARGIN = 8;
+const MARGIN = 12; // marge intérieure du texte (le cadre est à 3 px du bord)
 const TEXT_TOP = 34; // sous la forme décorative
 const TEXT_BOTTOM = VIEW.height - MARGIN;
-const MAX_CELL = 6;
+const MAX_CELL = 3; // même taille de lettre pour toute la famille, réduite seulement si le nom est trop long
 const LINE_GAP_CELLS = 3;
 const SHAPES = [
   (c) => `<polygon points="80,8 92,20 80,32 68,20" fill="${c}"/>`, // losange

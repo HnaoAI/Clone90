@@ -102,3 +102,8 @@ Le guide de publication sur GitHub Pages arrivera avec le ticket T8.
 ## Notes techniques
 
 - `package.json` minimal (`"type": "module"`, aucune dépendance) : il permet à Node 18 et plus d'importer les modules `js/*.js` (par exemple `js/sort.js`, partagé avec `scripts/generate-games.mjs`).
+
+## Crédits
+
+- Police **Press Start 2P** (Copyright 2012 The Press Start 2P Project Authors, licence SIL Open Font License 1.1) : fichiers `PressStart2P-Regular.ttf` et `OFL.txt` pris dans le dépôt google/fonts (https://github.com/google/fonts/tree/main/ofl/pressstart2p), copiés dans `assets/fonts/`. Téléchargement accepté par Hicham le 2026-11-09.
+- Logos des machines : dessins maison générés par `scripts/generate-logos.mjs`, sans reprise des logos officiels.

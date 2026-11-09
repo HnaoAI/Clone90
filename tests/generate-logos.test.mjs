@@ -64,7 +64,7 @@ test('un nom long est coupé en deux lignes et reste dans le cadre', () => {
   const svg = buildLogoSvg({ id: 'gameboycolor', name: 'Game Boy Color' }, '#7d3c98');
   const xs = [...svg.matchAll(/data-text[^>]*d="([^"]+)"/g)].flatMap((m) => [...m[1].matchAll(/M(\d+) (\d+)/g)].map((p) => [+p[1], +p[2]]));
   assert.ok(xs.length > 0);
-  for (const [x, y] of xs) { assert.ok(x >= 8 && x <= 152, `x=${x}`); assert.ok(y >= 8 && y <= 92, `y=${y}`); }
+  for (const [x, y] of xs) { assert.ok(x >= 12 && x <= 148, `x=${x}`); assert.ok(y >= 8 && y <= 92, `y=${y}`); }
   assert.match(svg, /data-lines="2"/);
 });
 

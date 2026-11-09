@@ -3,5 +3,5 @@
 <rect width="160" height="100" fill="#b03a2e"/>
 <rect x="3" y="3" width="154" height="94" fill="none" stroke="#f2f0e9" stroke-width="2"/>
 <polygon points="80,8 92,20 80,32 68,20" fill="#f2f0e9"/>
-<path data-text="1" d="M29 42h6v6h-6zM53 42h6v6h-6zM65 42h30v6h-30zM107 42h24v6h-24zM29 48h12v6h-12zM53 48h6v6h-6zM65 48h6v6h-6zM101 48h6v6h-6zM29 54h6v6h-6zM41 54h6v6h-6zM53 54h6v6h-6zM65 54h6v6h-6zM101 54h6v6h-6zM29 60h6v6h-6zM47 60h12v6h-12zM65 60h24v6h-24zM107 60h18v6h-18zM29 66h6v6h-6zM53 66h6v6h-6zM65 66h6v6h-6zM125 66h6v6h-6zM29 72h6v6h-6zM53 72h6v6h-6zM65 72h6v6h-6zM125 72h6v6h-6zM29 78h6v6h-6zM53 78h6v6h-6zM65 78h30v6h-30zM101 78h24v6h-24z" fill="#f2f0e9"/>
+<path data-text="1" d="M54 50h3v3h-3zM66 50h3v3h-3zM72 50h15v3h-15zM93 50h12v3h-12zM54 53h6v3h-6zM66 53h3v3h-3zM72 53h3v3h-3zM90 53h3v3h-3zM54 56h3v3h-3zM60 56h3v3h-3zM66 56h3v3h-3zM72 56h3v3h-3zM90 56h3v3h-3zM54 59h3v3h-3zM63 59h6v3h-6zM72 59h12v3h-12zM93 59h9v3h-9zM54 62h3v3h-3zM66 62h3v3h-3zM72 62h3v3h-3zM102 62h3v3h-3zM54 65h3v3h-3zM66 65h3v3h-3zM72 65h3v3h-3zM102 65h3v3h-3zM54 68h3v3h-3zM66 68h3v3h-3zM72 68h15v3h-15zM90 68h12v3h-12z" fill="#f2f0e9"/>
 </svg>
