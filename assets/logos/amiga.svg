@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100" data-lines="1">
+<title>Amiga</title>
+<rect width="160" height="100" fill="#a84300"/>
+<rect x="3" y="3" width="154" height="94" fill="none" stroke="#f2f0e9" stroke-width="2"/>
+<polygon points="80,8 92,20 80,32 68,20" fill="#f2f0e9"/>
+<path data-text="1" d="M39 50h9v3h-9zM54 50h3v3h-3zM66 50h3v3h-3zM75 50h9v3h-9zM93 50h9v3h-9zM111 50h9v3h-9zM36 53h3v3h-3zM48 53h3v3h-3zM54 53h6v3h-6zM63 53h6v3h-6zM78 53h3v3h-3zM90 53h3v3h-3zM102 53h3v3h-3zM108 53h3v3h-3zM120 53h3v3h-3zM36 56h3v3h-3zM48 56h3v3h-3zM54 56h3v3h-3zM60 56h3v3h-3zM66 56h3v3h-3zM78 56h3v3h-3zM90 56h3v3h-3zM108 56h3v3h-3zM120 56h3v3h-3zM36 59h15v3h-15zM54 59h3v3h-3zM60 59h3v3h-3zM66 59h3v3h-3zM78 59h3v3h-3zM90 59h3v3h-3zM96 59h9v3h-9zM108 59h15v3h-15zM36 62h3v3h-3zM48 62h3v3h-3zM54 62h3v3h-3zM66 62h3v3h-3zM78 62h3v3h-3zM90 62h3v3h-3zM102 62h3v3h-3zM108 62h3v3h-3zM120 62h3v3h-3zM36 65h3v3h-3zM48 65h3v3h-3zM54 65h3v3h-3zM66 65h3v3h-3zM78 65h3v3h-3zM90 65h3v3h-3zM102 65h3v3h-3zM108 65h3v3h-3zM120 65h3v3h-3zM36 68h3v3h-3zM48 68h3v3h-3zM54 68h3v3h-3zM66 68h3v3h-3zM75 68h9v3h-9zM93 68h12v3h-12zM108 68h3v3h-3zM120 68h3v3h-3z" fill="#f2f0e9"/>
+</svg>

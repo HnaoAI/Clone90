@@ -1,5 +1,13 @@
 /* Base commune (T5) : variables (docs/ux.md 5.2), typographie, en-tête, focus, message, bouton, toast.
    Les écrans ont leur feuille : home.css (accueil), grid.css (grille, T6). */
+@font-face {
+  font-family: "Press Start 2P";
+  src: url("../assets/fonts/PressStart2P-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #0f1117;
   --surface: #1a1d27;
@@ -19,8 +27,7 @@
   --m-gameboycolor: #7d3c98; --m-mastersystem: #1f5fa8; --m-gamegear: #2c3e50;
   --m-megadrive: #2b2b2b; --m-megacd: #34495e; --m-32x: #8e2a2a;
 
-  /* TODO(T5) : fichier de police Press Start 2P (licence OFL) à ajouter dans assets/fonts/ puis déclarer ici avec @font-face.
-     En attendant, la pile retombe sur la police monospace du système. */
+  /* Police pixel : Press Start 2P (licence OFL, assets/fonts/OFL.txt), déclarée par @font-face ci-dessous ; repli monospace. */
   --font-pixel: "Press Start 2P", ui-monospace, "SF Mono", Consolas, monospace;
   --font-text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Consolas, monospace;
