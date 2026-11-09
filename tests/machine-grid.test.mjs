@@ -73,10 +73,11 @@ test('describeGamesStatus : empty cite roms/<machine>/, invalid cite generate-ga
   assert.equal(describeGamesStatus('inconnu', 0), null);
 });
 
-test('visibleSystems : v1 = wave 1 seulement, sans wave défini = visible', () => {
-  const systems = [sys('a', 1), sys('b', 2, { wave: 2 }), sys('c', 3, { wave: undefined })];
-  assert.deepEqual(visibleSystems(systems, 1).map((s) => s.id), ['a', 'c']);
-  assert.equal(visibleSystems(systems, 2).length, 3);
+test('visibleSystems : wave livrée affichée (sans wave = affichée), wave non livrée masquée sauf si elle a des jeux', () => {
+  const systems = [sys('a', 1), sys('b', 2, { wave: 2 }), sys('c', 3, { wave: undefined }), sys('d', 4, { wave: 2 })];
+  assert.deepEqual(visibleSystems(systems, [], 1).map((s) => s.id), ['a', 'c']);
+  assert.deepEqual(visibleSystems(systems, [game('d', 1)], 1).map((s) => s.id), ['a', 'c', 'd']);
+  assert.equal(visibleSystems(systems, [], 2).length, 4);
 });
 
 test('resolveRoute : accueil, machine connue (avec focus), machine inconnue ou route inconnue = accueil', () => {

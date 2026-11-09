@@ -1,15 +1,18 @@
-// Choix de l'écran à afficher (T5) : logique pure, séparée de app.js (qui touche au DOM). Dépend de rien.
+// Choix de l'écran à afficher (T5) : logique pure, séparée de app.js (qui touche au DOM). Dépend de config.js.
+import { MAX_VISIBLE_WAVE } from './config.js';
 // INVARIANT : la liste des machines vient de systems.json, jamais d'ici (CLAUDE.md règle 2).
 
-/** Dernière vague de machines affichée (architecture 6.1 : wave 1 = livré à l'étape 1). À relever quand la vague 2 est livrée. */
-export const MAX_VISIBLE_WAVE = 1;
-
 /**
- * Machines affichées par l'application : celles dont la vague est livrée (sans `wave` = affichée).
+ * Machines affichées : celles dont la vague est livrée (sans `wave` = affichée), ou qui ont au moins un jeu
+ * (arbitrage PO : qui dépose des ROMs NES voit la NES sans attendre la vague 2). Ordre de `systems` conservé.
  * @param {object[]} systems machines de systems.json
+ * @param {object[]} games jeux de games.json
  * @param {number} [maxWave]
  */
-export const visibleSystems = (systems, maxWave = MAX_VISIBLE_WAVE) => systems.filter((s) => (s.wave ?? 1) <= maxWave);
+export function visibleSystems(systems, games, maxWave = MAX_VISIBLE_WAVE) {
+  const withGames = new Set(games.map((g) => g.system));
+  return systems.filter((s) => (s.wave ?? 1) <= maxWave || withGames.has(s.id));
+}
 
 /**
  * Ramène une route lue dans le hash à un écran affichable : route inconnue ou machine non affichée = accueil.

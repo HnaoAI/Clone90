@@ -312,3 +312,14 @@ test('createActionSource : une touche enfoncée hors champ puis relâchée dans 
   env.tick(1000);
   assert.equal(got.length, 1);
 });
+
+test('createActionSource : un appui plus court qu\'une frame (keydown puis keyup avant la frame) n\'est pas perdu', () => {
+  const env = fakeEnv(); const got = [];
+  createActionSource(env.options).start((a) => got.push(a));
+  env.fire('keydown', { key: 'ArrowRight' });
+  env.fire('keyup', { key: 'ArrowRight' });
+  env.tick();
+  assert.deepEqual(got, ['right']);
+  env.tick();
+  assert.deepEqual(got, ['right'], 'une seule action, pas de répétition fantôme');
+});

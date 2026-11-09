@@ -27,7 +27,7 @@ async function main() {
     createFocusNavigator({ getRoot: () => screen }).focusFirst();
     return;
   }
-  const systems = visibleSystems(data.systems);
+  const systems = visibleSystems(data.systems, data.games);
   const gamesBySystem = groupGamesBySystem(systems, data.games);
   const nav = createFocusNavigator({ getRoot: () => screen });
   const router = createRouter(window);

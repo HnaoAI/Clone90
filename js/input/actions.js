@@ -147,6 +147,7 @@ export function createActionSource(options = {}) {
   function start(handler) {
     stop();
     const keyboardHeld = new Set();
+    const pressedSinceFrame = new Set(); // appuis plus courts qu'une frame : sinon keyup les efface avant la lecture
     const reader = createGamepadReader();
     const repeater = createRepeater(repeat);
     let frameId = null;
@@ -157,6 +158,7 @@ export function createActionSource(options = {}) {
       if (!action) return;
       e.preventDefault();
       keyboardHeld.add(action);
+      pressedSinceFrame.add(action);
     };
     const onKeyUp = (e) => {
       const action = keyToAction(e.key);
@@ -165,7 +167,7 @@ export function createActionSource(options = {}) {
       if (isEditable(e.target)) return;
       if (!e.ctrlKey && !e.altKey && !e.metaKey) e.preventDefault();
     };
-    const onBlur = () => keyboardHeld.clear();
+    const onBlur = () => { keyboardHeld.clear(); pressedSinceFrame.clear(); };
 
     const readPads = () => {
       try { return reader.read(getGamepads()); } catch { return { held: new Set(), woke: false }; }
@@ -173,7 +175,9 @@ export function createActionSource(options = {}) {
     const loop = () => {
       const { held: padHeld, woke } = readPads();
       if (woke) onWake();
-      for (const action of repeater.update(new Set([...keyboardHeld, ...padHeld]), now())) {
+      const keyboardNow = new Set([...keyboardHeld, ...pressedSinceFrame]);
+      pressedSinceFrame.clear();
+      for (const action of repeater.update(new Set([...keyboardNow, ...padHeld]), now())) {
         handler(action, padHeld.has(action) ? 'gamepad' : 'keyboard');
       }
       frameId = requestFrame(loop);
