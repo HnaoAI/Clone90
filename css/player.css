@@ -1,0 +1,96 @@
+/* Page de jeu (T7) : écran Jouer, chargement, bouton Menu avec anneau, rappel de sortie. docs/ux.md 3.4 et 4.4.
+   Les variables et la boîte de confirmation viennent de base.css ; la jaquette (.game-cover) de grid.css. */
+.player-body { margin: 0; min-height: 100vh; background: #000; overflow: hidden; }
+
+.player-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 24px var(--margin-x);
+  overflow-y: auto;
+  pointer-events: none; /* le jeu en dessous reste utilisable ; les écrans et boutons réactivent */
+}
+.player-screen > * { pointer-events: auto; }
+body.is-playing .player-screen, body.is-playing .player-screen > * { pointer-events: none; }
+
+#game { position: fixed; inset: 0; z-index: 1; width: 100%; height: 100%; background: #000; }
+#game[hidden] { display: none; }
+
+.play-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 28rem;
+  text-align: center;
+}
+.play-screen p { margin: 0; }
+.play-cover { width: min(60vw, 14rem); }
+.play-title { margin: 0; font-family: var(--font-pixel); font-size: 1rem; font-weight: 400; line-height: 1.6; }
+.play-button { min-width: 12rem; min-height: 64px; font-size: 1.5rem; }
+.play-message p { color: var(--text-muted); }
+
+.loading-screen { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+body.is-playing .player-screen { background: var(--bg); }
+body.is-playing .player-screen:empty { display: none; }
+
+/* Bouton Menu : coin haut gauche, au-dessus du lecteur, hors des contrôles virtuels (en bas). */
+.chrome { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
+.menu-wrap {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  left: calc(8px + env(safe-area-inset-left, 0px));
+  pointer-events: auto;
+  opacity: 0.6;
+  transition: opacity 200ms;
+}
+@media (hover: none) { .menu-wrap { opacity: 0.4; } }
+.menu-wrap:hover, .menu-wrap:focus-within, .menu-wrap.is-holding { opacity: 1; }
+.is-idle .menu-wrap:not(:focus-within):not(.is-holding) { opacity: 0; }
+
+.menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 8px 16px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Anneau de progression du maintien (Select+Start ou Échap) autour du bouton : trait de 4 px, jamais la couleur seule (texte Menu reste). */
+.menu-ring {
+  position: absolute;
+  inset: -4px;
+  width: calc(100% + 8px);
+  height: calc(100% + 8px);
+  overflow: visible;
+  pointer-events: none;
+  opacity: 0;
+}
+.menu-wrap.is-holding .menu-ring { opacity: 1; }
+.menu-ring rect { fill: none; stroke: var(--accent); stroke-width: 4; }
+
+.exit-hint {
+  position: absolute;
+  top: calc(68px + env(safe-area-inset-top, 0px)); /* sous le bouton Menu (48 px + marges) : pas de chevauchement sur téléphone */
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 8px 16px;
+  background: rgba(15, 17, 23, 0.85);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.875rem;
+  text-align: center;
+}

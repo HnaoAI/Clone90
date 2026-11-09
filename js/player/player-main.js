@@ -1,0 +1,201 @@
+// Point d'entrée de player.html (T7) : Jouer, lancement d'EmulatorJS, sortie confirmée, retour avec focus.
+// Dépend de data, router, input/*, ui/dialog, ui/input-mode et de player/* (launcher, exit-guard, exit-hint, player-ui).
+// Phases : boot -> ready (écran Jouer) -> playing -> dialog (confirmation, jeu en pause) ; error à tout moment avant le jeu.
+// INVARIANT : pendant 'playing', la source d'actions est passive (isActive) : clavier et manette appartiennent au jeu.
+// Seuls exit-guard (lecture seule) et le bouton Menu peuvent demander la sortie.
+import { HOME_PAGE } from '../config.js';
+import { loadData } from '../data.js';
+import { parsePlayerParams, buildReturnUrl } from '../router.js';
+import { createActionSource } from '../input/actions.js';
+import { createFocusNavigator } from '../input/focus-nav.js';
+import { createConfirmDialog } from '../ui/dialog.js';
+import { setGamepadMode, watchPointer } from '../ui/input-mode.js';
+import { createToast } from '../ui/toast.js';
+import { clear } from '../ui/dom.js';
+import { buildLaunchPlan, findMissingFiles, headExists, describeMissing, loadEmulator, pauseEmulator, resumeEmulator } from './launcher.js';
+import { createExitGuard } from './exit-guard.js';
+import { shouldShowExitHint, EXIT_HINT_MS } from './exit-hint.js';
+import {
+  renderPlayScreen, renderPlayerMessage, renderLoading, renderExitHint, createMenuButton, exitDialogOptions,
+  describeLoadError, PLAY_NAV_ID, BACK_NAV_ID,
+} from './player-ui.js';
+
+const MENU_IDLE_MS = 3000;
+const LOADING_MAX_MS = 30000;
+const screen = document.getElementById('screen');
+const gameElement = document.getElementById('game');
+const chrome = document.getElementById('chrome');
+const toast = createToast(document.getElementById('toast'));
+const nav = createFocusNavigator({ getRoot: () => document.body });
+
+let phase = 'boot';
+let dialog = null;
+let leaveUrl = HOME_PAGE;
+let menu = null;
+let currentGameTitle = '';
+
+/** Quitte la page (location.replace : le jeu n'a pas besoin d'être dans l'historique). Le déchargement coupe moteur et son. */
+function leave(url) {
+  window.removeEventListener('popstate', onPopState);
+  try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch { /* meilleur effort */ }
+  location.replace(url);
+}
+const goBack = () => leave(leaveUrl);
+
+function showMessage({ title, details, actionLabel = 'Revenir à la liste' }) {
+  phase = 'error';
+  clear(screen);
+  screen.append(renderPlayerMessage({ title, details, actionLabel, onAction: goBack }));
+  nav.focusById(BACK_NAV_ID);
+}
+
+const showLoadError = (error, url) => {
+  leaveUrl = url;
+  const { title, detail } = describeLoadError(error);
+  showMessage({ title, details: [detail], actionLabel: url === HOME_PAGE ? 'Revenir à l\'accueil' : 'Revenir à la liste' });
+};
+
+/** Demande de sortie (garde, bouton Menu, retour du navigateur). Pendant la confirmation, répéter la demande = Quitter. */
+function requestExit() {
+  if (phase === 'dialog') goBack();
+  else if (phase === 'playing') openExitDialog();
+  else if (phase === 'ready') goBack();
+}
+
+async function openExitDialog() {
+  phase = 'dialog';
+  pauseEmulator(window);
+  dialog = createConfirmDialog(exitDialogOptions(currentGameTitle));
+  dialog.open(document.body);
+  const confirmed = await dialog.result;
+  dialog = null;
+  if (confirmed) { goBack(); return; }
+  resumeEmulator(window);
+  phase = 'playing';
+}
+
+function onPopState() {
+  history.pushState({ clone90: 'exit-guard' }, ''); // remet la sentinelle : le retour système ne quitte jamais directement
+  if (phase === 'dialog') dialog?.handleAction('back');
+  else requestExit();
+}
+
+const guard = createExitGuard({
+  onRequest: () => requestExit(),
+  onProgress: (p) => menu?.setProgress(p),
+  onEscapeTap: () => { if (phase === 'dialog') dialog?.handleAction('back'); },
+});
+
+function onAction(action, source) {
+  setGamepadMode(source === 'gamepad');
+  if (phase === 'dialog') {
+    // Échap (clavier) est traité par le garde : tap = Continuer, maintenu 1 s = Quitter. Sinon Échap fermerait la boîte avant 1 s.
+    // Manette : tant que Select ou Start est tenu, "valider" est ignoré, sinon répéter Select+Start (= Quitter) fermerait la boîte (Start = valider).
+    const ignored = (action === 'back' && source === 'keyboard') || (action === 'confirm' && source === 'gamepad' && guard.isSelectOrStartHeld());
+    if (!ignored) dialog?.handleAction(action);
+  } else if (phase === 'ready' || phase === 'error') {
+    if (action === 'back') goBack(); else nav.handleAction(action);
+  }
+}
+
+const actions = createActionSource({
+  isActive: () => phase !== 'playing',
+  onWake: () => {
+    setGamepadMode(true);
+    if (phase === 'playing') return; // pas de message par-dessus le jeu
+    toast('Manette connectée');
+    if (phase === 'ready') nav.focusById(PLAY_NAV_ID);
+    else if (phase === 'error') nav.focusById(BACK_NAV_ID);
+  },
+});
+
+/** Bouton Menu masqué après 3 s sans mouvement de souris (appareils à souris seulement, docs/ux.md 3.4). */
+function watchMenuIdle() {
+  if (!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) return;
+  let timer = null;
+  const wake = () => {
+    chrome.classList.remove('is-idle');
+    clearTimeout(timer);
+    if (phase === 'playing') timer = setTimeout(() => chrome.classList.add('is-idle'), MENU_IDLE_MS);
+  };
+  window.addEventListener('mousemove', wake, { passive: true });
+}
+
+function showExitHint() {
+  let storage = null;
+  try { storage = window.localStorage; } catch { /* accès refusé */ }
+  if (!shouldShowExitHint(storage)) return;
+  const hint = renderExitHint();
+  chrome.append(hint);
+  setTimeout(() => hint.remove(), EXIT_HINT_MS);
+}
+
+async function play(plan) {
+  if (phase !== 'ready') return;
+  phase = 'playing';
+  // Geste utilisateur : plein écran tout de suite (meilleur effort, refusé = on joue en fenêtre).
+  try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch { /* non supporté */ }
+  clear(screen);
+  const loading = renderLoading(currentGameTitle);
+  screen.append(loading);
+  gameElement.hidden = false;
+  document.body.classList.add('is-playing');
+  const hideLoading = () => loading.remove();
+  setTimeout(hideLoading, LOADING_MAX_MS); // si EJS_onGameStart n'arrive jamais, l'interface d'EmulatorJS reste utilisable
+  guard.start();
+  history.pushState({ clone90: 'exit-guard' }, '');
+  window.addEventListener('popstate', onPopState);
+  showExitHint();
+  try {
+    await loadEmulator(plan, { onStart: hideLoading });
+  } catch (e) {
+    guard.stop();
+    window.removeEventListener('popstate', onPopState);
+    gameElement.hidden = true;
+    document.body.classList.remove('is-playing');
+    showMessage({ title: 'Impossible de lancer ce jeu.', details: [e.message] });
+  }
+}
+
+async function main() {
+  watchPointer();
+  actions.start(onAction);
+  watchMenuIdle();
+  const { system: systemId, game: gameId } = parsePlayerParams(location.search);
+  if (!systemId || !gameId) { showLoadError({ reason: 'no-params' }, HOME_PAGE); return; }
+  let data;
+  try {
+    data = await loadData();
+  } catch (e) {
+    showLoadError({ reason: 'data', message: e.message }, HOME_PAGE);
+    return;
+  }
+  const system = data.systems.find((s) => s.id === systemId);
+  const game = data.games.find((g) => g.id === gameId && g.system === systemId);
+  if (!system) { showLoadError({ reason: 'unknown-game' }, HOME_PAGE); return; }
+  if (!game) {
+    showLoadError({ reason: data.gamesStatus === 'ok' ? 'unknown-game' : 'no-games', gamesStatus: data.gamesStatus }, buildReturnUrl(systemId, null));
+    return;
+  }
+  leaveUrl = buildReturnUrl(systemId, game.id);
+  currentGameTitle = game.title;
+  let plan;
+  try {
+    plan = buildLaunchPlan({ system, game });
+  } catch (e) {
+    showMessage({ title: 'Impossible de lancer ce jeu.', details: [e.message] });
+    return;
+  }
+  const missing = await findMissingFiles(plan, headExists);
+  if (missing.length) {
+    showMessage({ title: describeMissing(missing)[0].title, details: describeMissing(missing).map((m) => m.detail) });
+    return;
+  }
+  phase = 'ready';
+  menu = createMenuButton({ onClick: () => requestExit() });
+  chrome.append(menu.element);
+  screen.append(renderPlayScreen({ machine: system, game, onPlay: () => play(plan) }));
+  nav.focusById(PLAY_NAV_ID);
+}
+
+main();
