@@ -1,0 +1,141 @@
+/* Base commune (T5) : variables (docs/ux.md 5.2), typographie, en-tête, focus, message, bouton, toast.
+   Les écrans ont leur feuille : home.css (accueil), grid.css (grille, T6). */
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface-2: #252a38;
+  --border: #2f3547;
+  --text: #f2f0e9;
+  --text-muted: #a9adbb;
+  --accent: #ffb000;
+  --on-accent: #1a1200;
+  --focus: #3ee0ff;
+  --danger: #ff6b6b;
+  --disabled: #5c6275;
+
+  /* Couleur d'accent par machine (visuel de repli). Une variable par machine de systems.json (champ `accent`). */
+  --m-arcade: #c0392b; --m-neogeo: #7a5a06; --m-amiga: #a84300;
+  --m-nes: #b03a2e; --m-snes: #6c3fa0; --m-gameboy: #4a6a2e;
+  --m-gameboycolor: #7d3c98; --m-mastersystem: #1f5fa8; --m-gamegear: #2c3e50;
+  --m-megadrive: #2b2b2b; --m-megacd: #34495e; --m-32x: #8e2a2a;
+
+  /* TODO(T5) : fichier de police Press Start 2P (licence OFL) à ajouter dans assets/fonts/ puis déclarer ici avec @font-face.
+     En attendant, la pile retombe sur la police monospace du système. */
+  --font-pixel: "Press Start 2P", ui-monospace, "SF Mono", Consolas, monospace;
+  --font-text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Consolas, monospace;
+
+  --gap: 24px;
+  --margin-x: 48px;
+  --radius: 8px;
+}
+
+@media (max-width: 599px) {
+  :root { --gap: 12px; --margin-x: 16px; }
+}
+
+* { box-sizing: border-box; }
+
+html { color-scheme: dark; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-text);
+  font-size: 1rem;
+  line-height: 1.4;
+  overflow-x: hidden;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  min-height: 64px;
+  padding: 8px var(--margin-x);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.site-title {
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: var(--accent);
+}
+
+.screen { padding: 24px var(--margin-x) 48px; }
+
+.screen-title {
+  margin: 0 0 24px;
+  font-family: var(--font-pixel);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.muted, .key-hint { color: var(--text-muted); }
+
+/* Anneau de focus (docs/ux.md 4.3) : clavier (focus-visible) ou manette (classe posée par app.js). Jamais la couleur seule. */
+a:focus-visible, button:focus-visible,
+.input-gamepad a:focus, .input-gamepad button:focus {
+  outline: 4px solid var(--focus);
+  outline-offset: 3px;
+}
+a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: none; }
+.input-gamepad a:focus, .input-gamepad button:focus { outline: 4px solid var(--focus); }
+
+/* Message d'état (games.json absent, etc.) */
+.banner {
+  margin: 0 0 24px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+}
+.banner strong { display: block; margin-bottom: 4px; }
+.banner p { margin: 0; color: var(--text-muted); }
+
+.message-screen { max-width: 40rem; margin: 0 auto; text-align: center; }
+.message-screen p { margin: 0 0 16px; }
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 12px 24px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 0;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 12px 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms;
+}
+.toast.is-visible { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}

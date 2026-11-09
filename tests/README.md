@@ -12,3 +12,4 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `router.test.mjs` : routes hash, `?focus=`, aller-retour, routeur avec fenêtre factice (T3).
 - `sort.test.mjs` : tri des titres partagé (T3).
 - `dom.test.mjs` : helpers `el` et `clear` avec document factice (T3).
+- `machine-grid.test.mjs` : accueil (tuiles, 0 jeu en fin de liste, 12 machines, messages games.json, choix d'écran, rendu avec document factice) (T5).
