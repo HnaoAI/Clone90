@@ -84,6 +84,62 @@ async function listFiles(dir) {
   return files.sort();
 }
 
+// Convention TOSEC/No-Intro des jeux à plusieurs disquettes : `Jeu (1991)(Editeur)(Disk 2 of 3)[flag].adf`, ou `Disk 2 of 3` sans parenthèses.
+const DISK_TAG = /\s*\(\s*Disk\s*(\d+)(?:\s*of\s*(\d+))?\s*\)|\s*\bDisk\s*(\d+)\s*of\s*(\d+)\b/i;
+
+/**
+ * Lit l'étiquette de disquette d'un nom sans extension.
+ * @returns {{base: string, number: number, total: number|null}|null} `base` = nom sans étiquette de disquette ni [drapeaux] ; null si pas d'étiquette
+ */
+export function parseDiskTag(stem) {
+  const m = DISK_TAG.exec(stem);
+  if (!m) return null;
+  const number = Number(m[1] ?? m[3]);
+  if (!(number >= 1)) return null;
+  const total = m[2] ?? m[4];
+  const base = stem.replace(DISK_TAG, ' ').replace(/\s*\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
+  return base ? { base, number, total: total ? Number(total) : null } : null;
+}
+
+/**
+ * Sépare les fichiers en jeux simples et en groupes de disquettes (même dossier, même extension, même nom de base).
+ * @param {string[]} files chemins relatifs au dossier de la machine
+ * @returns {{singles: string[], groups: {base: string, total: number|null, disks: {file: string, number: number}[]}[]}}
+ */
+function groupDiskSets(files) {
+  const singles = [];
+  const byKey = new Map();
+  for (const file of files) {
+    const tag = extOf(file) === 'm3u' ? null : parseDiskTag(stemOf(file));
+    if (!tag) { singles.push(file); continue; }
+    const key = `${posix.dirname(file)}|${extOf(file)}|${tag.base.toLowerCase()}`;
+    if (!byKey.has(key)) byKey.set(key, { base: tag.base, total: null, disks: [] });
+    const group = byKey.get(key);
+    group.total = Math.max(group.total ?? 0, tag.total ?? 0) || null;
+    group.disks.push({ file, number: tag.number });
+  }
+  return { singles, groups: [...byKey.values()] };
+}
+
+/** Trie par numéro de disquette et garde un seul fichier par numéro (le premier par nom), avec avertissement pour les autres. */
+function keepOneFilePerDisk(group, systemId, warnings) {
+  const sorted = [...group.disks].sort((a, b) => a.number - b.number || (a.file < b.file ? -1 : 1));
+  return sorted.filter((disk, i) => {
+    const previous = sorted[i - 1];
+    if (previous?.number !== disk.number) return true;
+    warnings.push(`${systemId} : disquette ${disk.number} de ${group.base} en double, fichier ignoré : ${disk.file} (gardé : ${previous.file})`);
+    return false;
+  });
+}
+
+/** Texte décrivant les disquettes manquantes (numéros de 1 au total annoncé, à défaut au plus grand numéro présent), ou null. */
+function describeMissingDisks(kept, total) {
+  const expected = Math.max(total ?? 0, kept.at(-1).number);
+  const present = new Set(kept.map((d) => d.number));
+  const missing = Array.from({ length: expected }, (_, i) => i + 1).filter((n) => !present.has(n));
+  return missing.length ? `disquette(s) manquante(s) : ${missing.join(', ')} sur ${expected}` : null;
+}
+
 /**
  * Jeux d'une machine (fonction pure : aucun accès disque).
  * @param {{system: object, files: string[], texts: Record<string, string>, titles: object|null}} input
@@ -110,6 +166,28 @@ export function buildSystemGames({ system, files, texts, titles, dirName = syste
   }
 
   const byId = new Map();
+  const addGame = (id, game, file) => {
+    if (byId.has(id)) {
+      warnings.push(`${system.id} : doublon d'identifiant ${id}, fichier ignoré : ${file} (gardé : ${byId.get(id).file})`);
+      return;
+    }
+    byId.set(id, game);
+  };
+  /** Jeu pour un fichier (ou un groupe : `stem` sert à l'id et au titre, `lookupStems` à la jaquette et au .bios). */
+  const buildGame = (f, stem, lookupStems) => {
+    const dir = posix.dirname(f);
+    const cover = lookupStems.map((s) => covers.get(posix.join(dir, s).toLowerCase())).find(Boolean);
+    const game = {
+      id: makeId(system.id, stem), system: system.id, title: resolveTitle(stem, titles),
+      file: `roms/${dirName}/${f}`,
+      cover: cover ? `roms/${dirName}/${cover}` : null,
+    };
+    const bios = lookupStems.map((s) => (texts[posix.join(dir, `${s}.bios`)] ?? '').split(/\r?\n/)[0].trim()).find(Boolean);
+    if (bios) game.bios = bios;
+    return game;
+  };
+
+  const candidates = [];
   for (const f of visible) {
     const ext = extOf(f);
     if (!accepted.has(ext)) {
@@ -119,22 +197,22 @@ export function buildSystemGames({ system, files, texts, titles, dirName = syste
       continue;
     }
     if (ext !== 'm3u' && referenced.has(f.toLowerCase())) continue;
-    const stem = stemOf(f);
-    const id = makeId(system.id, stem);
-    if (byId.has(id)) {
-      warnings.push(`${system.id} : doublon d'identifiant ${id}, fichier ignoré : ${f} (gardé : ${byId.get(id).file})`);
+    candidates.push(f);
+  }
+  const { singles, groups } = groupDiskSets(candidates);
+  for (const f of singles) addGame(makeId(system.id, stemOf(f)), buildGame(f, stemOf(f), [stemOf(f)]), f);
+  for (const group of groups) {
+    const kept = keepOneFilePerDisk(group, system.id, warnings);
+    const problem = describeMissingDisks(kept, group.total);
+    if (problem) warnings.push(`${system.id} : jeu ${group.base} incomplet, ${problem}`);
+    const first = kept[0];
+    if (kept.length === 1) { // une seule disquette présente : jeu simple, comme avant
+      addGame(makeId(system.id, stemOf(first.file)), buildGame(first.file, stemOf(first.file), [stemOf(first.file)]), first.file);
       continue;
     }
-    const cover = covers.get(posix.join(posix.dirname(f), stem).toLowerCase());
-    const game = {
-      id, system: system.id, title: resolveTitle(stem, titles),
-      file: `roms/${dirName}/${f}`,
-      cover: cover ? `roms/${dirName}/${cover}` : null,
-    };
-    const biosFile = posix.join(posix.dirname(f), `${stem}.bios`);
-    const bios = (texts[biosFile] ?? '').split(/\r?\n/)[0].trim();
-    if (bios) game.bios = bios;
-    byId.set(id, game);
+    const game = buildGame(first.file, group.base, [stemOf(first.file), group.base]);
+    game.disks = kept.map((d) => `roms/${dirName}/${d.file}`);
+    addGame(game.id, game, first.file);
   }
   const games = [...byId.values()].sort((a, b) =>
     compareTitles(a.title, b.title) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));

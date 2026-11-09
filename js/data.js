@@ -35,11 +35,16 @@ export function validateSystems(raw) {
   return [...raw.systems].sort((a, b) => a.order - b.order);
 }
 
+/** `disks` (optionnel, T10) : au moins deux chemins relatifs sûrs, le premier étant `file`. Un jeu simple n'a pas ce champ. */
+const hasValidDisks = (g) => g.disks === undefined
+  || (Array.isArray(g.disks) && g.disks.length >= 2 && g.disks.every(isRelativePath) && g.disks[0] === g.file);
+
 const isValidGame = (g, systemIds) => isObject(g)
   && isNonEmptyString(g.id) && isNonEmptyString(g.title)
   && systemIds.includes(g.system) && g.id.startsWith(`${g.system}/`)
   && isRelativePath(g.file)
-  && (g.cover === null || g.cover === undefined || isRelativePath(g.cover));
+  && (g.cover === null || g.cover === undefined || isRelativePath(g.cover))
+  && hasValidDisks(g);
 
 /**
  * Valide games.json : les entrées invalides (champ manquant, machine inconnue, id dupliqué,
