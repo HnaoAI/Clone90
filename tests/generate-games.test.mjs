@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, copyFile } from 'node
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
-  cleanTitle, makeId, resolveTitle, parseM3u, readSystems, generateGames, runGenerate,
+  cleanTitle, makeId, resolveTitle, parseM3u, readSystems, generateGames, runGenerate, pickSystemDir,
 } from '../scripts/generate-games.mjs';
 
 const FIXED_DATE = new Date('2026-11-09T21:00:00.000Z');
@@ -288,4 +288,30 @@ test('runGenerate : systems.json illisible donne le code de sortie 1 et n\'écri
     assert.ok(errors.join('').includes('systems.json'));
     assert.ok(!(await readdir(root)).includes('games.json'));
   }, { withSystems: false });
+});
+
+// --- T0 : casse du dossier de machine (Hicham a roms/Amiga/ ; macOS l'accepte, Linux non) et noms de style TOSEC ---
+test('cleanTitle : nom TOSEC/No-Intro (année, éditeur, disque, crack) donne le titre seul', () => {
+  assert.equal(cleanTitle('Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro]'), 'Leander');
+});
+
+test('dossier de machine retrouvé sans tenir compte de la casse, chemins de games.json = chemins réels', async () => {
+  await withProject({ 'roms/Amiga/Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf': 'x', 'roms/Amiga/Autre.adf': 'x' }, async (root) => {
+    const games = await gamesOf(root);
+    assert.deepEqual(games.map((g) => g.title), ['Autre', 'Leander']);
+    const leander = games.find((g) => g.title === 'Leander');
+    assert.equal(leander.system, 'amiga');
+    assert.ok(leander.id.startsWith('amiga/'), 'l\'id garde l\'id de la machine en minuscules');
+    assert.equal(leander.file, 'roms/Amiga/Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf');
+    const dir = await readdir(join(root, 'roms'));
+    assert.deepEqual(dir, ['Amiga'], 'le dossier de l\'utilisateur n\'est pas renommé');
+  });
+});
+
+test('pickSystemDir : casse exacte préférée, sinon premier nom égal sans tenir compte de la casse (tri stable), sinon l\'id', () => {
+  assert.equal(pickSystemDir(['Amiga', 'amiga'], 'amiga'), 'amiga');
+  assert.equal(pickSystemDir(['neogeo', 'Amiga'], 'amiga'), 'Amiga');
+  assert.equal(pickSystemDir(['b', 'AMIGA', 'Amiga'], 'amiga'), 'AMIGA');
+  assert.equal(pickSystemDir(['neogeo'], 'amiga'), 'amiga');
+  assert.equal(pickSystemDir([], 'amiga'), 'amiga');
 });

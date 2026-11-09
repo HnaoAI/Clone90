@@ -25,6 +25,9 @@
           "note": "Kickstart 3.1 A1200, renommer le fichier avec ce nom exact"
         }
       ],
+      "coreOptions": {
+        "puae_model": "A1200"
+      },
       "logo": "assets/logos/amiga.svg",
       "accent": "--m-amiga",
       "wave": 1
@@ -42,6 +45,7 @@
           "file": "neogeo.zip",
           "required": true,
           "role": "default",
+          "keepZipped": true,
           "note": "Laisser zippé"
         }
       ],
@@ -61,7 +65,8 @@
         {
           "file": "neogeo.zip",
           "required": false,
-          "role": "optional",
+          "role": "default",
+          "keepZipped": true,
           "note": "Utile pour les jeux de la famille Neo Geo, laisser zippé"
         }
       ],

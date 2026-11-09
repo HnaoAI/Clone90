@@ -52,11 +52,11 @@ EmulatorJS n'accepte que des **noms de fichier précis**. Renommez votre Kicksta
 | `kick39106.A4000`, `kick40068.A4000` | A4000 |
 | `kick40060.CD32` | CD32 |
 
-Les jeux Amiga (`.adf`, `.adz`, `.dms`, `.ipf`, `.hdf`, `.hdz`, `.lha`, `.zip`, `.m3u`) vont dans `roms/amiga/`. Ces noms et formats seront confirmés par le spike T0 (ROMs réelles).
+Les jeux Amiga (`.adf`, `.adz`, `.dms`, `.ipf`, `.hdf`, `.hdz`, `.lha`, `.zip`, `.m3u`) vont dans `roms/amiga/` (la casse du dossier n'a pas d'importance : `roms/Amiga/` est trouvé aussi). Testé avec un vrai Kickstart 3.1 A1200 renommé `kick40068.A1200` et un `.adf` : le jeu démarre, l'émulation est réglée sur le modèle A1200. Les formats IPF et les jeux à plusieurs disquettes ne sont pas encore validés.
 
 ### BIOS Neo Geo
 
-Placez `neogeo.zip` dans `bios/`, **sans le décompresser**. Les jeux sont des romsets FBNeo au format `.zip` dans `roms/neogeo/`, et **le nom du fichier doit être celui du romset** (`mslug.zip`, pas `Metal Slug.zip`). Les romsets doivent correspondre à la version de FBNeo utilisée par EmulatorJS.
+Placez `neogeo.zip` dans `bios/`, **sans le décompresser** (testé avec un vrai `neogeo.zip` et le romset `viewpoin.zip`). Les jeux sont des romsets FBNeo au format `.zip` dans `roms/neogeo/`, et **le nom du fichier doit être celui du romset** (`mslug.zip`, pas `Metal Slug.zip`). Les romsets doivent correspondre à la version de FBNeo utilisée par EmulatorJS.
 
 ### Autres machines
 
@@ -91,7 +91,7 @@ Le guide de publication sur GitHub Pages arrivera avec le ticket T8.
 
 - Quitter un jeu ramène à la grille de la machine avec le jeu quitté sélectionné. Le bouton Retour du navigateur, depuis cette grille, peut ramener à l'écran Jouer du même jeu.
 - Sortie du jeu : Select + Start maintenus 1 s (manette), F10 ou Échap maintenu 1 s (clavier), bouton Menu (souris, tactile), geste Retour d'Android. Tous ouvrent une confirmation.
-- Pas encore validé avec de vraies ROMs et de vrais BIOS (ticket T0) : chemin des BIOS Kickstart et `neogeo.zip`, formats IPF et multi-disquettes, pause et reprise, F10 libre dans EmulatorJS.
+- Validé avec de vrais fichiers (ticket T0, Chromium) : Neo Geo (Viewpoint) et Amiga (Leander), BIOS trouvés, pause et reprise, F10, Échap maintenu. Pas encore validé : formats IPF et multi-disquettes, Échap maintenu en plein écran sur un vrai Chrome (sinon utiliser F10 ou le bouton Menu).
 
 ## Installation PWA et hors ligne (T8)
 

@@ -89,6 +89,7 @@ test('systems.json : amiga est complète (puae, Kickstart 3.1 imposé, wave 1)',
   }
   assert.deepEqual(amiga.bios.map((b) => [b.file, b.required, b.role]),
     [['kick40068.A1200', true, 'default']]);
+  assert.deepEqual(amiga.coreOptions, { puae_model: 'A1200' }, 'sans cela puae prend A500 et cherche kick34005.A500 (T0)');
 });
 
 test('systems.json : neogeo est complète (alias arcade, neogeo.zip, wave 1)', () => {
@@ -100,6 +101,19 @@ test('systems.json : neogeo est complète (alias arcade, neogeo.zip, wave 1)', (
   assert.deepEqual(neogeo.extensions, ['zip']);
   assert.deepEqual(neogeo.bios.map((b) => [b.file, b.required, b.role]),
     [['neogeo.zip', true, 'default']]);
+  assert.equal(neogeo.bios[0].keepZipped, true, 'fbneo veut neogeo.zip entier (T0)');
+});
+
+test('systems.json : neogeo.zip est déclaré de la même façon partout (keepZipped), neogeo et arcade ne divergent pas', () => {
+  const entries = systems.flatMap((s) => s.bios.filter((b) => b.file === 'neogeo.zip').map((b) => [s.id, b]));
+  assert.deepEqual(entries.map(([id]) => id).sort(), ['arcade', 'neogeo']);
+  for (const [id, b] of entries) assert.equal(b.role, 'default', `${id} : neogeo.zip doit être le BIOS par défaut (sinon jamais fourni au cœur)`);
+  for (const [id, b] of entries) assert.equal(b.keepZipped, true, `${id} : neogeo.zip doit être keepZipped (fbneo veut le zip entier)`);
+});
+
+test('systems.json : keepZipped ne figure que sur neogeo.zip (booléen)', () => {
+  const flagged = systems.flatMap((s) => s.bios.filter((b) => 'keepZipped' in b).map((b) => `${s.id}/${b.file}/${b.keepZipped}`));
+  assert.deepEqual(flagged.sort(), ['arcade/neogeo.zip/true', 'neogeo/neogeo.zip/true']);
 });
 
 test('systems.json : les autres machines sont marquées wave 2', () => {
