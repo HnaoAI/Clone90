@@ -62,6 +62,23 @@ Placez `neogeo.zip` dans `bios/`, **sans le décompresser**. Les jeux sont des r
 
 Aucun BIOS requis. Optionnels : `bios_MD.bin` (Mega Drive), `bios_CD_E.bin`, `bios_CD_U.bin`, `bios_CD_J.bin` (Mega-CD), `gb_bios.bin` (Game Boy), `gbc_bios.bin` (Game Boy Color), `neogeo.zip` (Arcade).
 
+## Générer la liste des jeux
+
+Après chaque ajout ou retrait de ROM, relancez :
+
+```
+node scripts/generate-games.mjs
+```
+
+Le script lit `systems.json`, scanne `roms/<machine>/` (un niveau de sous-dossier toléré) et écrit `games.json` (ignoré par git). Il affiche le nombre de jeux par machine et des avertissements (BIOS requis absent, extension non prise en charge, doublon).
+
+- `--check` : affiche le diagnostic sans écrire `games.json`.
+- Titre : nom du fichier nettoyé (`Lemmings (Europe).adf` donne `Lemmings`), ou, pour les romsets arcade et Neo Geo, la correspondance de `data/titles.json` (`"mslug": "Metal Slug"`). Ajoutez-y vos romsets.
+- Jaquette (facultative) : une image `.png`, `.jpg`, `.jpeg` ou `.webp` de même nom que le jeu, dans le même dossier.
+- Amiga multi-disquettes : listez les disquettes dans un `.m3u` ; seul le `.m3u` apparaît comme jeu.
+- BIOS spécifique à un jeu : un fichier `<nom du jeu>.bios` contenant le nom du BIOS (une ligne).
+- Les fichiers cachés (commençant par `.`) sont ignorés.
+
 ## Tests
 
 ```
