@@ -67,7 +67,7 @@ export function describeGamesStatus(status, skipped = 0) {
 const logoFallback = (name, doc) => el('span', { class: 'logo-fallback', text: name, attrs: { 'aria-hidden': 'true' } }, [], doc);
 
 /** Zone du logo : image, remplacée par le repli si elle manque ou ne charge pas (jamais d'image cassée, CA-C2). */
-function createLogo(tile, doc) {
+export function createLogo(tile, doc) {
   const box = el('span', { class: 'machine-logo', attrs: { style: `--tile-accent: ${tile.accent}`, 'aria-hidden': 'true' } }, [], doc);
   if (!tile.logo) { box.append(logoFallback(tile.name, doc)); return box; }
   const img = el('img', { attrs: { src: tile.logo, alt: '', loading: 'lazy', decoding: 'async' } }, [], doc);

@@ -12,6 +12,7 @@ Modules ES sans framework ni build. Chemins relatifs uniquement.
 - `screens.js` : choix de l'écran (`visibleSystems`, `resolveRoute`), logique pure.
 - `app.js` : point d'entrée de `index.html` (données, routeur, couche d'entrée, écran courant).
 - `ui/machine-grid.js` : accueil (`buildMachineTiles`, `describeGamesStatus`, `renderHome`). `ui/format.js` : libellés partagés. `ui/toast.js` : message temporaire. `ui/error-screen.js` : erreur bloquante.
-- À venir : grille de jeux, dialogue et `player/` (T6, T7).
+- `ui/game-grid.js` : grille de jeux (`gameInitials`, `buildGameTiles`, `initialFocusId`, `describeEmptyState`, `renderGameGrid`). `ui/dialog.js` : boîte de confirmation réutilisable (`createConfirmDialog`, actions transmises par l'écran hôte).
+- À venir : `player/` (T7).
 
-Tests : `tests/actions.test.mjs`, `tests/focus-nav.test.mjs`, `tests/data.test.mjs`, `tests/router.test.mjs`, `tests/dom.test.mjs`, `tests/machine-grid.test.mjs`.
+Tests : `tests/actions.test.mjs`, `tests/focus-nav.test.mjs`, `tests/data.test.mjs`, `tests/router.test.mjs`, `tests/dom.test.mjs`, `tests/machine-grid.test.mjs`, `tests/game-grid.test.mjs`.
