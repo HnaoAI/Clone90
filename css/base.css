@@ -141,3 +141,28 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* Boîte de confirmation (js/ui/dialog.js) : partagée par la grille et le player. */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 17, 23, 0.85);
+}
+.dialog-box {
+  width: min(100%, 24rem);
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.dialog-title { margin: 0 0 12px; font-size: 1.25rem; }
+.dialog-message { margin: 0 0 24px; color: var(--text-muted); }
+.dialog-actions { display: flex; gap: 12px; justify-content: flex-end; }
+.dialog-button.is-danger { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+
+/* Marge de défilement : scrollIntoView (js/input/focus-nav.js) garde visibles l'anneau de focus (4 px + 3 px) et la mise à l'échelle 1.05 (CA-N6). */
+[data-nav] { scroll-margin: 20px; }

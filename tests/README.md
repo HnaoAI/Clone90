@@ -13,3 +13,4 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `sort.test.mjs` : tri des titres partagé (T3).
 - `dom.test.mjs` : helpers `el` et `clear` avec document factice (T3).
 - `machine-grid.test.mjs` : accueil (tuiles, 0 jeu en fin de liste, 12 machines, messages games.json, choix d'écran, rendu avec document factice) (T5).
+- `game-grid.test.mjs` : grille de jeux (initiales, tuiles, focus de retour, état vide, repli de jaquette) et boîte de confirmation (T6).

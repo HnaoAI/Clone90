@@ -1,7 +1,8 @@
 // Tests de l'accueil (T5) : tuiles machines, états, messages, choix d'écran, rendu avec document factice.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMachineTiles, describeGamesStatus, renderMachineGrid, accentVar } from '../js/ui/machine-grid.js';
+import { buildMachineTiles, describeGamesStatus, renderMachineGrid } from '../js/ui/machine-grid.js';
+import { accentVar } from '../js/ui/logo.js';
 import { formatGameCount } from '../js/ui/format.js';
 import { visibleSystems, resolveRoute } from '../js/screens.js';
 import { groupGamesBySystem } from '../js/data.js';

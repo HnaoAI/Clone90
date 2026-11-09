@@ -7,9 +7,10 @@ import { createActionSource } from './input/actions.js';
 import { createFocusNavigator } from './input/focus-nav.js';
 import { visibleSystems, resolveRoute } from './screens.js';
 import { buildMachineTiles, renderHome } from './ui/machine-grid.js';
+import { renderGameGrid, initialFocusId, EMPTY_NAV_ID } from './ui/game-grid.js';
 import { renderFatalError } from './ui/error-screen.js';
 import { createToast } from './ui/toast.js';
-import { clear, el } from './ui/dom.js';
+import { clear } from './ui/dom.js';
 
 const screen = document.getElementById('screen');
 const toast = createToast(document.getElementById('toast'));
@@ -42,17 +43,15 @@ async function main() {
     if (lastSystem) nav.focusById(lastSystem); // retour d'une grille : le focus revient sur la machine quittée
   }
 
-  // TODO(T6) : remplacer par game-grid.js (grille de jeux, état vide, focus de retour).
-  function showSystemPlaceholder(machine) {
+  function showGameGrid(machine, focus) {
     clear(screen);
     lastSystem = machine.id;
-    screen.append(el('section', { class: 'message-screen' }, [
-      el('h2', { class: 'screen-title', text: machine.name }),
-      el('p', { text: 'La grille de jeux arrive bientôt.' }),
-      el('a', { class: 'button', text: 'Revenir aux machines', attrs: { href: '#/' }, dataset: { nav: '' } }),
-    ]));
+    const games = gamesBySystem.get(machine.id) ?? [];
+    screen.append(renderGameGrid({ machine, games }));
     current = { onBack: () => router.navigate({ name: 'home' }) };
-    nav.focusFirst();
+    window.scrollTo(0, 0);
+    // Focus sur le jeu quitté (?focus=), sinon le 1er jeu, sinon (état vide) le bouton "Revenir aux machines".
+    nav.focusById(initialFocusId(games, focus) ?? EMPTY_NAV_ID);
   }
 
   function onRoute(route) {
@@ -61,7 +60,7 @@ async function main() {
       if (route.name !== 'home') { location.replace('#/'); return; } // route inconnue : on réécrit le hash sans polluer l'historique
       showHome();
     } else {
-      showSystemPlaceholder(target.machine);
+      showGameGrid(target.machine, target.focus);
     }
   }
 
