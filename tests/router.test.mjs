@@ -85,3 +85,19 @@ test('createRouter : un second start remplace le premier écouteur (pas de doubl
   assert.equal(win.count(), 1);
   assert.equal(n, 11);
 });
+
+test('buildReturnUrl (T7) : index.html#/<machine>?focus=<id> encodé, relatif', async () => {
+  const { buildReturnUrl } = await import('../js/router.js');
+  assert.equal(buildReturnUrl('neogeo', 'neogeo/mslug'), 'index.html#/neogeo?focus=neogeo%2Fmslug');
+  const url = buildReturnUrl('amiga', "amiga/l'été&co?#");
+  assert.deepEqual(parseHash(url.slice(url.indexOf('#'))), { name: 'system', system: 'amiga', focus: "amiga/l'été&co?#" });
+  assert.ok(!url.startsWith('/') && !url.includes('://'));
+});
+
+test('parsePlayerParams (T7) : aller-retour avec buildPlayerUrl, valeurs absentes = null', async () => {
+  const { parsePlayerParams } = await import('../js/router.js');
+  const url = buildPlayerUrl('amiga', "amiga/l'été&co+x y");
+  assert.deepEqual(parsePlayerParams(url.slice(url.indexOf('?'))), { system: 'amiga', game: "amiga/l'été&co+x y" });
+  assert.deepEqual(parsePlayerParams(''), { system: null, game: null });
+  assert.deepEqual(parsePlayerParams('?system=&game=x'), { system: null, game: 'x' });
+});

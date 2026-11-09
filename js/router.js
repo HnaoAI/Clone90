@@ -1,6 +1,6 @@
 // Routes hash `#/` et `#/<machine>?focus=<idJeu>` (T3). Aucune logique d'écran, aucune liste de machines :
 // savoir si la machine existe est l'affaire de l'appelant (app.js). Le jeu est une page (player.html), pas une route.
-import { PLAYER_PAGE } from './config.js';
+import { PLAYER_PAGE, HOME_PAGE } from './config.js';
 import { encodeGameId } from './data.js';
 
 const SYSTEM_SEGMENT = /^[a-z0-9]+$/;
@@ -37,6 +37,19 @@ export function buildHash(route) {
 
 /** URL de la page de jeu : player.html?system=<machine>&game=<id encodé>. */
 export const buildPlayerUrl = (system, gameId) => `${PLAYER_PAGE}?system=${system}&game=${encodeGameId(gameId)}`;
+
+/** URL de retour après un jeu (architecture 8.3, encodage 6.2) : index.html#/<machine>?focus=<id>. */
+export const buildReturnUrl = (system, gameId) => `${HOME_PAGE}${buildHash({ name: 'system', system, focus: gameId })}`;
+
+/**
+ * Lit les paramètres de player.html (inverse de buildPlayerUrl).
+ * @param {string} [search] valeur de location.search
+ * @returns {{system: string|null, game: string|null}} null si absent ou vide
+ */
+export function parsePlayerParams(search = '') {
+  const params = new URLSearchParams(search);
+  return { system: params.get('system') || null, game: params.get('game') || null };
+}
 
 /**
  * Routeur lié à une fenêtre (injectable : un faux objet suffit pour les tests).

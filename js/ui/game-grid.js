@@ -75,8 +75,8 @@ function coverFallback(tile, machine, doc) {
   ];
 }
 
-/** Zone jaquette 3:4 : image, remplacée par le repli si absente ou si elle ne charge pas (CA-C2). */
-function createCover(tile, machine, doc) {
+/** Zone jaquette 3:4 (aussi utilisée par l'écran Jouer, T7) : image, remplacée par le repli si absente ou si elle ne charge pas (CA-C2). */
+export function createCover(tile, machine, doc) {
   const box = el('span', { class: 'game-cover', attrs: { style: `--tile-accent: ${tile.accent}`, 'aria-hidden': 'true' } }, [], doc);
   if (!tile.cover) { box.append(...coverFallback(tile, machine, doc)); return box; }
   const img = el('img', { attrs: { src: tile.cover, alt: '', loading: 'lazy', decoding: 'async' } }, [], doc);
