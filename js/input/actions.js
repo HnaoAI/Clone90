@@ -26,6 +26,16 @@ export const DEFAULT_REPEAT = Object.freeze({ delay: 400, interval: 120 });
 export const keyToAction = (key) => KEY_ACTIONS[key] ?? null;
 
 /**
+ * Vrai si la cible d'un événement clavier est un champ de saisie (input, textarea, select, contenteditable) :
+ * la frappe lui appartient, la couche d'entrée ne doit ni la consommer ni la traduire en action.
+ * @param {{tagName?: string, isContentEditable?: boolean}|null|undefined} target
+ */
+export function isEditable(target) {
+  if (!target) return false;
+  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(String(target.tagName).toUpperCase()) || target.isContentEditable === true;
+}
+
+/**
  * Actions tenues par une manette à cet instant (croix, stick gauche au-delà du seuil, boutons).
  * Stick en diagonale : seul l'axe dominant compte.
  * @param {Gamepad|null|undefined} pad
@@ -107,7 +117,7 @@ export function createRepeater({ delay, interval } = {}) {
 
 /**
  * Source d'actions : écoute le clavier, lit les manettes à chaque frame, applique une seule répétition.
- * Les touches gérées sont consommées (preventDefault) pour éviter le défilement et le double clic natif
+ * Les touches gérées sont consommées, sauf dans un champ de saisie (isEditable), (preventDefault) pour éviter le défilement et le double clic natif
  * sur Entrée/Espace ; les combinaisons avec Ctrl, Alt ou Méta restent au navigateur.
  * @param {object} [options] tout est injectable pour les tests
  * @param {EventTarget} [options.target] défaut : window
@@ -141,7 +151,7 @@ export function createActionSource(options = {}) {
     const repeater = createRepeater(repeat);
     let frameId = null;
 
-    const consumable = (e) => !e.ctrlKey && !e.altKey && !e.metaKey && keyToAction(e.key);
+    const consumable = (e) => !isEditable(e.target) && !e.ctrlKey && !e.altKey && !e.metaKey && keyToAction(e.key);
     const onKeyDown = (e) => {
       const action = consumable(e);
       if (!action) return;
@@ -151,8 +161,9 @@ export function createActionSource(options = {}) {
     const onKeyUp = (e) => {
       const action = keyToAction(e.key);
       if (!action) return;
-      if (!e.ctrlKey && !e.altKey && !e.metaKey) e.preventDefault();
       keyboardHeld.delete(action);
+      if (isEditable(e.target)) return;
+      if (!e.ctrlKey && !e.altKey && !e.metaKey) e.preventDefault();
     };
     const onBlur = () => keyboardHeld.clear();
 

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ACTIONS, keyToAction, readGamepad, createGamepadReader, createRepeater, createActionSource,
+  ACTIONS, keyToAction, isEditable, readGamepad, createGamepadReader, createRepeater, createActionSource,
 } from '../js/input/actions.js';
 
 /** Manette factice au mapping standard : buttons = indices pressés, axes = [x, y]. */
@@ -279,4 +279,36 @@ test('createActionSource : un second start remplace le premier (pas d\'actions e
   env.fire('keydown', { key: 'Enter' });
   env.tick();
   assert.deepEqual(got, [['B', 'confirm']]);
+});
+
+test('isEditable : input, textarea, select et contenteditable', () => {
+  assert.equal(isEditable({ tagName: 'INPUT' }), true);
+  assert.equal(isEditable({ tagName: 'textarea' }), true);
+  assert.equal(isEditable({ tagName: 'SELECT' }), true);
+  assert.equal(isEditable({ tagName: 'DIV', isContentEditable: true }), true);
+  assert.equal(isEditable({ tagName: 'BUTTON' }), false);
+  assert.equal(isEditable(null), false);
+  assert.equal(isEditable(undefined), false);
+});
+
+test('createActionSource : la frappe dans un champ de saisie n\'est ni consommée ni traduite en action', () => {
+  const env = fakeEnv(); const got = [];
+  createActionSource(env.options).start((a) => got.push(a));
+  const input = { tagName: 'INPUT' };
+  for (const key of ['Backspace', ' ', 'Enter', 'ArrowLeft']) {
+    assert.equal(env.fire('keydown', { key, target: input }).defaultPrevented, false);
+    assert.equal(env.fire('keyup', { key, target: input }).defaultPrevented, false);
+  }
+  env.tick();
+  assert.deepEqual(got, []);
+});
+
+test('createActionSource : une touche enfoncée hors champ puis relâchée dans un champ est bien relâchée', () => {
+  const env = fakeEnv(); const got = [];
+  createActionSource(env.options).start((a) => got.push(a));
+  env.fire('keydown', { key: 'ArrowDown' });
+  env.tick(0);
+  env.fire('keyup', { key: 'ArrowDown', target: { tagName: 'INPUT' } });
+  env.tick(1000);
+  assert.equal(got.length, 1);
 });
