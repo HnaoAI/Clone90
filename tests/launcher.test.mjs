@@ -7,23 +7,24 @@ import { EJS_CDN_URL } from '../js/config.js';
 
 const neogeo = {
   id: 'neogeo', name: 'Neo Geo', emulatorjsCore: 'arcade',
-  bios: [{ file: 'neogeo.zip', required: true, role: 'default' }],
+  bios: [{ file: 'neogeo.zip', required: true, role: 'default', keepZipped: true }],
 };
 const amiga = {
   id: 'amiga', name: 'Amiga', emulatorjsCore: 'amiga',
   bios: [{ file: 'kick40068.A1200', required: true, role: 'default' }],
+  coreOptions: { puae_model: 'A1200' },
 };
 const nes = { id: 'nes', name: 'NES', emulatorjsCore: 'nes', bios: [] };
 const gb = { id: 'gameboy', name: 'Game Boy', emulatorjsCore: 'gb', bios: [{ file: 'gb_bios.bin', required: false, role: 'optional' }] };
 const mslug = { id: 'neogeo/mslug', system: 'neogeo', title: 'Metal Slug', file: 'roms/neogeo/mslug.zip', cover: null };
 
 test('resolveBios : BIOS par défaut de la machine (role default)', () => {
-  assert.deepEqual(resolveBios(neogeo, mslug), { file: 'neogeo.zip', required: true });
+  assert.deepEqual(resolveBios(neogeo, mslug), { file: 'neogeo.zip', required: true, keepZipped: true });
 });
 
 test('resolveBios : la surcharge `bios` du jeu l\'emporte et est obligatoire', () => {
   const lemmings = { id: 'amiga/lemmings', system: 'amiga', title: 'Lemmings', file: 'roms/amiga/Lemmings.adf', bios: 'kick34005.A500' };
-  assert.deepEqual(resolveBios(amiga, lemmings), { file: 'kick34005.A500', required: true });
+  assert.deepEqual(resolveBios(amiga, lemmings), { file: 'kick34005.A500', required: true, keepZipped: false });
 });
 
 test('resolveBios : aucune BIOS par défaut (machine sans BIOS ou BIOS seulement optionnels) donne null', () => {
@@ -43,7 +44,8 @@ test('buildLaunchPlan : variables EmulatorJS depuis systems.json et games.json (
   assert.equal(plan.globals.EJS_player, `#${GAME_ELEMENT_ID}`);
   assert.equal(plan.globals.EJS_core, 'arcade');
   assert.equal(plan.globals.EJS_gameUrl, 'roms/neogeo/mslug.zip');
-  assert.equal(plan.globals.EJS_biosUrl, 'bios/neogeo.zip');
+  assert.equal('EJS_biosUrl' in plan.globals, false, 'neogeo.zip est gardé zippé : jamais passé à EJS_biosUrl (EmulatorJS l\'extrairait)');
+  assert.deepEqual(plan.rawFiles, [{ url: 'bios/neogeo.zip', fsPath: '/neogeo.zip' }]);
   assert.equal(plan.globals.EJS_pathtodata, EJS_CDN_URL);
   assert.equal(plan.globals.EJS_gameName, 'Metal Slug');
   assert.equal(plan.globals.EJS_startOnLoaded, true);
@@ -115,6 +117,7 @@ test('describeMissing : message clair "BIOS manquant : nom dans bios/" et jeu in
 });
 
 // --- loadEmulator avec fenêtre et document factices ---
+const getBytes = async () => new Uint8Array([1]); // jamais de vrai réseau
 function fakeEnv({ fail = false } = {}) {
   const scripts = [];
   const doc = {
@@ -131,7 +134,7 @@ test('loadEmulator : pose les variables globales AVANT d\'injecter loader.js, pu
   const seen = [];
   const append = doc.head.append;
   doc.head.append = (s) => { seen.push({ ...win }); append(s); };
-  await loadEmulator(plan, { win, doc });
+  await loadEmulator(plan, { win, doc, getBytes });
   assert.equal(seen.length, 1);
   assert.equal(seen[0].EJS_core, 'arcade', 'les globales sont posées avant le script');
   assert.equal(scripts[0].src, plan.loaderUrl);
@@ -140,20 +143,20 @@ test('loadEmulator : pose les variables globales AVANT d\'injecter loader.js, pu
 test('loadEmulator : onStart est branché sur EJS_onGameStart', async () => {
   const { win, doc } = fakeEnv();
   let started = 0;
-  await loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc, onStart: () => { started += 1; } });
+  await loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc, getBytes, onStart: () => { started += 1; } });
   win.EJS_onGameStart();
   assert.equal(started, 1);
 });
 
 test('loadEmulator : CDN inaccessible donne une erreur claire', async () => {
   const { win, doc } = fakeEnv({ fail: true });
-  await assert.rejects(loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc }), /EmulatorJS/);
+  await assert.rejects(loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc, getBytes }), /EmulatorJS/);
 });
 
 test('loadEmulator : élément #game absent donne une erreur', async () => {
   const { win, doc } = fakeEnv();
   doc.getElementById = () => null;
-  await assert.rejects(loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc }), /#game|game/);
+  await assert.rejects(loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc, getBytes }), /#game|game/);
 });
 
 test('pauseEmulator / resumeEmulator : appellent pause/play si présents, sinon ne font rien', () => {
@@ -173,7 +176,7 @@ test('pauseEmulator / resumeEmulator : ne lèvent jamais, même si EmulatorJS n\
 });
 
 test('checkPlanFiles : un BIOS optionnel absent est retiré du plan (pas de EJS_biosUrl en 404), sans erreur', async () => {
-  const optional = { ...neogeo, bios: [{ file: 'neogeo.zip', required: false, role: 'default' }] };
+  const optional = { ...neogeo, bios: [{ file: 'neogeo.zip', required: false, role: 'default' }] }; // sans keepZipped : voie EJS_biosUrl
   const plan = buildLaunchPlan({ system: optional, game: mslug });
   assert.equal(plan.globals.EJS_biosUrl, 'bios/neogeo.zip');
   const { missing, plan: cleaned } = await checkPlanFiles(plan, async (u) => !u.startsWith('bios/'));
@@ -184,9 +187,76 @@ test('checkPlanFiles : un BIOS optionnel absent est retiré du plan (pas de EJS_
 });
 
 test('checkPlanFiles : un BIOS optionnel présent est conservé, un BIOS requis absent reste une erreur', async () => {
-  const optional = { ...neogeo, bios: [{ file: 'neogeo.zip', required: false, role: 'default' }] };
+  const optional = { ...neogeo, bios: [{ file: 'neogeo.zip', required: false, role: 'default' }] }; // sans keepZipped : voie EJS_biosUrl
   const kept = await checkPlanFiles(buildLaunchPlan({ system: optional, game: mslug }), async () => true);
   assert.equal(kept.plan.globals.EJS_biosUrl, 'bios/neogeo.zip');
   const req = await checkPlanFiles(buildLaunchPlan({ system: neogeo, game: mslug }), async (u) => !u.startsWith('bios/'));
   assert.deepEqual(req.missing.map((f) => f.kind), ['bios']);
+});
+
+// --- BIOS gardé zippé (T0 : fbneo veut neogeo.zip entier, EmulatorJS stable extrait tout ce qui passe par EJS_biosUrl) ---
+test('resolveBios : keepZipped vaut faux par défaut, et la surcharge du jeu garde le réglage de la machine', () => {
+  assert.equal(resolveBios(amiga, { id: 'amiga/a', file: 'roms/amiga/a.adf' }).keepZipped, false);
+  assert.equal(resolveBios(neogeo, { ...mslug, bios: 'neogeo.zip' }).keepZipped, true);
+  assert.equal(resolveBios(neogeo, { ...mslug, bios: 'autre.zip' }).keepZipped, false);
+});
+
+test('buildLaunchPlan : un BIOS non zippé garde EJS_biosUrl et n\'a pas de rawFiles (Amiga)', () => {
+  const plan = buildLaunchPlan({ system: amiga, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } });
+  assert.equal(plan.globals.EJS_biosUrl, 'bios/kick40068.A1200');
+  assert.deepEqual(plan.rawFiles, []);
+});
+
+test('buildLaunchPlan : le BIOS gardé zippé reste contrôlé (HEAD) comme BIOS requis', () => {
+  const plan = buildLaunchPlan({ system: neogeo, game: mslug });
+  assert.deepEqual(plan.files.map((f) => [f.kind, f.url, f.required]), [['game', 'roms/neogeo/mslug.zip', true], ['bios', 'bios/neogeo.zip', true]]);
+});
+
+test('checkPlanFiles : un BIOS gardé zippé optionnel et absent est retiré de rawFiles', async () => {
+  const optional = { ...neogeo, bios: [{ file: 'neogeo.zip', required: false, role: 'default', keepZipped: true }] };
+  const plan = buildLaunchPlan({ system: optional, game: mslug });
+  const { plan: cleaned } = await checkPlanFiles(plan, async (u) => !u.startsWith('bios/'));
+  assert.deepEqual(cleaned.rawFiles, []);
+  assert.equal(plan.rawFiles.length, 1, 'le plan d\'origine n\'est pas modifié');
+});
+
+test('loadEmulator : le BIOS gardé zippé est lu en octets puis posé dans EJS_externalFiles AVANT loader.js', async () => {
+  const { win, doc } = fakeEnv();
+  const seen = [];
+  const append = doc.head.append;
+  doc.head.append = (s) => { seen.push({ ...win }); append(s); };
+  const bytes = new Uint8Array([80, 75, 3, 4]);
+  const asked = [];
+  await loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc, getBytes: async (url) => { asked.push(url); return bytes; } });
+  assert.deepEqual(asked, ['bios/neogeo.zip']);
+  assert.equal(seen[0].EJS_externalFiles['/neogeo.zip'], bytes);
+  assert.ok(seen[0].EJS_externalFiles['/neogeo.zip'] instanceof Uint8Array);
+  assert.equal('EJS_biosUrl' in seen[0], false);
+});
+
+test('loadEmulator : sans rawFiles, EJS_externalFiles n\'est pas défini', async () => {
+  const { win, doc } = fakeEnv();
+  await loadEmulator(buildLaunchPlan({ system: amiga, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } }), { win, doc });
+  assert.equal('EJS_externalFiles' in win, false);
+});
+
+test('loadEmulator : BIOS illisible donne une erreur claire et n\'injecte pas loader.js', async () => {
+  const { win, doc, scripts } = fakeEnv();
+  await assert.rejects(
+    loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc, getBytes: async () => { throw new Error('HTTP 404'); } }),
+    /bios\/neogeo\.zip.*illisible.*HTTP 404/);
+  assert.equal(scripts.length, 0);
+});
+
+// --- T0 : options du cœur (puae choisit A500 et cherche kick34005.A500 si on ne lui impose pas le modèle) ---
+test('buildLaunchPlan : coreOptions de la machine deviennent EJS_defaultOptions, et EmulatorJS ne les ignore pas (stockage local coupé)', () => {
+  const plan = buildLaunchPlan({ system: amiga, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } });
+  assert.deepEqual(plan.globals.EJS_defaultOptions, { puae_model: 'A1200' });
+  assert.equal(plan.globals.EJS_disableLocalStorage, true, 'sinon EmulatorJS stable ignore EJS_defaultOptions au premier lancement');
+});
+
+test('buildLaunchPlan : sans coreOptions, ni EJS_defaultOptions ni EJS_disableLocalStorage (les réglages EmulatorJS restent mémorisés)', () => {
+  const plan = buildLaunchPlan({ system: neogeo, game: mslug });
+  assert.equal('EJS_defaultOptions' in plan.globals, false);
+  assert.equal('EJS_disableLocalStorage' in plan.globals, false);
 });

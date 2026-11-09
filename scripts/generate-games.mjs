@@ -87,10 +87,10 @@ async function listFiles(dir) {
 /**
  * Jeux d'une machine (fonction pure : aucun accès disque).
  * @param {{system: object, files: string[], texts: Record<string, string>, titles: object|null}} input
- *   `files` = chemins relatifs à roms/<id>/ ; `texts` = contenu des .m3u et .bios.
+ *   `files` = chemins relatifs au dossier de la machine ; `dirName` = nom réel de ce dossier sous roms/ (défaut : l'id) ; `texts` = contenu des .m3u et .bios.
  * @returns {{games: object[], warnings: string[]}}
  */
-export function buildSystemGames({ system, files, texts, titles }) {
+export function buildSystemGames({ system, files, texts, titles, dirName = system.id }) {
   const warnings = [];
   const visible = files.filter((f) => !isHidden(f));
   const accepted = new Set(system.extensions.map((e) => e.toLowerCase()));
@@ -128,8 +128,8 @@ export function buildSystemGames({ system, files, texts, titles }) {
     const cover = covers.get(posix.join(posix.dirname(f), stem).toLowerCase());
     const game = {
       id, system: system.id, title: resolveTitle(stem, titles),
-      file: `roms/${system.id}/${f}`,
-      cover: cover ? `roms/${system.id}/${cover}` : null,
+      file: `roms/${dirName}/${f}`,
+      cover: cover ? `roms/${dirName}/${cover}` : null,
     };
     const biosFile = posix.join(posix.dirname(f), `${stem}.bios`);
     const bios = (texts[biosFile] ?? '').split(/\r?\n/)[0].trim();
@@ -156,6 +156,18 @@ async function readTitles(root, warnings) {
   return null;
 }
 
+/**
+ * Nom réel du dossier d'une machine sous roms/ : casse exacte d'abord, sinon égalité sans tenir compte de la casse
+ * (macOS ne distingue pas `amiga` de `Amiga`, Linux et GitHub Pages si). Aucun renommage : on lit le dossier tel qu'il est.
+ * @param {string[]} entries noms présents dans roms/
+ * @param {string} systemId
+ * @returns {string} le nom trouvé, ou l'id (dossier absent)
+ */
+export function pickSystemDir(entries, systemId) {
+  if (entries.includes(systemId)) return systemId;
+  return [...entries].sort().find((e) => e.toLowerCase() === systemId.toLowerCase()) ?? systemId;
+}
+
 const exists = (path) => access(path).then(() => true, () => false);
 
 /**
@@ -170,14 +182,16 @@ export async function generateGames({ root = PROJECT_ROOT, now = new Date() } = 
   const titles = await readTitles(root, warnings);
   const games = [];
   const counts = {};
+  const romFolders = await readdir(join(root, 'roms')).catch(() => []);
   for (const system of systems) {
-    const dir = join(root, 'roms', system.id);
+    const dirName = pickSystemDir(romFolders, system.id);
+    const dir = join(root, 'roms', dirName);
     const files = await listFiles(dir);
     const texts = {};
     for (const f of files.filter((x) => ['m3u', 'bios'].includes(extOf(x)))) {
       texts[f] = await readFile(join(dir, f), 'utf8').catch(() => '');
     }
-    const result = buildSystemGames({ system, files, texts, titles });
+    const result = buildSystemGames({ system, files, texts, titles, dirName });
     warnings.push(...result.warnings);
     counts[system.id] = result.games.length;
     games.push(...result.games);

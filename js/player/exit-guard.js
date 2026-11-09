@@ -4,8 +4,9 @@
 // Raison d'être à part de input/actions.js : createActionSource consomme flèches, Entrée et Échap (preventDefault), ce
 // qui casserait le jeu. Les menus (Jouer, confirmation) utilisent actions.js ; le jeu en cours utilise ce garde.
 // Les numéros de boutons (8 Select, 9 Start) sont ceux du mapping standard, comme input/actions.js.
-// TODO(T0) : confirmer qu'EmulatorJS n'utilise ni F10 ni la paire Select+Start (le test réel dira) ; confirmer que Chrome
-// livre bien keydown Échap à la page en plein écran (sinon l'Échap maintenu ne marche que hors plein écran).
+// Validé en T0 (Chromium, EmulatorJS stable) : F10 et Échap ne sont pas dans les touches par défaut d'EmulatorJS, F10 ouvre la
+// confirmation, Échap maintenu 1 s ouvre la confirmation, Échap bref = Continuer. Reste TODO(T0) : un vrai Chrome en plein écran
+// consomme peut-être le keydown Échap (non vérifiable par automatisation) ; à tester à la main, F10 et le bouton Menu restent.
 
 /** Durée de maintien avant sortie (docs/ux.md 4.4). */
 export const EXIT_HOLD_MS = 1000;
