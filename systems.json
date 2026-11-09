@@ -1,0 +1,249 @@
+{
+  "version": 1,
+  "systems": [
+    {
+      "id": "amiga",
+      "name": "Amiga",
+      "order": 10,
+      "emulatorjsCore": "amiga",
+      "extensions": [
+        "adf",
+        "adz",
+        "dms",
+        "ipf",
+        "hdf",
+        "hdz",
+        "lha",
+        "zip",
+        "m3u"
+      ],
+      "bios": [
+        {
+          "file": "kick40068.A1200",
+          "required": true,
+          "role": "default",
+          "note": "Kickstart 3.1 A1200, renommer le fichier avec ce nom exact"
+        }
+      ],
+      "logo": "assets/logos/amiga.svg",
+      "accent": "--m-amiga",
+      "wave": 1
+    },
+    {
+      "id": "neogeo",
+      "name": "Neo Geo",
+      "order": 20,
+      "emulatorjsCore": "arcade",
+      "extensions": [
+        "zip"
+      ],
+      "bios": [
+        {
+          "file": "neogeo.zip",
+          "required": true,
+          "role": "default",
+          "note": "Laisser zippé"
+        }
+      ],
+      "logo": "assets/logos/neogeo.svg",
+      "accent": "--m-neogeo",
+      "wave": 1
+    },
+    {
+      "id": "arcade",
+      "name": "Arcade",
+      "order": 30,
+      "emulatorjsCore": "arcade",
+      "extensions": [
+        "zip"
+      ],
+      "bios": [
+        {
+          "file": "neogeo.zip",
+          "required": false,
+          "role": "optional",
+          "note": "Utile pour les jeux de la famille Neo Geo, laisser zippé"
+        }
+      ],
+      "logo": "assets/logos/arcade.svg",
+      "accent": "--m-arcade",
+      "wave": 2
+    },
+    {
+      "id": "mastersystem",
+      "name": "Master System",
+      "order": 40,
+      "emulatorjsCore": "segaMS",
+      "extensions": [
+        "sms",
+        "zip"
+      ],
+      "bios": [],
+      "logo": "assets/logos/mastersystem.svg",
+      "accent": "--m-mastersystem",
+      "wave": 2
+    },
+    {
+      "id": "megadrive",
+      "name": "Mega Drive",
+      "order": 50,
+      "emulatorjsCore": "segaMD",
+      "extensions": [
+        "md",
+        "bin",
+        "gen",
+        "smd",
+        "zip"
+      ],
+      "bios": [
+        {
+          "file": "bios_MD.bin",
+          "required": false,
+          "role": "optional",
+          "note": "BIOS TMSS, facultatif"
+        }
+      ],
+      "logo": "assets/logos/megadrive.svg",
+      "accent": "--m-megadrive",
+      "wave": 2
+    },
+    {
+      "id": "gamegear",
+      "name": "Game Gear",
+      "order": 60,
+      "emulatorjsCore": "segaGG",
+      "extensions": [
+        "gg",
+        "zip"
+      ],
+      "bios": [],
+      "logo": "assets/logos/gamegear.svg",
+      "accent": "--m-gamegear",
+      "wave": 2
+    },
+    {
+      "id": "megacd",
+      "name": "Mega-CD",
+      "order": 70,
+      "emulatorjsCore": "segaCD",
+      "extensions": [
+        "cue",
+        "bin",
+        "iso",
+        "chd",
+        "m3u"
+      ],
+      "bios": [
+        {
+          "file": "bios_CD_E.bin",
+          "required": false,
+          "role": "optional",
+          "note": "Mega-CD européen"
+        },
+        {
+          "file": "bios_CD_U.bin",
+          "required": false,
+          "role": "optional",
+          "note": "Sega CD américain"
+        },
+        {
+          "file": "bios_CD_J.bin",
+          "required": false,
+          "role": "optional",
+          "note": "Mega-CD japonais"
+        }
+      ],
+      "logo": "assets/logos/megacd.svg",
+      "accent": "--m-megacd",
+      "wave": 2
+    },
+    {
+      "id": "32x",
+      "name": "32X",
+      "order": 80,
+      "emulatorjsCore": "sega32x",
+      "extensions": [
+        "32x",
+        "bin",
+        "zip"
+      ],
+      "bios": [],
+      "logo": "assets/logos/32x.svg",
+      "accent": "--m-32x",
+      "wave": 2
+    },
+    {
+      "id": "nes",
+      "name": "NES",
+      "order": 90,
+      "emulatorjsCore": "nes",
+      "extensions": [
+        "nes",
+        "fds",
+        "unf",
+        "zip"
+      ],
+      "bios": [],
+      "logo": "assets/logos/nes.svg",
+      "accent": "--m-nes",
+      "wave": 2
+    },
+    {
+      "id": "snes",
+      "name": "Super Nintendo",
+      "order": 100,
+      "emulatorjsCore": "snes",
+      "extensions": [
+        "sfc",
+        "smc",
+        "zip"
+      ],
+      "bios": [],
+      "logo": "assets/logos/snes.svg",
+      "accent": "--m-snes",
+      "wave": 2
+    },
+    {
+      "id": "gameboy",
+      "name": "Game Boy",
+      "order": 110,
+      "emulatorjsCore": "gb",
+      "extensions": [
+        "gb",
+        "zip"
+      ],
+      "bios": [
+        {
+          "file": "gb_bios.bin",
+          "required": false,
+          "role": "optional",
+          "note": "BIOS facultatif"
+        }
+      ],
+      "logo": "assets/logos/gameboy.svg",
+      "accent": "--m-gameboy",
+      "wave": 2
+    },
+    {
+      "id": "gameboycolor",
+      "name": "Game Boy Color",
+      "order": 120,
+      "emulatorjsCore": "gb",
+      "extensions": [
+        "gbc",
+        "zip"
+      ],
+      "bios": [
+        {
+          "file": "gbc_bios.bin",
+          "required": false,
+          "role": "optional",
+          "note": "BIOS facultatif"
+        }
+      ],
+      "logo": "assets/logos/gameboycolor.svg",
+      "accent": "--m-gameboycolor",
+      "wave": 2
+    }
+  ]
+}

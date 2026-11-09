@@ -334,7 +334,7 @@ Les fichiers sont disjoints pour permettre le travail en parallèle quand l'ordr
 | # | Tâche | Fichiers | Dépend de | Critère de fin |
 |---|---|---|---|---|
 | T0 | **Spike technique** : `player.html` minimal jetable avec ROM et BIOS réels : (a) Amiga avec `kick40068.A1200` + un ADF, test IPF, test multi-disques m3u, (b) Neo Geo avec `neogeo.zip` + un romset. Noter : chemin des BIOS, extensions acceptées, F10 libre. Compléter les [À VALIDER] de ce document | `spike/` (jetable) puis mise à jour de ce document | rien | Section 2 et 3 sans [À VALIDER] pour amiga et neogeo |
-| T1 | Squelette : arborescence, `.gitignore`, `systems.json` (13 machines), `scripts/serve.mjs`, `README.md` (installation, nommage des BIOS) | racine, `scripts/serve.mjs`, `systems.json` | rien | `node scripts/serve.mjs` sert le site, systems.json valide |
+| T1 | Squelette : arborescence, `.gitignore`, `systems.json` (12 machines), `scripts/serve.mjs`, `README.md` (installation, nommage des BIOS) | racine, `scripts/serve.mjs`, `systems.json` | rien | `node scripts/serve.mjs` sert le site, systems.json valide |
 | T2 | `generate-games.mjs` + `data/titles.json` + tests `node:test` sur des faux fichiers (sans ROM réelle) | `scripts/`, `data/` | T1 | games.json conforme au schéma 6.2 sur dossiers de test |
 | T3 | `config.js`, `data.js`, `router.js`, `ui/dom.js` | `js/` | T1 | modules testables, gestion `games.json` absent |
 | T4 | Couche d'entrée : `input/actions.js`, `input/focus-nav.js` | `js/input/` | T3 | navigation clavier et manette sur une page de test |
