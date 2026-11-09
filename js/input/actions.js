@@ -126,6 +126,8 @@ export function createRepeater({ delay, interval } = {}) {
  * @param {(f: Function) => any} [options.requestFrame] défaut : requestAnimationFrame
  * @param {(id: any) => void} [options.cancelFrame]
  * @param {() => void} [options.onWake] appelé au 1er appui d'une manette fraîche (toast "Manette connectée")
+ * @param {() => boolean} [options.isActive] faux = source passive (T7, pendant une partie) : aucune touche consommée ni traduite,
+ *   aucune action émise ; les manettes restent lues pour que leurs appuis déjà vus ne se déclenchent pas à la réactivation
  * @param {{delay?: number, interval?: number}} [options.repeat]
  */
 export function createActionSource(options = {}) {
@@ -136,6 +138,7 @@ export function createActionSource(options = {}) {
     requestFrame = (f) => globalThis.requestAnimationFrame(f),
     cancelFrame = (id) => globalThis.cancelAnimationFrame(id),
     onWake = () => {},
+    isActive = () => true,
     repeat,
   } = options;
 
@@ -152,11 +155,12 @@ export function createActionSource(options = {}) {
     const repeater = createRepeater(repeat);
     let frameId = null;
 
-    const consumable = (e) => !isEditable(e.target) && !e.ctrlKey && !e.altKey && !e.metaKey && keyToAction(e.key);
+    const consumable = (e) => isActive() && !isEditable(e.target) && !e.ctrlKey && !e.altKey && !e.metaKey && keyToAction(e.key);
     const onKeyDown = (e) => {
       const action = consumable(e);
       if (!action) return;
       e.preventDefault();
+      if (e.repeat && !keyboardHeld.has(action)) return; // touche déjà tenue avant la réactivation : pas un nouvel appui
       keyboardHeld.add(action);
       pressedSinceFrame.add(action);
     };
@@ -164,7 +168,7 @@ export function createActionSource(options = {}) {
       const action = keyToAction(e.key);
       if (!action) return;
       keyboardHeld.delete(action);
-      if (isEditable(e.target)) return;
+      if (!isActive() || isEditable(e.target)) return;
       if (!e.ctrlKey && !e.altKey && !e.metaKey) e.preventDefault();
     };
     const onBlur = () => { keyboardHeld.clear(); pressedSinceFrame.clear(); };
@@ -177,7 +181,8 @@ export function createActionSource(options = {}) {
       if (woke) onWake();
       const keyboardNow = new Set([...keyboardHeld, ...pressedSinceFrame]);
       pressedSinceFrame.clear();
-      for (const action of repeater.update(new Set([...keyboardNow, ...padHeld]), now())) {
+      const fired = repeater.update(new Set([...keyboardNow, ...padHeld]), now());
+      for (const action of isActive() ? fired : []) {
         handler(action, padHeld.has(action) ? 'gamepad' : 'keyboard');
       }
       frameId = requestFrame(loop);

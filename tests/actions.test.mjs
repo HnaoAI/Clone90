@@ -323,3 +323,35 @@ test('createActionSource : un appui plus court qu\'une frame (keydown puis keyup
   env.tick();
   assert.deepEqual(got, ['right'], 'une seule action, pas de répétition fantôme');
 });
+
+test('createActionSource isActive=false (T7, jeu en cours) : touches de jeu ni consommées ni traduites', () => {
+  const env = fakeEnv(); const got = [];
+  createActionSource({ ...env.options, isActive: () => false }).start((a) => got.push(a));
+  for (const key of ['ArrowUp', 'Enter', 'Escape', ' ', 'Backspace']) {
+    assert.equal(env.fire('keydown', { key }).defaultPrevented, false, key);
+    assert.equal(env.fire('keyup', { key }).defaultPrevented, false, key);
+  }
+  env.tick();
+  assert.deepEqual(got, []);
+});
+
+test('createActionSource isActive=false : un appui de manette pendant le jeu ne se déclenche pas à la réactivation', () => {
+  const env = fakeEnv(); const got = []; let active = false;
+  createActionSource({ ...env.options, isActive: () => active }).start((a) => got.push(a));
+  env.pads = [pad()]; env.tick();
+  env.pads = [pad({ pressed: [0] })]; env.tick(); // A pressé pendant le jeu
+  active = true;
+  env.tick(); env.tick();
+  assert.deepEqual(got, [], 'A est déjà tenu : pas de nouveau front montant');
+  env.pads = [pad()]; env.tick();
+  env.pads = [pad({ pressed: [0] })]; env.tick();
+  assert.deepEqual(got, ['confirm']);
+});
+
+test('createActionSource : une répétition clavier d\'une touche tenue avant la réactivation n\'est pas un nouvel appui', () => {
+  const env = fakeEnv(); const got = [];
+  createActionSource({ ...env.options }).start((a) => got.push(a));
+  env.fire('keydown', { key: 'Enter', repeat: true });
+  env.tick();
+  assert.deepEqual(got, []);
+});
