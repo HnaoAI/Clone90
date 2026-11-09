@@ -32,9 +32,9 @@ Le bouton retour système (navigateur, geste retour Android) fait exactement la 
 
 ### 3.1 Accueil - choix de la machine
 
-But : choisir une machine en 1 action. Seules les machines ayant au moins 1 jeu sont actives ; les autres sont affichées grisées en fin de liste avec la mention "0 jeu" (elles restent focusables pour afficher l'état vide, ce qui guide l'ajout de ROMs). En v1, seules amiga et neogeo sont listées.
+But : choisir une machine en 1 action. Une machine est visible si sa vague est livrée OU si elle a au moins un jeu (décision PO). Celles à 0 jeu sont affichées grisées en fin de liste avec la mention "0 jeu" (elles restent focusables pour afficher l'état vide, ce qui guide l'ajout de ROMs). En v1, seules amiga et neogeo sont listées.
 
-Ordre fixe (par constructeur puis chronologie) : Arcade, Neo Geo, Amiga, NES, SNES, Game Boy, Game Boy Color, Master System, Game Gear, Mega Drive, Mega CD, 32X.
+Ordre : celui du champ `order` de systems.json (source de vérité, rien en dur dans le code). Les machines avec jeux passent avant celles à 0 jeu. Ordre initial retenu : Amiga, Neo Geo, Arcade, Master System, Mega Drive, Game Gear, Mega CD, 32X, NES, SNES, Game Boy, Game Boy Color.
 
 Chaque carte machine : logo (SVG ou PNG fond transparent), nom en texte (toujours présent, le logo seul ne suffit pas), nombre de jeux.
 
@@ -189,6 +189,13 @@ Téléphone en portrait : on laisse EmulatorJS gérer son affichage (jeu en haut
 - Le bouton Menu tactile/souris ouvre la même boîte (pas de sortie directe : un tap accidentel est fréquent sur téléphone).
 - Si la sauvegarde d'état arrive plus tard, le texte deviendra "Progression non sauvegardée" ou proposera "Sauvegarder et quitter".
 
+### 3.5 Écarts validés à l'implémentation de T5 (accueil)
+
+- Bouton [?] Aide touches reporté après la v1 : remplacé par la ligne "Flèches : choisir - Entrée / A : ouvrir", masquée sur écran tactile.
+- Police Press Start 2P non intégrée tant que Hicham n'a pas validé le téléchargement : repli monospace système via `--font-pixel`.
+- Pas de focus automatique à l'arrivée sur l'accueil en souris/tactile : le focus est posé à la 1re flèche, au réveil de la manette ou au retour d'une grille (cohérent avec CA-N1).
+- Sans logo, le repli affiche le nom de la machine sur sa couleur (doublon visuel avec le nom écrit dessous, accepté en attendant assets/logos).
+
 ## 4. Navigation unifiée
 
 ### 4.1 Modèle
@@ -196,7 +203,7 @@ Téléphone en portrait : on laisse EmulatorJS gérer son affichage (jeu en haut
 - Chaque écran a une **grille d'éléments focusables** (cartes, tuiles, boutons de l'en-tête). Le focus est un vrai focus DOM (`element.focus()`), pour que lecteurs d'écran et clavier natif marchent, et que la manette pilote le même focus.
 - **Déplacement spatial** : flèche droite/gauche = élément voisin dans la rangée ; haut/bas = même colonne, rangée voisine (si la rangée du dessous est plus courte, aller au dernier élément). Pas de bouclage horizontal (bord = on reste). Haut depuis la 1re rangée de la grille = bouton "< Machines" de l'en-tête.
 - Le focus suit en défilement : l'élément focusé est toujours entièrement visible (`scrollIntoView({block: "nearest"})`, sans animation si reduced-motion).
-- À l'arrivée sur un écran, un élément a toujours le focus (jamais "rien de sélectionné" en mode clavier/manette).
+- Sur les grilles et l'état vide, un élément a le focus dès l'arrivée en mode clavier/manette. Exception : l'accueil, où le focus n'est pas posé automatiquement (pas d'anneau parasite en souris/tactile) ; il l'est à la 1re flèche, au réveil de la manette ou au retour d'une grille. Dès qu'un mode clavier/manette est actif, jamais "rien de sélectionné".
 
 ### 4.2 Table des entrées (menus, hors jeu)
 
