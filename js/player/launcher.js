@@ -225,3 +225,30 @@ export const pauseEmulator = (win = globalThis.window) => callEmulator(win, 'pau
 
 /** Reprend le jeu après une pause. @returns {boolean} faux si EmulatorJS n'est pas prêt */
 export const resumeEmulator = (win = globalThis.window) => callEmulator(win, 'play');
+
+/**
+ * État du lecteur de disquettes lu dans le cœur (T12) : jamais copié ailleurs, donc toujours juste même si le joueur change par le menu d'EmulatorJS.
+ * @param {Window} [win]
+ * @returns {{index: number, count: number}|null} null si EmulatorJS ou le cœur n'est pas prêt
+ */
+export function getDiskState(win = globalThis.window) {
+  try {
+    const manager = win.EJS_emulator?.gameManager;
+    const index = manager?.getCurrentDisk?.();
+    const count = manager?.getDiskCount?.();
+    return Number.isInteger(index) && Number.isInteger(count) ? { index, count } : null;
+  } catch { return null; }
+}
+
+/**
+ * Insère la disquette `index` (0-based). INVARIANT (T12) : passe par handleSpecialOptions('disk', n), la même fonction que le menu
+ * "Disks" d'EmulatorJS, donc par le contournement de guardDiskMenuStartup (rappel unique). Pas de second chemin.
+ * Limite : le menu d'EmulatorJS garde sa propre sélection affichée et peut montrer l'ancien disque après un changement par raccourci.
+ * @param {Window} win @param {number} index
+ * @throws {Error} EmulatorJS pas prêt, ou le changement échoue deux fois
+ */
+export function switchToDisk(win, index) {
+  const emulator = win.EJS_emulator;
+  if (typeof emulator?.handleSpecialOptions !== 'function') throw new Error('EmulatorJS n\'est pas prêt');
+  emulator.handleSpecialOptions('disk', String(index));
+}

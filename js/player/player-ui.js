@@ -87,8 +87,8 @@ export const renderLoading = (title, doc = globalThis.document) => el('div', { c
   el('p', { class: 'muted', text: 'Chargement...' }, [], doc),
 ], doc);
 
-/** Bandeau de rappel de la sortie. @param {boolean} touchOnly tactile sans manette : texte court */
-export const renderExitHint = (touchOnly, doc = globalThis.document) => el('p', { class: 'exit-hint', text: exitHintText(touchOnly), attrs: { role: 'status' } }, [], doc);
+/** Bandeau de rappel de la sortie. @param {boolean} touchOnly tactile sans manette : texte court @param {boolean} [multiDisk] ajoute la ligne du raccourci disquette */
+export const renderExitHint = (touchOnly, multiDisk = false, doc = globalThis.document) => el('p', { class: 'exit-hint', text: exitHintText(touchOnly, multiDisk), attrs: { role: 'status' } }, [], doc);
 
 /**
  * Bouton Menu (maison + texte) entouré d'un anneau de progression (maintien Select+Start ou Échap).

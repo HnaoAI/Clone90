@@ -4,8 +4,16 @@
 export const EXIT_HINT_TEXT = 'Quitter : Select + Start (maintenir) - F10 - bouton Menu';
 /** Rappel court pour un appareil tactile sans manette (ni clavier ni Select+Start à citer). */
 export const EXIT_HINT_TEXT_TOUCH = 'Quitter : bouton Menu';
-/** @param {boolean} touchOnly appareil tactile sans manette détectée */
-export const exitHintText = (touchOnly) => (touchOnly ? EXIT_HINT_TEXT_TOUCH : EXIT_HINT_TEXT);
+/** 2e ligne du rappel pour un jeu à plusieurs disquettes (T12, avis ux). */
+export const DISK_HINT_TEXT = 'Disquette : Select + RB - F9';
+/**
+ * @param {boolean} touchOnly appareil tactile sans manette détectée
+ * @param {boolean} [multiDisk] jeu à plusieurs disquettes : ajoute la ligne du raccourci (sauf tactile sans manette, la barre d'EmulatorJS suffit)
+ */
+export const exitHintText = (touchOnly, multiDisk = false) => {
+  if (touchOnly) return EXIT_HINT_TEXT_TOUCH;
+  return multiDisk ? `${EXIT_HINT_TEXT}\n${DISK_HINT_TEXT}` : EXIT_HINT_TEXT;
+};
 export const EXIT_HINT_MS = 4000;
 export const EXIT_HINT_MAX_LAUNCHES = 3;
 export const EXIT_HINT_STORAGE_KEY = 'clone90.exitHintCount';

@@ -241,6 +241,18 @@ Pendant le jeu, **toutes les touches et boutons vont à EmulatorJS**. Le site n'
 - La combinaison est rappelée 4 s au lancement du jeu dans un bandeau discret en haut : "Quitter : Select + Start (maintenir) - F10 - bouton Menu". Il n'est montré que les 3 premiers lancements (mémorisé en localStorage).
 - Si la sortie du plein écran par le navigateur (Échap court) a lieu, le jeu continue en fenêtre, le bouton Menu reste visible.
 
+**Changer de disquette (Amiga, T12, avis de ux validé par le PO et Hicham)** : seul autre raccourci du site pendant le jeu, uniquement pour un jeu à plusieurs disquettes (sinon sans effet, sans message).
+
+| Entrée | Déclencheur | Pourquoi |
+|---|---|---|
+| Manette | **Select maintenu + RB** (bouton 5) | Même "famille" que la sortie (Select + autre bouton) sans jamais coïncider avec Select + Start ; RB est rarement vital en jeu Amiga. |
+| Clavier | **F9** | Touche de fonction à côté de F10, libre dans EmulatorJS ; pas D (touche de jeu possible). |
+
+- Disquette suivante, en cycle (3 puis 1). Front montant : un appui maintenu = un changement.
+- Retour : toast « Disquette 2 / 3 » 2 s (région `role="status"`, bas de l'écran, sans prendre le focus, sans recouvrir le bouton Menu ni le rappel de sortie), animation coupée en reduced-motion.
+- Rappel : 2e ligne « Disquette : Select + RB - F9 » dans le bandeau de sortie (3 premiers lancements, 4 s), jeux à plusieurs disquettes seulement, pas sur tactile sans manette.
+- Ignoré pendant la boîte de confirmation de sortie. Le numéro est lu dans le cœur d'émulation : cohérent si le joueur change aussi par le menu d'EmulatorJS (dont l'affichage peut rester sur l'ancien disque).
+
 **Après la sortie** : arrêt complet de l'émulateur (son coupé immédiatement), sortie du plein écran, retour sur la grille de la machine, **focus sur la tuile du jeu quitté**, défilement restauré pour qu'elle soit visible.
 
 ## 5. Direction visuelle

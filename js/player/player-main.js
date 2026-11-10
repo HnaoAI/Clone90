@@ -12,8 +12,9 @@ import { createConfirmDialog } from '../ui/dialog.js';
 import { setGamepadMode, watchPointer } from '../ui/input-mode.js';
 import { createToast } from '../ui/toast.js';
 import { clear } from '../ui/dom.js';
-import { buildLaunchPlan, checkPlanFiles, headExists, describeMissing, loadEmulator, pauseEmulator, resumeEmulator } from './launcher.js';
+import { buildLaunchPlan, checkPlanFiles, headExists, describeMissing, loadEmulator, pauseEmulator, resumeEmulator, getDiskState, switchToDisk } from './launcher.js';
 import { createExitGuard } from './exit-guard.js';
+import { createDiskShortcut, diskToastText, DISK_ERROR_TEXT } from './disk-shortcut.js';
 import { shouldShowExitHint, EXIT_HINT_MS } from './exit-hint.js';
 import {
   renderPlayScreen, renderPlayerMessage, renderLoading, renderExitHint, createMenuButton, exitDialogOptions,
@@ -33,6 +34,7 @@ let dialog = null;
 let leaveUrl = HOME_PAGE;
 let menu = null;
 let currentGameTitle = '';
+let diskCount = 1;
 
 /** Quitte la page (location.replace : le jeu n'a pas besoin d'être dans l'historique). Le déchargement coupe moteur et son. */
 function leave(url) {
@@ -86,6 +88,15 @@ const guard = createExitGuard({
   onEscapeTap: () => { if (phase === 'dialog') dialog?.handleAction('back'); },
 });
 
+/** Raccourci de disquette (T12) : seulement pendant le jeu (pas avec la boîte de confirmation ouverte), jeu à plusieurs disquettes seulement. */
+const diskShortcut = createDiskShortcut({
+  isEnabled: () => phase === 'playing',
+  getDiskState: () => getDiskState(window),
+  changeDisk: (index) => switchToDisk(window, index),
+  onChanged: (index, count) => toast(diskToastText(index, count)),
+  onError: (error) => { console.error('Changement de disquette impossible :', error); toast(DISK_ERROR_TEXT); },
+});
+
 function onAction(action, source) {
   setGamepadMode(source === 'gamepad');
   if (phase === 'dialog') {
@@ -129,7 +140,7 @@ function showExitHint() {
   if (!shouldShowExitHint(storage)) return null;
   const noPointerHover = window.matchMedia?.('(hover: none)').matches === true;
   const hasGamepad = Array.from(navigator.getGamepads?.() ?? []).some(Boolean);
-  const hint = renderExitHint(noPointerHover && !hasGamepad);
+  const hint = renderExitHint(noPointerHover && !hasGamepad, diskCount > 1);
   chrome.append(hint);
   setTimeout(() => hint.remove(), EXIT_HINT_MS);
   return hint;
@@ -148,6 +159,7 @@ async function play(plan) {
   const hideLoading = () => loading.remove();
   setTimeout(hideLoading, LOADING_MAX_MS); // si EJS_onGameStart n'arrive jamais, l'interface d'EmulatorJS reste utilisable
   guard.start();
+  if (diskCount > 1) diskShortcut.start();
   history.pushState({ clone90: 'exit-guard' }, '');
   window.addEventListener('popstate', onPopState);
   const exitHint = showExitHint();
@@ -156,6 +168,7 @@ async function play(plan) {
   } catch (e) {
     // INVARIANT (T11/A2) : on reste armé (garde, popstate, bouton Menu) : phase 'error' quitte en un seul appui.
     exitHint?.remove();
+    diskShortcut.stop();
     gameElement.hidden = true;
     document.body.classList.remove('is-playing');
     showMessage({ title: 'Impossible de lancer ce jeu.', details: [e.message] });
@@ -185,6 +198,7 @@ async function main() {
   }
   leaveUrl = buildReturnUrl(systemId, game.id);
   currentGameTitle = game.title;
+  diskCount = game.disks?.length ?? 1;
   let plan;
   try {
     plan = buildLaunchPlan({ system, game });
