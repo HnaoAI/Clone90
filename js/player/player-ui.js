@@ -39,6 +39,9 @@ export function describeLoadError({ reason, gamesStatus, message }) {
   if (reason === 'no-games' && gamesStatus === 'absent') {
     return { title: 'Aucun jeu trouvé', detail: 'La liste des jeux n\'existe pas : déposez vos ROMs dans roms/ puis lancez node scripts/generate-games.mjs.' };
   }
+  if (reason === 'no-games' && gamesStatus === 'offline') {
+    return { title: 'Hors ligne', detail: 'Impossible de joindre le serveur pour lire la liste des jeux : vous êtes hors ligne, ou le serveur local est arrêté.' };
+  }
   if (reason === 'unknown-game' || reason === 'no-games') return { title: 'Jeu introuvable', detail: 'Ce jeu n\'est plus dans la liste. Relancez node scripts/generate-games.mjs si vous l\'avez déplacé.' };
   if (reason === 'data') return { title: 'Impossible de charger les données', detail: message ?? 'systems.json illisible.' };
   return { title: 'Impossible de lancer ce jeu.', detail: message ?? 'Erreur inconnue.' };

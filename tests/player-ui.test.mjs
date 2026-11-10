@@ -88,3 +88,10 @@ test('exitDecision : pendant le jeu on demande confirmation ; au démarrage ou p
   assert.equal(exitDecision('boot'), 'none');
   assert.equal(exitDecision(undefined), 'none');
 });
+
+// T11 / A6
+test('describeLoadError A6 : liste des jeux injoignable (hors ligne) n\'accuse pas un jeu déplacé', () => {
+  const e = describeLoadError({ reason: 'no-games', gamesStatus: 'offline' });
+  assert.match(e.title + e.detail, /hors ligne|connexion|serveur/i);
+  assert.doesNotMatch(e.title, /introuvable/i);
+});

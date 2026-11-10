@@ -172,6 +172,7 @@ async function main() {
   try {
     data = await loadData();
   } catch (e) {
+    console.error('Chargement de systems.json impossible :', e.cause ?? e);
     showLoadError({ reason: 'data', message: e.message }, HOME_PAGE);
     return;
   }

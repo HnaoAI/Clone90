@@ -24,6 +24,7 @@ async function main() {
   try {
     data = await loadData();
   } catch (e) {
+    console.error('Chargement de systems.json impossible :', e.cause ?? e);
     screen.append(renderFatalError(e.message));
     createFocusNavigator({ getRoot: () => screen }).focusFirst();
     return;

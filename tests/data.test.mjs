@@ -173,3 +173,51 @@ test('assetPathFromUrl A1 : fait le chemin inverse de assetUrl (messages d\'erre
   for (const name of SPECIAL_NAMES) assert.equal(assetPathFromUrl(assetUrl(`roms/x/${name}`)), `roms/x/${name}`);
   assert.equal(assetPathFromUrl('roms/x/%E0%A4%A.adf'), 'roms/x/%E0%A4%A.adf', 'encodage invalide : renvoyé tel quel');
 });
+
+// T11 / A5 : message d'erreur de systems.json en français pour l'utilisateur, détail technique dans `cause`.
+const systemsError = async (fetchJson) => loadData(fetchJson).then(() => null, (e) => e);
+const FRENCH_ONLY = (message) => !/Unexpected|Expected|JSON input|position|undefined|TypeError|Failed to fetch|NetworkError/i.test(message);
+
+test('loadData A5 : systems.json corrompu donne un message français, le détail du parseur reste dans cause', async () => {
+  const syntax = new SyntaxError("Expected property name or '}' in JSON at position 1 (line 1 column 2)");
+  const e = await systemsError(fakeFetch({ 'systems.json': syntax }));
+  assert.match(e.message, /systems\.json/);
+  assert.ok(FRENCH_ONLY(e.message), e.message);
+  assert.equal(e.cause, syntax);
+  const truncated = await systemsError(fakeFetch({ 'systems.json': new SyntaxError('Unexpected end of JSON input') }));
+  assert.ok(FRENCH_ONLY(truncated.message), truncated.message);
+});
+
+test('loadData A5 : systems.json introuvable, erreur HTTP et serveur injoignable ont chacun un message clair en français', async () => {
+  const missing = await systemsError(fakeFetch({}));
+  assert.match(missing.message, /introuvable/);
+  const http = Object.assign(new Error('systems.json : HTTP 500'), { status: 500 });
+  const e500 = await systemsError(fakeFetch({ 'systems.json': http }));
+  assert.match(e500.message, /500/);
+  assert.ok(FRENCH_ONLY(e500.message));
+  const down = await systemsError(fakeFetch({ 'systems.json': new TypeError('Failed to fetch') }));
+  assert.match(down.message, /serveur|hors ligne/i);
+  assert.ok(FRENCH_ONLY(down.message), down.message);
+});
+
+test('loadData A5 : les messages de validation déjà en français sont conservés', async () => {
+  const e = await systemsError(fakeFetch({ 'systems.json': { version: 7, systems: [] } }));
+  assert.match(e.message, /version 7 non gérée/);
+});
+
+// T11 / A6 : hors ligne (fetch rejeté) différent d'absent (404) et d'invalide (JSON ou schéma).
+test('loadData A6 : games.json injoignable (fetch rejeté, hors ligne) donne le statut offline', async () => {
+  const systems = { version: 1, systems: [sys('amiga', 10)] };
+  const data = await loadData(fakeFetch({ 'systems.json': systems, 'games.json': new TypeError('Failed to fetch') }));
+  assert.equal(data.gamesStatus, 'offline');
+  assert.deepEqual(data.games, []);
+});
+
+test('loadData A6 : 404 = absent, JSON corrompu / mauvaise version / HTTP 500 = invalid, jamais offline', async () => {
+  const systems = { version: 1, systems: [sys('amiga', 10)] };
+  const status = async (gamesEntry) => (await loadData(fakeFetch({ 'systems.json': systems, ...gamesEntry }))).gamesStatus;
+  assert.equal(await status({}), 'absent');
+  assert.equal(await status({ 'games.json': new SyntaxError('Unexpected token') }), 'invalid');
+  assert.equal(await status({ 'games.json': { version: 9, games: [] } }), 'invalid');
+  assert.equal(await status({ 'games.json': Object.assign(new Error('HTTP 500'), { status: 500 }) }), 'invalid');
+});

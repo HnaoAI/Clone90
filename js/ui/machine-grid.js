@@ -29,7 +29,7 @@ export function buildMachineTiles(systems, gamesBySystem) {
 
 /**
  * Message à afficher selon l'état de games.json (architecture 8.1 : message dédié, jamais bloquant).
- * @param {string} status 'ok' | 'empty' | 'absent' | 'invalid' (voir loadData)
+ * @param {string} status 'ok' | 'empty' | 'absent' | 'offline' | 'invalid' (voir loadData)
  * @param {number} skipped entrées de games.json écartées car invalides
  * @returns {{title: string, text: string}|null} null = rien à dire
  */
@@ -44,8 +44,10 @@ export function describeGamesStatus(status, skipped = 0) {
       };
     case 'empty':
       return { title: 'Aucun jeu trouvé', text: `Déposez vos ROMs dans roms/<machine>/ puis lancez ${regenerate}, et rechargez la page.` };
+    case 'offline':
+      return { title: 'Liste des jeux inaccessible', text: 'Impossible de joindre le serveur : vous êtes hors ligne, ou le serveur local est arrêté. Reconnectez-vous (ou relancez node scripts/serve.mjs), puis rechargez la page.' };
     case 'invalid':
-      return { title: 'Liste des jeux illisible', text: `games.json est illisible. Relancez ${regenerate}, puis rechargez la page.` };
+      return { title: 'Liste des jeux illisible', text: `games.json est présent mais abîmé ou d'une version inconnue. Relancez ${regenerate}, puis rechargez la page.` };
     case 'ok':
       return skipped > 0
         ? { title: 'Certains jeux ont été ignorés', text: `${skipped} entrée(s) de games.json sont invalides. Relancez ${regenerate}.` }
