@@ -96,3 +96,6 @@ body.is-playing .menu-wrap { opacity: 0.6; }
   font-size: 0.875rem;
   text-align: center;
 }
+
+/* Toast du player (T12, "Disquette 2 / 3") : au-dessus du lecteur (#game z-index 1), sous le bouton Menu en haut ; en bas au centre. */
+.player-body .toast { z-index: 60; }

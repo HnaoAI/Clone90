@@ -77,9 +77,21 @@ Le script lit `systems.json`, scanne `roms/<machine>/` (un niveau de sous-dossie
 - Titre : nom du fichier nettoyé (`Lemmings (Europe).adf` donne `Lemmings`), ou, pour les romsets arcade et Neo Geo, la correspondance de `data/titles.json` (`"mslug": "Metal Slug"`). Ajoutez-y vos romsets.
 - Jaquette (facultative) : une image `.png`, `.jpg`, `.jpeg` ou `.webp` de même nom que le jeu, dans le même dossier.
 - Amiga multi-disquettes (T10) : déposez toutes les disquettes dans le même dossier (`roms/amiga/`) avec des noms qui ne diffèrent que par le numéro, au format TOSEC/No-Intro : `Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf`, `(Disk 2 of 3)`, `(Disk 3 of 3)` (aussi `(Disk 1)` ou `Disk 1 of 3`). Après `node scripts/generate-games.mjs`, elles forment UNE tuile (« Leander ») qui se lance avec toutes les disquettes ; le générateur avertit si une disquette manque. Sinon, un `.m3u` écrit à la main reste possible (seul le `.m3u` apparaît alors comme jeu ; non testé avec de vrais fichiers).
-- Changer de disquette en jeu (Amiga) : à la souris ou au tactile, faire apparaître la barre d'EmulatorJS (bas de l'écran), cliquer l'icône disquette (« Disks »), choisir Disk 1, 2 ou 3. Le jeu étant sur la disquette 1 au départ, changez quand il demande d'insérer la disquette suivante. La barre d'EmulatorJS n'est pas pilotable à la manette en v1 (limite connue), et il n'y a pas de raccourci clavier pour cela. **Non vérifié à la main : voir le ticket T10.**
+- Changer de disquette en jeu (Amiga) : voir la section « Changer de disquette en jeu » plus bas.
 - BIOS spécifique à un jeu : un fichier `<nom du jeu>.bios` contenant le nom du BIOS (une ligne).
 - Les fichiers cachés (commençant par `.`) sont ignorés.
+
+## Changer de disquette en jeu
+
+Pour un jeu Amiga à plusieurs disquettes (ex. Leander), passez à la disquette suivante pendant la partie :
+
+- Manette : maintenez **Select** puis appuyez sur **RB** (bouton 5 en mapping standard). Un appui = une disquette, en cycle (3 puis 1).
+- Clavier : **F9**.
+- Un petit message « Disquette 2 / 3 » s'affiche 2 secondes en bas de l'écran. Sur un jeu à une seule disquette, rien ne se passe.
+- Start seul et Select + Start (sortie du jeu) ne changent jamais de disquette.
+- Le jeu étant sur la disquette 1 au départ, changez quand il demande d'insérer la suivante.
+- Alternative : la barre d'EmulatorJS (bas de l'écran, icône « Disks »), à la souris ou au tactile. Après un changement par raccourci, ce menu peut afficher l'ancien disque ; le message « Disquette N / M » est le bon.
+- **Non vérifié à la main** : voir le ticket T12.
 
 ## Tests
 
