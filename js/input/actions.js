@@ -56,14 +56,19 @@ export function readGamepad(pad) {
 
 /**
  * Lecteur de manettes avec "réveil" (docs/ux.md 4.2) : le premier appui d'une manette fraîchement vue
- * n'émet aucune action (il signale seulement `woke`) et reste ignoré jusqu'à ce que tout soit relâché.
+ * signale `woke` et, par défaut, n'émet aucune action : il reste ignoré jusqu'à ce que tout soit relâché.
+ * Exception (T11/A3) : si `shouldSwallow()` renvoie faux (un élément focalisé attend déjà l'appui), l'appui compte tout de suite.
  * Une manette qui disparaît de la liste redevient "fraîche".
  */
 export function createGamepadReader() {
   const states = new Map(); // index -> 'asleep' | 'suppressed' | 'awake'
   return {
-    /** @param {ArrayLike<Gamepad|null>} pads résultat de navigator.getGamepads() @returns {{held: Set<string>, woke: boolean}} */
-    read(pads) {
+    /**
+     * @param {ArrayLike<Gamepad|null>} pads résultat de navigator.getGamepads()
+     * @param {() => boolean} [shouldSwallow] appelé seulement lors d'un réveil ; faux = l'appui est transmis
+     * @returns {{held: Set<string>, woke: boolean}}
+     */
+    read(pads, shouldSwallow = () => true) {
       const held = new Set();
       let woke = false;
       const seen = new Set();
@@ -74,7 +79,11 @@ export function createGamepadReader() {
         const actions = readGamepad(pad);
         const state = states.get(key) ?? 'asleep';
         if (state === 'asleep') {
-          if (actions.size) { woke = true; states.set(key, 'suppressed'); } else states.set(key, 'asleep');
+          if (actions.size) {
+            woke = true;
+            if (shouldSwallow()) states.set(key, 'suppressed');
+            else { states.set(key, 'awake'); actions.forEach((a) => held.add(a)); }
+          } else states.set(key, 'asleep');
         } else if (state === 'suppressed') {
           if (!actions.size) states.set(key, 'awake');
         } else {
@@ -126,6 +135,7 @@ export function createRepeater({ delay, interval } = {}) {
  * @param {(f: Function) => any} [options.requestFrame] défaut : requestAnimationFrame
  * @param {(id: any) => void} [options.cancelFrame]
  * @param {() => void} [options.onWake] appelé au 1er appui d'une manette fraîche (toast "Manette connectée")
+ * @param {() => boolean} [options.hasFocusedTarget] vrai si un élément focalisé doit déjà recevoir l'appui : le réveil ne l'avale alors pas (T11/A3)
  * @param {() => boolean} [options.isActive] faux = source passive (T7, pendant une partie) : aucune touche consommée ni traduite,
  *   aucune action émise ; les manettes restent lues pour que leurs appuis déjà vus ne se déclenchent pas à la réactivation
  * @param {{delay?: number, interval?: number}} [options.repeat]
@@ -138,6 +148,7 @@ export function createActionSource(options = {}) {
     requestFrame = (f) => globalThis.requestAnimationFrame(f),
     cancelFrame = (id) => globalThis.cancelAnimationFrame(id),
     onWake = () => {},
+    hasFocusedTarget = () => false,
     isActive = () => true,
     repeat,
   } = options;
@@ -174,7 +185,7 @@ export function createActionSource(options = {}) {
     const onBlur = () => { keyboardHeld.clear(); pressedSinceFrame.clear(); };
 
     const readPads = () => {
-      try { return reader.read(getGamepads()); } catch { return { held: new Set(), woke: false }; }
+      try { return reader.read(getGamepads(), () => !hasFocusedTarget()); } catch { return { held: new Set(), woke: false }; }
     };
     const loop = () => {
       const { held: padHeld, woke } = readPads();

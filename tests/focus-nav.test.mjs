@@ -189,3 +189,14 @@ test('createFocusNavigator : focusFirst sur une page vide renvoie false', () => 
   assert.equal(setup([]).focusFirst(), false);
   assert.equal(setup([]).handleAction('down'), true);
 });
+
+// T11 / A3
+test('createFocusNavigator A3 : hasFocus est vrai seulement si un élément navigable de la racine a le focus', () => {
+  const els = gridEls(2, 1);
+  const nav = setup(els);
+  assert.equal(nav.hasFocus(), false);
+  doc.activeElement = { name: 'ailleurs' };
+  assert.equal(nav.hasFocus(), false);
+  doc.activeElement = els[1];
+  assert.equal(nav.hasFocus(), true);
+});

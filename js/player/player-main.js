@@ -100,6 +100,7 @@ function onAction(action, source) {
 
 const actions = createActionSource({
   isActive: () => phase !== 'playing',
+  hasFocusedTarget: nav.hasFocus,
   onWake: () => {
     setGamepadMode(true);
     if (phase === 'playing') return; // pas de message par-dessus le jeu

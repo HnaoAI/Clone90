@@ -65,6 +65,7 @@ async function main() {
   }
 
   const actions = createActionSource({
+    hasFocusedTarget: nav.hasFocus,
     onWake: () => {
       setGamepadMode(true);
       toast('Manette connectée');

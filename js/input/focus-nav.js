@@ -81,6 +81,8 @@ export function createFocusNavigator({ getRoot, doc = globalThis.document, reduc
   }
 
   return {
+    /** Vrai si un élément navigable a déjà le focus (le réveil de la manette n'avale alors pas le 1er appui, T11/A3). */
+    hasFocus: () => items().includes(doc.activeElement),
     /** Focus sur le premier élément navigable. @returns {boolean} false s'il n'y en a aucun */
     focusFirst() {
       const [first] = items();

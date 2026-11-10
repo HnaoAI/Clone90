@@ -355,3 +355,42 @@ test('createActionSource : une répétition clavier d\'une touche tenue avant la
   env.tick();
   assert.deepEqual(got, []);
 });
+
+// T11 / A3 : le réveil n'avale le 1er appui que s'il n'y a rien de focalisé pour le recevoir.
+test('createGamepadReader A3 : si un élément focalisé attend l\'appui (shouldSwallow faux), le 1er appui compte tout de suite', () => {
+  const r = createGamepadReader();
+  const first = r.read([pad({ pressed: [0] })], () => false);
+  assert.equal(first.woke, true);
+  assert.deepEqual([...first.held], ['confirm']);
+  // Toujours enfoncé : c'est une manette réveillée, le repeater (front montant) ne redéclenchera pas confirm.
+  assert.deepEqual([...r.read([pad({ pressed: [0] })], () => false).held], ['confirm']);
+  assert.equal(r.read([pad({ pressed: [0] })], () => false).woke, false);
+});
+
+test('createGamepadReader A3 : shouldSwallow n\'est appelé qu\'au réveil', () => {
+  const r = createGamepadReader();
+  let calls = 0;
+  r.read([pad()], () => { calls += 1; return true; });
+  r.read([pad({ pressed: [0] })], () => { calls += 1; return true; });
+  r.read([pad()], () => { calls += 1; return true; });
+  r.read([pad({ pressed: [0] })], () => { calls += 1; return true; });
+  assert.equal(calls, 1);
+});
+
+test('createActionSource A3 : écran Jouer (bouton déjà focalisé), A fonctionne dès le 1er appui, avec le toast de réveil', () => {
+  const env = fakeEnv(); const got = []; const woke = [];
+  createActionSource({ ...env.options, hasFocusedTarget: () => true, onWake: () => woke.push(1) }).start((a, s) => got.push([a, s]));
+  env.pads = [pad({ pressed: [0] })];
+  env.tick();
+  env.tick();
+  assert.deepEqual(got, [['confirm', 'gamepad']], 'un seul confirm, pas de répétition');
+  assert.equal(woke.length, 1);
+});
+
+test('createActionSource A3 : rien de focalisé (accueil, CA-N1), le 1er appui réveille seulement', () => {
+  const env = fakeEnv(); const got = [];
+  createActionSource({ ...env.options, hasFocusedTarget: () => false }).start((a) => got.push(a));
+  env.pads = [pad({ pressed: [0] })];
+  env.tick();
+  assert.deepEqual(got, []);
+});
