@@ -228,7 +228,7 @@ Les 11 autres entrées (arcade, mastersystem, megadrive, gamegear, megacd, 32x, 
 - `cover` : image de même nom (png, jpg, jpeg, webp) dans le même dossier, sinon `null`.
 - `bios` (optionnel) : surcharge du BIOS par défaut de la machine, présente seulement si un fichier `<nom>.bios` existe à côté du jeu (une ligne : le nom du BIOS). Évite de compliquer le format pour tous.
 - Les chemins sont relatifs (compatibles GitHub Pages et sous-dossier).
-- `file`, `cover` et `id` ne sont pas encodés : le front doit appliquer `encodeURI` sur les chemins (espaces, accents, apostrophes) et `encodeURIComponent` sur `id` dans `player.html?game=` et `#/...?focus=`.
+- `file`, `cover` et `id` ne sont pas encodés : le front doit appliquer `encodeURIComponent` à CHAQUE segment des chemins (`assetUrl` de `js/data.js`, `/` conservés : `encodeURI` laisserait `#` et `?` intacts, T11/A1) et `encodeURIComponent` sur `id` dans `player.html?game=` et `#/...?focus=`.
 
 ## 7. scripts/generate-games.mjs
 

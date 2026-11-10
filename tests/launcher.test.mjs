@@ -366,3 +366,16 @@ test('loadEmulator : contournements EmulatorJS (allSettings, disque déjà coura
   emulator.handleSpecialOptions('shader', 'x'); // autre option : simple passage
   assert.equal(calls.length, before + 1);
 });
+
+// T11 / A1 : # et ? dans les noms de fichiers, y compris disquettes et BIOS.
+test('buildLaunchPlan A1 : jeu, disquettes et BIOS avec # ? % sont encodés par segment', () => {
+  const g = {
+    id: 'amiga/t', system: 'amiga', title: 'T', file: 'roms/amiga/Turrican II #1.adf', cover: null,
+    disks: ['roms/amiga/Turrican II #1.adf', 'roms/amiga/Turrican II #2?.adf'], bios: 'kick #1?.rom',
+  };
+  const plan = buildLaunchPlan({ system: amiga, game: g });
+  assert.deepEqual(plan.rawFiles.map((r) => r.url), ['roms/amiga/Turrican%20II%20%231.adf', 'roms/amiga/Turrican%20II%20%232%3F.adf']);
+  assert.match(plan.globals.EJS_biosUrl, /kick%20%231%3F\.rom$/);
+  const single = buildLaunchPlan({ system: amiga, game: { ...g, disks: undefined } });
+  assert.equal(single.globals.EJS_gameUrl, 'roms/amiga/Turrican%20II%20%231.adf');
+});

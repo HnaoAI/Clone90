@@ -17,7 +17,7 @@ import { createExitGuard } from './exit-guard.js';
 import { shouldShowExitHint, EXIT_HINT_MS } from './exit-hint.js';
 import {
   renderPlayScreen, renderPlayerMessage, renderLoading, renderExitHint, createMenuButton, exitDialogOptions,
-  describeLoadError, PLAY_NAV_ID, BACK_NAV_ID,
+  describeLoadError, exitDecision, PLAY_NAV_ID, BACK_NAV_ID,
 } from './player-ui.js';
 
 const MENU_IDLE_MS = 3000;
@@ -57,9 +57,9 @@ const showLoadError = (error, url) => {
 
 /** Demande de sortie (garde, bouton Menu, retour du navigateur). Pendant la confirmation, répéter la demande = Quitter. */
 function requestExit() {
-  if (phase === 'dialog') goBack();
-  else if (phase === 'playing') openExitDialog();
-  else if (phase === 'ready') goBack();
+  const decision = exitDecision(phase);
+  if (decision === 'leave') goBack();
+  else if (decision === 'confirm') openExitDialog();
 }
 
 async function openExitDialog() {
@@ -100,6 +100,7 @@ function onAction(action, source) {
 
 const actions = createActionSource({
   isActive: () => phase !== 'playing',
+  hasFocusedTarget: nav.hasFocus,
   onWake: () => {
     setGamepadMode(true);
     if (phase === 'playing') return; // pas de message par-dessus le jeu
@@ -121,15 +122,17 @@ function watchMenuIdle() {
   window.addEventListener('mousemove', wake, { passive: true });
 }
 
+/** @returns {HTMLElement|null} le rappel affiché (pour le retirer si le moteur échoue), ou null */
 function showExitHint() {
   let storage = null;
   try { storage = window.localStorage; } catch { /* accès refusé */ }
-  if (!shouldShowExitHint(storage)) return;
+  if (!shouldShowExitHint(storage)) return null;
   const noPointerHover = window.matchMedia?.('(hover: none)').matches === true;
   const hasGamepad = Array.from(navigator.getGamepads?.() ?? []).some(Boolean);
   const hint = renderExitHint(noPointerHover && !hasGamepad);
   chrome.append(hint);
   setTimeout(() => hint.remove(), EXIT_HINT_MS);
+  return hint;
 }
 
 async function play(plan) {
@@ -147,12 +150,12 @@ async function play(plan) {
   guard.start();
   history.pushState({ clone90: 'exit-guard' }, '');
   window.addEventListener('popstate', onPopState);
-  showExitHint();
+  const exitHint = showExitHint();
   try {
     await loadEmulator(plan, { onStart: hideLoading });
   } catch (e) {
-    guard.stop();
-    window.removeEventListener('popstate', onPopState);
+    // INVARIANT (T11/A2) : on reste armé (garde, popstate, bouton Menu) : phase 'error' quitte en un seul appui.
+    exitHint?.remove();
     gameElement.hidden = true;
     document.body.classList.remove('is-playing');
     showMessage({ title: 'Impossible de lancer ce jeu.', details: [e.message] });
@@ -169,6 +172,7 @@ async function main() {
   try {
     data = await loadData();
   } catch (e) {
+    console.error('Chargement de systems.json impossible :', e.cause ?? e);
     showLoadError({ reason: 'data', message: e.message }, HOME_PAGE);
     return;
   }

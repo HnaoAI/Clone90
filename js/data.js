@@ -74,10 +74,30 @@ export async function defaultFetchJson(url) {
 }
 
 /**
+ * Message français pour l'utilisateur quand systems.json n'a pas pu être chargé (T11/A5).
+ * Les messages de validation de ce module (déjà en français, commençant par "systems.json") sont conservés.
+ * @param {Error & {status?: number}} e erreur d'origine (fetch, parseur JSON ou validation)
+ */
+function describeSystemsError(e) {
+  if (e.status === 404) return 'Le fichier systems.json est introuvable.';
+  if (e.status) return `Le serveur n'a pas pu envoyer systems.json (erreur HTTP ${e.status}).`;
+  if (e instanceof TypeError) return 'Impossible de joindre le serveur : vous êtes peut-être hors ligne, ou le serveur local est arrêté.';
+  if (e instanceof SyntaxError) return 'Le fichier systems.json est abîmé (ce n\'est pas du JSON valide).';
+  if (e.message.startsWith('systems.json')) return e.message;
+  return 'Le fichier systems.json est illisible.';
+}
+
+/** Statut de games.json quand son chargement échoue : 404 = absent, fetch rejeté (TypeError, pas de réponse) = offline, sinon invalid (T11/A6). */
+const gamesFailureStatus = (e) => {
+  if (e.status === 404) return 'absent';
+  return !e.status && e instanceof TypeError ? 'offline' : 'invalid';
+};
+
+/**
  * Charge les données de l'application.
- * - systems.json absent ou invalide : erreur fatale (rejet).
+ * - systems.json absent ou invalide : erreur fatale (rejet) au message français ; l'erreur d'origine est dans `cause` (à journaliser en console).
  * - games.json : jamais fatal. `gamesStatus` vaut 'ok', 'empty' (aucun jeu), 'absent' (404,
- *   cas normal sur GitHub Pages car gitignoré) ou 'invalid' (illisible ou mauvaise version).
+ *   cas normal sur GitHub Pages car gitignoré), 'offline' (serveur injoignable) ou 'invalid' (illisible ou mauvaise version).
  * @param {(url: string) => Promise<unknown>} [fetchJson] injectable pour les tests
  * @returns {Promise<{systems: object[], games: object[], gamesStatus: string, skipped: number}>}
  */
@@ -86,13 +106,13 @@ export async function loadData(fetchJson = defaultFetchJson) {
   try {
     systems = validateSystems(await fetchJson(SYSTEMS_URL));
   } catch (e) {
-    throw new Error(e.message.startsWith('systems.json') ? e.message : `systems.json illisible : ${e.message}`);
+    throw new Error(describeSystemsError(e), { cause: e });
   }
   try {
     const { games, skipped } = validateGames(await fetchJson(GAMES_URL), systems.map((s) => s.id));
     return { systems, games, skipped, gamesStatus: games.length ? 'ok' : 'empty' };
   } catch (e) {
-    return { systems, games: [], skipped: 0, gamesStatus: e.status === 404 ? 'absent' : 'invalid' };
+    return { systems, games: [], skipped: 0, gamesStatus: gamesFailureStatus(e) };
   }
 }
 
@@ -108,8 +128,17 @@ export function groupGamesBySystem(systems, games) {
   return map;
 }
 
-/** Chemin de fichier ou de jaquette prêt pour une URL (architecture 6.2 : encodeURI). null reste null. */
-export const assetUrl = (path) => (path == null ? null : encodeURI(path));
+/**
+ * Chemin de fichier ou de jaquette prêt pour une URL : chaque segment est encodé avec encodeURIComponent, les `/` sont conservés.
+ * INVARIANT : encodeURI laisserait `#` et `?` intacts (début de fragment ou de requête : le navigateur viserait un autre fichier, T11/A1).
+ * null reste null.
+ */
+export const assetUrl = (path) => (path == null ? null : path.split('/').map(encodeURIComponent).join('/'));
+
+/** Chemin inverse de assetUrl, pour les messages affichés à l'utilisateur. Un encodage invalide est renvoyé tel quel. */
+export const assetPathFromUrl = (url) => {
+  try { return url.split('/').map(decodeURIComponent).join('/'); } catch { return url; }
+};
 
 /** Id de jeu prêt pour une URL (architecture 6.2 : encodeURIComponent). */
 export const encodeGameId = (id) => encodeURIComponent(id);

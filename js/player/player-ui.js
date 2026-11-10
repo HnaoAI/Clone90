@@ -10,6 +10,14 @@ export const MENU_NAV_ID = 'menu';
 export const PLAY_NAV_ID = 'play';
 export const BACK_NAV_ID = 'back';
 
+/**
+ * Que faire d'une demande de sortie (Menu, F10, Select+Start, retour du navigateur) selon la phase de player-main.js.
+ * INVARIANT : 'error' quitte directement (T11/A2) ; le Menu et la sortie doivent marcher même si le moteur n'a pas chargé.
+ * @param {string} phase 'boot' | 'ready' | 'playing' | 'dialog' | 'error'
+ * @returns {'leave'|'confirm'|'none'} quitter tout de suite, ouvrir la confirmation, ou ignorer
+ */
+export const exitDecision = (phase) => (phase === 'playing' ? 'confirm' : ['dialog', 'ready', 'error'].includes(phase) ? 'leave' : 'none');
+
 /** Options de la boîte de confirmation de sortie (docs/ux.md 3.4). @param {string} gameTitle */
 export const exitDialogOptions = (gameTitle) => ({
   title: `Quitter ${gameTitle} ?`,
@@ -30,6 +38,9 @@ export function describeLoadError({ reason, gamesStatus, message }) {
   if (reason === 'no-params') return { title: 'Aucun jeu choisi', detail: 'Choisissez un jeu dans la liste pour le lancer.' };
   if (reason === 'no-games' && gamesStatus === 'absent') {
     return { title: 'Aucun jeu trouvé', detail: 'La liste des jeux n\'existe pas : déposez vos ROMs dans roms/ puis lancez node scripts/generate-games.mjs.' };
+  }
+  if (reason === 'no-games' && gamesStatus === 'offline') {
+    return { title: 'Hors ligne', detail: 'Impossible de joindre le serveur pour lire la liste des jeux : vous êtes hors ligne, ou le serveur local est arrêté.' };
   }
   if (reason === 'unknown-game' || reason === 'no-games') return { title: 'Jeu introuvable', detail: 'Ce jeu n\'est plus dans la liste. Relancez node scripts/generate-games.mjs si vous l\'avez déplacé.' };
   if (reason === 'data') return { title: 'Impossible de charger les données', detail: message ?? 'systems.json illisible.' };

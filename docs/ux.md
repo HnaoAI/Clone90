@@ -218,7 +218,7 @@ Téléphone en portrait : on laisse EmulatorJS gérer son affichage (jeu en haut
 
 - Start (bouton 9) sur les menus = Valider (beaucoup de joueurs l'appuient par réflexe).
 - Retour depuis l'accueil : ne fait rien (pas de sortie de l'application).
-- Manette : le premier appui sur une manette fraîchement branchée active la navigation sans déclencher d'action (il "réveille" le focus) ; un petit toast "Manette connectée" s'affiche 2 s.
+- Manette : le premier appui sur une manette fraîchement vue (les navigateurs ne la montrent qu'au 1er appui, donc à chaque nouvelle page) affiche un petit toast "Manette connectée" 2 s. **S'il n'y a encore aucun élément focalisé** (accueil à l'ouverture), cet appui active seulement la navigation et pose le focus sur le 1er élément, sans déclencher d'action. **S'il y a déjà un élément focalisé** (bouton Jouer, tuile de retour, bouton de la page d'erreur), l'appui est traité normalement : A valide dès le 1er appui (décision PO, recette A3).
 - Convention A = valider en bas, B = retour à droite (disposition Xbox/standard de la Gamepad API). Pas d'inversion style Nintendo en v1.
 
 ### 4.3 Focus visible et modes d'entrée

@@ -141,3 +141,15 @@ test('splitCode : isole chemins et commandes pour la police mono, le reste reste
   assert.equal(parts.map((p) => p.text).join(''), 'Déposez dans roms/<machine>/ puis node scripts/generate-games.mjs ok');
   assert.deepEqual(splitCode('rien'), [{ text: 'rien', code: false }]);
 });
+
+// T11 / A6
+test('describeGamesStatus A6 : hors ligne, absent et invalide ont trois messages distincts, hors ligne ne parle pas de games.json illisible', () => {
+  const offline = describeGamesStatus('offline', 0);
+  const absent = describeGamesStatus('absent', 0);
+  const invalid = describeGamesStatus('invalid', 0);
+  assert.equal(new Set([offline.title, absent.title, invalid.title]).size, 3);
+  assert.match(offline.text, /hors ligne|connexion|serveur/i);
+  assert.doesNotMatch(offline.text + offline.title, /illisible/i);
+  assert.doesNotMatch(offline.text, /generate-games/, 'relancer le générateur ne règle pas une coupure réseau');
+  assert.match(invalid.title, /illisible/i);
+});
