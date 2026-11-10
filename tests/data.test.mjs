@@ -134,3 +134,18 @@ test('assetUrl : encodeURI sur les chemins (espaces, accents, apostrophes), null
 test('encodeGameId : encodeURIComponent (le / de l\'id est encodé)', () => {
   assert.equal(encodeGameId('neogeo/mslug 2&x'), 'neogeo%2Fmslug%202%26x');
 });
+
+test('validateGames : champ disks (T10) accepté s\'il liste au moins 2 chemins sûrs commençant par file, sinon le jeu est écarté', () => {
+  const base = { id: 'amiga/x', system: 'amiga', title: 'X', file: 'roms/amiga/x1.adf', cover: null };
+  const raw = { version: 1, games: [
+    { ...base, disks: ['roms/amiga/x1.adf', 'roms/amiga/x2.adf'] },
+    { ...base, id: 'amiga/y', disks: ['roms/amiga/x1.adf'] },
+    { ...base, id: 'amiga/z', disks: ['roms/amiga/x1.adf', '../secret.adf'] },
+    { ...base, id: 'amiga/w', disks: ['roms/amiga/x2.adf', 'roms/amiga/x1.adf'] },
+    { ...base, id: 'amiga/v', disks: 'roms/amiga/x1.adf' },
+    { ...base, id: 'amiga/u' },
+  ] };
+  const { games, skipped } = validateGames(raw, ['amiga']);
+  assert.deepEqual(games.map((g) => g.id), ['amiga/x', 'amiga/u']);
+  assert.equal(skipped, 4);
+});

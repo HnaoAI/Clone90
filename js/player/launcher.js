@@ -3,9 +3,10 @@
 // INVARIANT : c'est le SEUL module qui connaît EmulatorJS (CLAUDE.md règle 4). Les autres ne voient que pauseEmulator/resumeEmulator.
 // INVARIANT : les variables EJS_* sont posées AVANT l'injection de loader.js (le loader les lit une seule fois à son chargement).
 //
-// Validé en T0 avec de vrais fichiers sur le CDN stable (Neo Geo, romset viewpoin) : EJS_onGameStart, EJS_emulator.pause()/play(),
+// Validé en T0 avec de vrais fichiers sur le CDN (stable, 4.2.3 aujourd'hui) (Neo Geo, romset viewpoin) : EJS_onGameStart, EJS_emulator.pause()/play(),
 // chemin de jeu encodé, et BIOS Neo Geo gardé zippé (voir "keepZipped" ci-dessous). Reste ouvert (pas de Kickstart ni de jeu Amiga
 // réels) : 'bios/kick40068.A1200' retrouvé par puae, IPF, multi-disques.
+// Multi-disquettes (T10) : voir diskSetFiles ci-dessous (m3u virtuel + disquettes posées par EJS_externalFiles).
 import { EJS_CDN_URL, BIOS_DIR } from '../config.js';
 import { assetUrl, isRelativePath } from '../data.js';
 
@@ -36,6 +37,33 @@ export function resolveBios(system, game) {
 /** Nom de fichier sans dossier ni URL (le BIOS est posé à la racine du système de fichiers du cœur). */
 const baseName = (path) => path.split('/').pop();
 
+/** Extension (minuscule, sans point) d'un chemin, '' si aucune. */
+const extensionOf = (path) => (baseName(path).includes('.') ? baseName(path).split('.').pop().toLowerCase() : '');
+
+/** Nom ASCII sûr pour le système de fichiers du cœur (aucun caractère à encoder ni à échapper dans un m3u). */
+const safeFileName = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'game';
+
+/**
+ * Jeu à plusieurs disquettes (T10) : EmulatorJS ne charge qu'un fichier de jeu, mais puae sait lire un .m3u (liste de disquettes) et
+ * EmulatorJS affiche alors son menu de changement de disque. On fabrique donc côté navigateur :
+ *  - un .m3u virtuel (`virtualGame`, transformé en objet File par loadEmulator : EmulatorJS garde le nom du File) ;
+ *  - les disquettes, posées à la racine du système de fichiers du cœur par EJS_externalFiles sous des noms ASCII sûrs
+ *    (`disk1.adf`...) : le nom réel (espaces, parenthèses, crochets) n'a ainsi aucune importance, et EmulatorJS n'encode rien.
+ * Pas de commentaire (#EXTM3U) dans le m3u : EmulatorJS lit ses lignes une à une pour nommer les disques du menu.
+ * @param {{id: string, disks: string[]}} game
+ * @returns {{virtualGame: {name: string, text: string}, rawFiles: {url: string, fsPath: string}[]}}
+ */
+export function diskSetFiles(game) {
+  const names = game.disks.map((path, i) => `disk${i + 1}.${extensionOf(path) || 'adf'}`);
+  return {
+    virtualGame: { name: `${safeFileName(game.id)}.m3u`, text: `${names.map((n, i) => `${n}|Disk ${i + 1}`).join('\n')}\n` },
+    rawFiles: game.disks.map((path, i) => ({ url: assetUrl(path), fsPath: `/${names[i]}` })),
+  };
+}
+
+/** Vrai si le jeu se lance avec plusieurs disquettes. */
+const hasDiskSet = (game) => Array.isArray(game.disks) && game.disks.length > 1;
+
 /**
  * Plan de lancement (fonction pure) : variables globales d'EmulatorJS, URL du loader, fichiers à contrôler.
  * BIOS "keepZipped" (Neo Geo) : EmulatorJS stable extrait toujours le zip passé à EJS_biosUrl, alors que fbneo veut `neogeo.zip`
@@ -53,7 +81,6 @@ export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL }) {
   const globals = {
     EJS_player: `#${GAME_ELEMENT_ID}`,
     EJS_core: system.emulatorjsCore,
-    EJS_gameUrl: assetUrl(game.file),
     EJS_pathtodata: dataUrl,
     EJS_gameName: game.title,
     EJS_startOnLoaded: true,
@@ -66,12 +93,15 @@ export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL }) {
     globals.EJS_disableLocalStorage = true;
   }
   const biosUrl = bios && assetUrl(biosPath);
-  const rawFiles = [];
+  const diskSet = hasDiskSet(game) ? diskSetFiles(game) : null;
+  const rawFiles = diskSet ? [...diskSet.rawFiles] : [];
+  if (!diskSet) globals.EJS_gameUrl = assetUrl(game.file);
   if (bios?.keepZipped) rawFiles.push({ url: biosUrl, fsPath: `/${baseName(bios.file)}` });
   else if (bios) globals.EJS_biosUrl = biosUrl;
-  const files = [{ kind: 'game', path: game.file, url: globals.EJS_gameUrl, required: true }];
+  const gamePaths = diskSet ? game.disks : [game.file];
+  const files = gamePaths.map((path) => ({ kind: 'game', path, url: assetUrl(path), required: true }));
   if (bios) files.push({ kind: 'bios', path: biosPath, url: biosUrl, required: bios.required });
-  return { globals, loaderUrl: `${dataUrl}loader.js`, files, rawFiles };
+  return { globals, loaderUrl: `${dataUrl}loader.js`, files, rawFiles, virtualGame: diskSet?.virtualGame ?? null };
 }
 
 /**
@@ -116,8 +146,45 @@ export const fetchBytes = async (url) => {
 };
 
 /**
+ * Contournements de défauts d'EmulatorJS 4.2.3 (version épinglée dans config.js, à retester avant tout changement ; constatés en T10 avec puae et un jeu à plusieurs disques). startGame() construit le
+ * menu des disques AVANT le menu des réglages, et ce menu "sélectionne" le disque courant au passage :
+ *  1. menuOptionChanged écrit dans `allSettings`, que seul le menu des réglages crée : "Cannot set properties of undefined (setting 'disk')",
+ *     puis "Failed to start game". On donne donc `allSettings = {}` à l'instance dès qu'EmulatorJS la crée (son constructeur ne démarre que
+ *     des téléchargements, bien avant startGame) ; setupSettingsMenu remplace ensuite cet objet par le sien.
+ *  2. Cette sélection appelle setCurrentDisk(disque déjà inséré) avant la première image : le cœur plante ("unreachable"). Choisir le
+ *     disque déjà en place est un non-événement : on l'ignore.
+ *  3. Un vrai changement de disque (setCurrentDisk) lève "unreachable" au premier appel (le plateau du lecteur s'ouvre mais l'index ne
+ *     change pas) et réussit au second : constaté sur 6 changements de suite, avec ou sans puae_floppy_multidrive. On rappelle donc une
+ *     fois ; si le second appel échoue aussi, l'erreur remonte.
+ */
+function guardDiskMenuStartup(win) {
+  let instance = win.EJS_emulator;
+  const patch = (emulator) => {
+    emulator.allSettings ??= {};
+    const handleSpecialOptions = emulator.handleSpecialOptions;
+    emulator.handleSpecialOptions = function (option, value) {
+      if (option === 'disk' && Number(value) === this.gameManager?.getCurrentDisk?.()) return undefined;
+      try {
+        return handleSpecialOptions.call(this, option, value);
+      } catch (error) {
+        if (option !== 'disk') throw error;
+        return handleSpecialOptions.call(this, option, value);
+      }
+    };
+  };
+  Object.defineProperty(win, 'EJS_emulator', {
+    configurable: true,
+    get: () => instance,
+    set: (value) => {
+      if (value && typeof value === 'object') patch(value);
+      instance = value;
+    },
+  });
+}
+
+/**
  * Pose les variables EJS_* puis charge loader.js depuis le CDN.
- * @param {{globals: object, loaderUrl: string, rawFiles?: {url: string, fsPath: string}[]}} plan
+ * @param {{globals: object, loaderUrl: string, rawFiles?: {url: string, fsPath: string}[], virtualGame?: {name: string, text: string}|null}} plan
  * @param {{win?: Window, doc?: Document, onStart?: () => void, getBytes?: (url: string) => Promise<Uint8Array>}} [env]
  *   injectable pour les tests ; onStart : le jeu a démarré
  * @returns {Promise<void>} résolu quand loader.js est chargé (EmulatorJS charge ensuite le cœur et le jeu tout seul)
@@ -132,6 +199,8 @@ export async function loadEmulator(plan, { win = globalThis.window, doc = global
   return new Promise((resolve, reject) => {
     Object.assign(win, plan.globals);
     if (Object.keys(externalFiles).length) win.EJS_externalFiles = externalFiles;
+    if (plan.virtualGame) guardDiskMenuStartup(win);
+    if (plan.virtualGame) win.EJS_gameUrl = new File([plan.virtualGame.text], plan.virtualGame.name, { type: 'audio/x-mpegurl' });
     win.EJS_onGameStart = onStart;
     const script = doc.createElement('script');
     script.src = plan.loaderUrl;

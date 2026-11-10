@@ -52,7 +52,7 @@ EmulatorJS n'accepte que des **noms de fichier précis**. Renommez votre Kicksta
 | `kick39106.A4000`, `kick40068.A4000` | A4000 |
 | `kick40060.CD32` | CD32 |
 
-Les jeux Amiga (`.adf`, `.adz`, `.dms`, `.ipf`, `.hdf`, `.hdz`, `.lha`, `.zip`, `.m3u`) vont dans `roms/amiga/` (la casse du dossier n'a pas d'importance : `roms/Amiga/` est trouvé aussi). Testé avec un vrai Kickstart 3.1 A1200 renommé `kick40068.A1200` et un `.adf` : le jeu démarre, l'émulation est réglée sur le modèle A1200. Les formats IPF et les jeux à plusieurs disquettes ne sont pas encore validés.
+Les jeux Amiga (`.adf`, `.adz`, `.dms`, `.ipf`, `.hdf`, `.hdz`, `.lha`, `.zip`, `.m3u`) vont dans `roms/amiga/` (la casse du dossier n'a pas d'importance : `roms/Amiga/` est trouvé aussi). Testé avec un vrai Kickstart 3.1 A1200 renommé `kick40068.A1200` et un `.adf` : le jeu démarre, l'émulation est réglée sur le modèle A1200. Le format IPF n'est pas encore validé. Jeux à plusieurs disquettes : voir « Amiga multi-disquettes » plus bas.
 
 ### BIOS Neo Geo
 
@@ -75,7 +75,8 @@ Le script lit `systems.json`, scanne `roms/<machine>/` (un niveau de sous-dossie
 - `--check` : affiche le diagnostic sans écrire `games.json`.
 - Titre : nom du fichier nettoyé (`Lemmings (Europe).adf` donne `Lemmings`), ou, pour les romsets arcade et Neo Geo, la correspondance de `data/titles.json` (`"mslug": "Metal Slug"`). Ajoutez-y vos romsets.
 - Jaquette (facultative) : une image `.png`, `.jpg`, `.jpeg` ou `.webp` de même nom que le jeu, dans le même dossier.
-- Amiga multi-disquettes : listez les disquettes dans un `.m3u` ; seul le `.m3u` apparaît comme jeu.
+- Amiga multi-disquettes (T10) : déposez toutes les disquettes dans le même dossier (`roms/amiga/`) avec des noms qui ne diffèrent que par le numéro, au format TOSEC/No-Intro : `Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf`, `(Disk 2 of 3)`, `(Disk 3 of 3)` (aussi `(Disk 1)` ou `Disk 1 of 3`). Après `node scripts/generate-games.mjs`, elles forment UNE tuile (« Leander ») qui se lance avec toutes les disquettes ; le générateur avertit si une disquette manque. Sinon, un `.m3u` écrit à la main reste possible (seul le `.m3u` apparaît alors comme jeu ; non testé avec de vrais fichiers).
+- Changer de disquette en jeu (Amiga) : à la souris ou au tactile, faire apparaître la barre d'EmulatorJS (bas de l'écran), cliquer l'icône disquette (« Disks »), choisir Disk 1, 2 ou 3. Le jeu étant sur la disquette 1 au départ, changez quand il demande d'insérer la disquette suivante. La barre d'EmulatorJS n'est pas pilotable à la manette en v1 (limite connue), et il n'y a pas de raccourci clavier pour cela. **Non vérifié à la main : voir le ticket T10.**
 - BIOS spécifique à un jeu : un fichier `<nom du jeu>.bios` contenant le nom du BIOS (une ligne).
 - Les fichiers cachés (commençant par `.`) sont ignorés.
 
@@ -91,7 +92,7 @@ Le guide de publication sur GitHub Pages arrivera avec le ticket T8.
 
 - Quitter un jeu ramène à la grille de la machine avec le jeu quitté sélectionné. Le bouton Retour du navigateur, depuis cette grille, peut ramener à l'écran Jouer du même jeu.
 - Sortie du jeu : Select + Start maintenus 1 s (manette), F10 ou Échap maintenu 1 s (clavier), bouton Menu (souris, tactile), geste Retour d'Android. Tous ouvrent une confirmation.
-- Validé avec de vrais fichiers (ticket T0, Chromium) : Neo Geo (Viewpoint) et Amiga (Leander), BIOS trouvés, pause et reprise, F10, Échap maintenu. Pas encore validé : formats IPF et multi-disquettes, Échap maintenu en plein écran sur un vrai Chrome (sinon utiliser F10 ou le bouton Menu).
+- Validé avec de vrais fichiers (ticket T0, Chromium) : Neo Geo (Viewpoint) et Amiga (Leander), BIOS trouvés, pause et reprise, F10, Échap maintenu. Multi-disquettes (T10) : chargement des 3 disquettes de Leander et menu de changement vus en navigateur automatisé, mais pas encore vérifiés à la main en jouant. Pas encore validé : format IPF, Échap maintenu en plein écran sur un vrai Chrome (sinon utiliser F10 ou le bouton Menu).
 
 ## Installation PWA et hors ligne (T8)
 
@@ -107,3 +108,11 @@ Le guide de publication sur GitHub Pages arrivera avec le ticket T8.
 
 - Police **Press Start 2P** (Copyright 2012 The Press Start 2P Project Authors, licence SIL Open Font License 1.1) : fichiers `PressStart2P-Regular.ttf` et `OFL.txt` pris dans le dépôt google/fonts (https://github.com/google/fonts/tree/main/ofl/pressstart2p), copiés dans `assets/fonts/`. Téléchargement accepté par Hicham le 2026-11-09.
 - Logos des machines : dessins maison générés par `scripts/generate-logos.mjs`, sans reprise des logos officiels.
+
+## Relever la version d'EmulatorJS
+
+La version est épinglée dans une seule constante, `EJS_CDN_VERSION` de `js/config.js` (4.2.3 depuis T10). Pour la relever :
+1. Changer la constante, puis lancer un jeu Amiga multi-disquettes (ex. Leander) et un jeu Neo Geo en vrai.
+2. Retester les trois contournements de `guardDiskMenuStartup` dans `js/player/launcher.js` : (a) le jeu démarre sans « Failed to start game », (b) pas de plantage au démarrage, (c) un changement de disquette par le menu « Disks » fonctionne du premier coup.
+3. Retirer un contournement devenu inutile (et son test dans `tests/launcher.test.mjs`) ; ne garder que ceux dont le défaut existe encore.
+4. Mettre à jour `docs/architecture.md` (3.1 et section 4).

@@ -315,3 +315,114 @@ test('pickSystemDir : casse exacte préférée, sinon premier nom égal sans ten
   assert.equal(pickSystemDir(['neogeo'], 'amiga'), 'amiga');
   assert.equal(pickSystemDir([], 'amiga'), 'amiga');
 });
+
+// --- T10 : jeux multi-disquettes (convention TOSEC/No-Intro "Disk N of M") ---
+
+const diskWarnings = (result) => result.warnings.filter((w) => !w.includes('BIOS requis')); // le BIOS Amiga n'existe pas dans le dossier factice
+const LEANDER = (n, flag = '[cr Flashtro]') => `roms/amiga/Leander (1991)(Psygnosis)(Disk ${n} of 3)${flag}.adf`;
+
+test('multi-disquettes : trois ADF TOSEC donnent UN jeu avec disks ordonnés et file = disquette 1', async () => {
+  await withProject({ [LEANDER(3)]: 'x', [LEANDER(1)]: 'x', [LEANDER(2)]: 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.equal(result.games.length, 1);
+    const [game] = result.games;
+    assert.equal(game.title, 'Leander');
+    assert.equal(game.id, 'amiga/leander_(1991)(psygnosis)');
+    assert.equal(game.file, LEANDER(1));
+    assert.deepEqual(game.disks, [LEANDER(1), LEANDER(2), LEANDER(3)]);
+    assert.deepEqual(diskWarnings(result), []);
+  });
+});
+
+test('multi-disquettes : l\'ordre est numérique (Disk 10 après Disk 2) et "(Disk N)" sans total est accepté', async () => {
+  const files = {};
+  for (let n = 1; n <= 10; n++) files[`roms/amiga/Gros Jeu (Disk ${n}).adf`] = 'x';
+  await withProject(files, async (root) => {
+    const [game] = await gamesOf(root);
+    assert.equal(game.disks.length, 10);
+    assert.match(game.disks[1], /Disk 2\)/);
+    assert.match(game.disks[9], /Disk 10\)/);
+  });
+});
+
+test('multi-disquettes : forme "Disk N of M" sans parenthèses, jeux voisins non regroupés', async () => {
+  await withProject({
+    'roms/amiga/Alpha Disk 1 of 2.adf': 'x', 'roms/amiga/Alpha Disk 2 of 2.adf': 'x',
+    'roms/amiga/Beta (Disk 1 of 2).adf': 'x', 'roms/amiga/Beta (Disk 2 of 2).adf': 'x', 'roms/amiga/Solo.adf': 'x',
+  }, async (root) => {
+    const games = await gamesOf(root);
+    assert.deepEqual(games.map((g) => [g.title, g.disks?.length ?? 1]), [['Alpha', 2], ['Beta', 2], ['Solo', 1]]);
+  });
+});
+
+test('multi-disquettes : groupe incomplet (disquette 2 manquante) = avertissement, jeu gardé, pas de plantage', async () => {
+  await withProject({ [LEANDER(1)]: 'x', [LEANDER(3)]: 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.equal(result.games.length, 1);
+    assert.deepEqual(result.games[0].disks, [LEANDER(1), LEANDER(3)]);
+    assert.equal(diskWarnings(result).length, 1);
+    assert.match(diskWarnings(result)[0], /Leander.*incomplet.*2/);
+  });
+});
+
+test('multi-disquettes : une seule disquette sur trois = jeu simple (sans disks) + avertissement', async () => {
+  await withProject({ [LEANDER(2)]: 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.equal(result.games[0].disks, undefined);
+    assert.equal(result.games[0].file, LEANDER(2));
+    assert.match(diskWarnings(result)[0], /incomplet/);
+  });
+});
+
+test('multi-disquettes : "(Disk 1)" seul, sans total, n\'est pas un groupe incomplet', async () => {
+  await withProject({ 'roms/amiga/Seul (Disk 1).adf': 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.deepEqual(diskWarnings(result), []);
+    assert.equal(result.games[0].disks, undefined);
+  });
+});
+
+test('multi-disquettes : doublon de numéro de disquette = avertissement, première variante gardée', async () => {
+  await withProject({ [LEANDER(1)]: 'x', [LEANDER(2)]: 'x', [LEANDER(2, '[a]')]: 'x', [LEANDER(3)]: 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.equal(result.games.length, 1);
+    assert.equal(result.games[0].disks.length, 3);
+    assert.ok(result.warnings.some((w) => /disquette 2/.test(w) && /ignoré/.test(w)));
+  });
+});
+
+test('multi-disquettes : un .m3u prime (ses disques ne sont pas regroupés), deux dossiers au même nom = doublon d identifiant habituel', async () => {
+  await withProject({
+    'roms/amiga/Jeu.m3u': 'Jeu (Disk 1 of 2).adf\nJeu (Disk 2 of 2).adf\n',
+    'roms/amiga/Jeu (Disk 1 of 2).adf': 'x', 'roms/amiga/Jeu (Disk 2 of 2).adf': 'x',
+    'roms/amiga/a/Zed (Disk 1 of 2).adf': 'x', 'roms/amiga/a/Zed (Disk 2 of 2).adf': 'x',
+    'roms/amiga/b/Zed (Disk 1 of 2).adf': 'x', 'roms/amiga/b/Zed (Disk 2 of 2).adf': 'x',
+  }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.deepEqual(result.games.map((g) => g.file), ['roms/amiga/Jeu.m3u', 'roms/amiga/a/Zed (Disk 1 of 2).adf']);
+    assert.equal(result.games[0].disks, undefined);
+    assert.ok(result.warnings.some((w) => /doublon d'identifiant amiga\/zed/.test(w)));
+  });
+});
+
+test('multi-disquettes : dossier Amiga (casse) et jaquette / .bios du groupe, titre surchargé par titles.json', async () => {
+  await withProject({
+    'roms/Amiga/Leander (1991)(Psygnosis)(Disk 1 of 2).adf': 'x', 'roms/Amiga/Leander (1991)(Psygnosis)(Disk 2 of 2).adf': 'x',
+    'roms/Amiga/Leander (1991)(Psygnosis)(Disk 1 of 2).png': 'x',
+    'roms/Amiga/Leander (1991)(Psygnosis).bios': 'kick34005.A500\n',
+    'data/titles.json': JSON.stringify({ 'leander (1991)(psygnosis)': 'Leander (Amiga)' }),
+  }, async (root) => {
+    const [game] = await gamesOf(root);
+    assert.equal(game.title, 'Leander (Amiga)');
+    assert.equal(game.cover, 'roms/Amiga/Leander (1991)(Psygnosis)(Disk 1 of 2).png');
+    assert.equal(game.bios, 'kick34005.A500');
+    assert.equal(game.disks[1], 'roms/Amiga/Leander (1991)(Psygnosis)(Disk 2 of 2).adf');
+  });
+});
+
+test('multi-disquettes : sortie de games.json inchangée (version 1) pour un jeu simple', async () => {
+  await withProject({ 'roms/amiga/Lemmings.adf': 'x' }, async (root) => {
+    const [game] = await gamesOf(root);
+    assert.equal('disks' in game, false);
+  });
+});

@@ -1,7 +1,12 @@
 // Constantes de l'application (T3). Aucune dépendance. Chemins toujours relatifs (GitHub Pages sous /<dépôt>/).
 
-/** Version du CDN EmulatorJS : SEUL endroit où la changer ou l'épingler (architecture section 4). */
-export const EJS_CDN_VERSION = 'stable';
+/**
+ * Version du CDN EmulatorJS : SEUL endroit où la changer (architecture section 4).
+ * Épinglée à 4.2.3 (T10) : les contournements de `guardDiskMenuStartup` (js/player/launcher.js, jeux multi-disquettes) sont propres à
+ * cette version, alors que 'stable' change avec le temps et pourrait les casser ou les rendre inutiles sans prévenir.
+ * Pour relever la version : voir README, section « Relever la version d'EmulatorJS ».
+ */
+export const EJS_CDN_VERSION = '4.2.3';
 export const EJS_CDN_URL = `https://cdn.emulatorjs.org/${EJS_CDN_VERSION}/data/`;
 
 /** Fichiers de données, relatifs à la page. */

@@ -2,7 +2,7 @@
 // Aucun vrai EmulatorJS : fenêtre et document factices.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveBios, buildLaunchPlan, findMissingFiles, checkPlanFiles, describeMissing, loadEmulator, pauseEmulator, resumeEmulator, GAME_ELEMENT_ID } from '../js/player/launcher.js';
+import { resolveBios, diskSetFiles, buildLaunchPlan, findMissingFiles, checkPlanFiles, describeMissing, loadEmulator, pauseEmulator, resumeEmulator, GAME_ELEMENT_ID } from '../js/player/launcher.js';
 import { EJS_CDN_URL } from '../js/config.js';
 
 const neogeo = {
@@ -284,4 +284,85 @@ test('arcade (systems.json réel) : neogeo.zip absent, aucune erreur, rien à t�
   await loadEmulator(plan, { win, doc, getBytes: async (u) => { fetched.push(u); return new Uint8Array(); } });
   assert.deepEqual(fetched, [], 'aucun téléchargement du BIOS absent');
   assert.equal('EJS_externalFiles' in win, false);
+});
+
+// --- T10 : jeux à plusieurs disquettes (m3u virtuel + disquettes en EJS_externalFiles) ---
+// NON VÉRIFIÉ ici : puae et EmulatorJS réels (voir ticket T10 et README) ; ces tests couvrent la logique du plan et du chargement.
+
+const leander = {
+  id: 'amiga/leander_(1991)(psygnosis)', system: 'amiga', title: 'Leander', cover: null,
+  file: 'roms/Amiga/Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf',
+  disks: [1, 2, 3].map((n) => `roms/Amiga/Leander (1991)(Psygnosis)(Disk ${n} of 3)[cr Flashtro].adf`),
+};
+
+test('diskSetFiles : m3u virtuel en noms ASCII sûrs avec libellés "Disk N", sans commentaire', () => {
+  const { virtualGame, rawFiles } = diskSetFiles(leander);
+  assert.equal(virtualGame.name, 'amiga_leander_1991_psygnosis.m3u');
+  assert.equal(virtualGame.text, 'disk1.adf|Disk 1\ndisk2.adf|Disk 2\ndisk3.adf|Disk 3\n');
+  assert.deepEqual(rawFiles.map((r) => r.fsPath), ['/disk1.adf', '/disk2.adf', '/disk3.adf']);
+  assert.equal(rawFiles[0].url, 'roms/Amiga/Leander%20(1991)(Psygnosis)(Disk%201%20of%203)%5Bcr%20Flashtro%5D.adf');
+});
+
+test('diskSetFiles : l\'extension réelle des disquettes est conservée (dms, ipf)', () => {
+  const { virtualGame } = diskSetFiles({ id: 'amiga/x', disks: ['roms/amiga/a.DMS', 'roms/amiga/b.dms'] });
+  assert.equal(virtualGame.text, 'disk1.dms|Disk 1\ndisk2.dms|Disk 2\n');
+});
+
+test('buildLaunchPlan : jeu multi-disquettes = pas d\'EJS_gameUrl, m3u virtuel, disquettes en rawFiles, chaque disquette contrôlée', () => {
+  const plan = buildLaunchPlan({ system: amiga, game: leander });
+  assert.equal('EJS_gameUrl' in plan.globals, false);
+  assert.equal(plan.virtualGame.name, 'amiga_leander_1991_psygnosis.m3u');
+  assert.equal(plan.rawFiles.length, 3);
+  assert.deepEqual(plan.files.filter((f) => f.kind === 'game').map((f) => f.path), leander.disks);
+  assert.equal(plan.globals.EJS_biosUrl, 'bios/kick40068.A1200');
+});
+
+test('buildLaunchPlan : jeu simple inchangé (EJS_gameUrl, pas de m3u virtuel)', () => {
+  const plan = buildLaunchPlan({ system: neogeo, game: mslug });
+  assert.equal(plan.globals.EJS_gameUrl, 'roms/neogeo/mslug.zip');
+  assert.equal(plan.virtualGame, null);
+});
+
+test('checkPlanFiles : une disquette absente est signalée comme jeu introuvable', async () => {
+  const plan = buildLaunchPlan({ system: amiga, game: leander });
+  const { missing } = await checkPlanFiles(plan, async (url) => !url.includes('Disk%202'));
+  assert.equal(missing.length, 1);
+  assert.match(missing[0].path, /Disk 2 of 3/);
+});
+
+test('loadEmulator : multi-disquettes pose EJS_gameUrl (File .m3u) et les disquettes en octets AVANT loader.js', async () => {
+  const { win, doc } = fakeEnv();
+  const seen = [];
+  const append = doc.head.append;
+  doc.head.append = (s) => { seen.push({ ...win }); append(s); };
+  await loadEmulator(buildLaunchPlan({ system: amiga, game: leander }), { win, doc, getBytes });
+  assert.ok(seen[0].EJS_gameUrl instanceof File);
+  assert.equal(seen[0].EJS_gameUrl.name, 'amiga_leander_1991_psygnosis.m3u');
+  assert.deepEqual(Object.keys(seen[0].EJS_externalFiles), ['/disk1.adf', '/disk2.adf', '/disk3.adf']);
+});
+
+test('loadEmulator : contournements EmulatorJS (allSettings, disque déjà courant ignoré, changement rappelé une fois)', async () => {
+  const { win, doc } = fakeEnv();
+  await loadEmulator(buildLaunchPlan({ system: amiga, game: leander }), { win, doc, getBytes });
+  const calls = [];
+  let failuresLeft = 1;
+  const emulator = {
+    gameManager: { getCurrentDisk: () => 0 },
+    handleSpecialOptions(option, value) {
+      calls.push([option, value]);
+      if (option === 'disk' && failuresLeft-- > 0) throw new Error('unreachable');
+    },
+  };
+  win.EJS_emulator = emulator;
+  assert.deepEqual(emulator.allSettings, {});
+  assert.equal(win.EJS_emulator, emulator);
+  emulator.handleSpecialOptions('disk', '0'); // disque déjà inséré : ignoré, le vrai handler n'est pas appelé
+  assert.equal(calls.length, 0);
+  emulator.handleSpecialOptions('disk', '1'); // 1er appel lève, 2e réussit
+  assert.equal(calls.length, 2);
+  failuresLeft = 2;
+  assert.throws(() => emulator.handleSpecialOptions('disk', '2'), /unreachable/); // deux échecs : l'erreur remonte
+  const before = calls.length;
+  emulator.handleSpecialOptions('shader', 'x'); // autre option : simple passage
+  assert.equal(calls.length, before + 1);
 });
