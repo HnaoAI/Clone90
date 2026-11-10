@@ -8,7 +8,7 @@
 // réels) : 'bios/kick40068.A1200' retrouvé par puae, IPF, multi-disques.
 // Multi-disquettes (T10) : voir diskSetFiles ci-dessous (m3u virtuel + disquettes posées par EJS_externalFiles).
 import { EJS_CDN_URL, BIOS_DIR } from '../config.js';
-import { assetUrl, isRelativePath } from '../data.js';
+import { assetUrl, assetPathFromUrl, isRelativePath } from '../data.js';
 
 /** Id de l'élément qui reçoit EmulatorJS (EJS_player = '#game'). */
 export const GAME_ELEMENT_ID = 'game';
@@ -194,7 +194,7 @@ export async function loadEmulator(plan, { win = globalThis.window, doc = global
   if (!doc.getElementById(GAME_ELEMENT_ID)) throw new Error(`Élément #${GAME_ELEMENT_ID} absent de la page`);
   const externalFiles = {};
   for (const { url, fsPath } of plan.rawFiles ?? []) {
-    try { externalFiles[fsPath] = await getBytes(url); } catch (e) { throw new Error(`Fichier ${decodeURI(url)} illisible (${e.message}).`); }
+    try { externalFiles[fsPath] = await getBytes(url); } catch (e) { throw new Error(`Fichier ${assetPathFromUrl(url)} illisible (${e.message}).`); }
   }
   return new Promise((resolve, reject) => {
     Object.assign(win, plan.globals);

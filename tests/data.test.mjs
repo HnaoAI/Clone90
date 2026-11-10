@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  validateSystems, validateGames, loadData, groupGamesBySystem, assetUrl, encodeGameId,
+  validateSystems, validateGames, loadData, groupGamesBySystem, assetUrl, assetPathFromUrl, encodeGameId,
 } from '../js/data.js';
 
 const realSystems = JSON.parse(readFileSync(new URL('../systems.json', import.meta.url), 'utf8'));
@@ -148,4 +148,28 @@ test('validateGames : champ disks (T10) accepté s\'il liste au moins 2 chemins 
   const { games, skipped } = validateGames(raw, ['amiga']);
   assert.deepEqual(games.map((g) => g.id), ['amiga/x', 'amiga/u']);
   assert.equal(skipped, 4);
+});
+
+// T11 / A1 : # et ? ouvraient un fragment ou une requête (encodeURI les laisse), le fichier visé n'était plus le bon.
+const SPECIAL_NAMES = [
+  'Turrican II #1.adf', 'Quest? Part 1.adf', '100% Dynamite.adf', 'A&B.adf', 'a+b.adf', 'Lemmings [!].adf',
+  'Pinball Dreams ça été.adf', '日本語のゲーム.zip', 'sans espace.adf', 'a;b=c,d@e$f.adf', '#?%&+.adf',
+];
+
+test('assetUrl A1 : # ? % & + espaces accents crochets japonais sont encodés par segment, / conservé', () => {
+  for (const name of SPECIAL_NAMES) {
+    const url = assetUrl(`roms/amiga/${name}`);
+    const parsed = new URL(url, 'http://localhost:8080/');
+    assert.equal(parsed.search, '', `${name} : aucune requête`);
+    assert.equal(parsed.hash, '', `${name} : aucun fragment`);
+    assert.equal(decodeURIComponent(parsed.pathname), `/roms/amiga/${name}`, name);
+    assert.equal(url.split('/').length, 3, `${name} : seuls les 2 / de séparation restent`);
+  }
+  assert.equal(assetUrl('roms/amiga/Turrican II #1.adf'), 'roms/amiga/Turrican%20II%20%231.adf');
+  assert.equal(assetUrl('roms/amiga/Quest? Part 1.adf'), 'roms/amiga/Quest%3F%20Part%201.adf');
+});
+
+test('assetPathFromUrl A1 : fait le chemin inverse de assetUrl (messages d\'erreur lisibles)', () => {
+  for (const name of SPECIAL_NAMES) assert.equal(assetPathFromUrl(assetUrl(`roms/x/${name}`)), `roms/x/${name}`);
+  assert.equal(assetPathFromUrl('roms/x/%E0%A4%A.adf'), 'roms/x/%E0%A4%A.adf', 'encodage invalide : renvoyé tel quel');
 });

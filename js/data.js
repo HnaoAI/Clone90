@@ -108,8 +108,17 @@ export function groupGamesBySystem(systems, games) {
   return map;
 }
 
-/** Chemin de fichier ou de jaquette prêt pour une URL (architecture 6.2 : encodeURI). null reste null. */
-export const assetUrl = (path) => (path == null ? null : encodeURI(path));
+/**
+ * Chemin de fichier ou de jaquette prêt pour une URL : chaque segment est encodé avec encodeURIComponent, les `/` sont conservés.
+ * INVARIANT : encodeURI laisserait `#` et `?` intacts (début de fragment ou de requête : le navigateur viserait un autre fichier, T11/A1).
+ * null reste null.
+ */
+export const assetUrl = (path) => (path == null ? null : path.split('/').map(encodeURIComponent).join('/'));
+
+/** Chemin inverse de assetUrl, pour les messages affichés à l'utilisateur. Un encodage invalide est renvoyé tel quel. */
+export const assetPathFromUrl = (url) => {
+  try { return url.split('/').map(decodeURIComponent).join('/'); } catch { return url; }
+};
 
 /** Id de jeu prêt pour une URL (architecture 6.2 : encodeURIComponent). */
 export const encodeGameId = (id) => encodeURIComponent(id);
