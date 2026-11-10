@@ -1,20 +1,22 @@
 // Tests de scripts/serve.mjs (T1) : serveur statique local sans dépendance.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { createStaticServer, PROJECT_ROOT } from '../scripts/serve.mjs';
+import { assetUrl } from '../js/data.js';
 
+let site; // racine servie
 let sandbox; // dossier parent : contient "site/" (racine servie) et "secret.txt" (hors racine)
 let server;
 let port;
 
 before(async () => {
   sandbox = mkdtempSync(join(tmpdir(), 'clone90-serve-'));
-  const site = join(sandbox, 'site');
+  site = join(sandbox, 'site');
   for (const d of ['assets', 'js', 'css', 'roms/amiga', '.git', 'config-equipe', 'tickets', 'docs', 'scripts']) {
     mkdirSync(join(site, d), { recursive: true });
   }
@@ -223,4 +225,52 @@ test('liste blanche sur le vrai projet : manifest, service worker, icônes, poli
   } finally {
     await new Promise((resolve) => realServer.close(resolve));
   }
+});
+
+// T11 / A1 : le serveur doit retrouver les fichiers dont le nom contient # ? % & + etc., demandés avec les URL de assetUrl.
+test('sert les fichiers aux noms spéciaux (# ? % & + espaces accents crochets japonais) via assetUrl', async () => {
+  const names = ['Turrican II #1.adf', 'Quest? Part 1.adf', '100% Dynamite.adf', 'A&B.adf', 'a+b.adf', 'Lemmings [!].adf', 'Émile ça été.adf', '日本語.zip'];
+  for (const name of names) {
+    writeFileSync(join(site, 'roms', 'amiga', name), `contenu de ${name}`);
+    const res = await get(`/${assetUrl(`roms/amiga/${name}`)}`);
+    assert.equal(res.status, 200, name);
+    assert.equal(await res.text(), `contenu de ${name}`, name);
+    assert.equal((await get(`/${assetUrl(`roms/amiga/${name}`)}`, { Range: 'bytes=0-2' })).status, 206, `${name} (Range)`);
+  }
+});
+
+// T11 / A7
+test('refuse (403) un lien symbolique dont la cible réelle sort de la racine, sert un lien interne à la racine', async () => {
+  symlinkSync(join(sandbox, 'secret.txt'), join(site, 'roms', 'amiga', 'dehors.adf'));
+  const out = await get('/roms/amiga/dehors.adf');
+  assert.equal(out.status, 403);
+  assert.ok(!(await out.text()).includes('SECRET'));
+  symlinkSync(join(site, 'roms', 'amiga', 'jeu.adf'), join(site, 'roms', 'amiga', 'copie.adf'));
+  const inside = await get('/roms/amiga/copie.adf');
+  assert.equal(inside.status, 200);
+  assert.equal(await inside.text(), '0123456789');
+});
+
+test('refuse un dossier lien symbolique vers l\'extérieur de la racine', async () => {
+  mkdirSync(join(sandbox, 'dehors'));
+  writeFileSync(join(sandbox, 'dehors', 'index.html'), 'SECRET');
+  symlinkSync(join(sandbox, 'dehors'), join(site, 'roms', 'lien-dossier'));
+  assert.equal((await get('/roms/lien-dossier/')).status, 403);
+  assert.equal((await get('/roms/lien-dossier/index.html')).status, 403);
+});
+
+test('lien symbolique cassé : 404 comme un fichier absent', async () => {
+  symlinkSync(join(sandbox, 'nexiste-pas'), join(site, 'roms', 'amiga', 'casse.adf'));
+  assert.equal((await get('/roms/amiga/casse.adf')).status, 404);
+});
+
+// T11 / A7
+test('X-Content-Type-Options: nosniff sur toutes les réponses (200, 206, 403, 404, 400, 405, 416)', async () => {
+  const responses = [
+    await get('/'), await get('/roms/amiga/jeu.adf', { Range: 'bytes=0-1' }), await get('/docs/a.md'),
+    await get('/roms/amiga/absent.adf'), await get('/%ZZ'), await fetch(`http://127.0.0.1:${port}/`, { method: 'POST' }),
+    await get('/roms/amiga/jeu.adf', { Range: 'bytes=99-100' }), await fetch(`http://127.0.0.1:${port}/`, { method: 'HEAD' }),
+  ];
+  assert.deepEqual(responses.map((r) => r.status), [200, 206, 403, 404, 400, 405, 416, 200]);
+  for (const r of responses) assert.equal(r.headers.get('x-content-type-options'), 'nosniff', `statut ${r.status}`);
 });

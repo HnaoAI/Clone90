@@ -2,7 +2,7 @@
 // Usage : node scripts/serve.mjs [--port 8080]   (ou PORT=8080). Sert la racine du projet (liste blanche).
 import http from 'node:http';
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { stat, realpath } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
 import { extname, resolve, sep, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -73,8 +73,14 @@ export function resolvePort(argv, env) {
   return port;
 }
 
+// INVARIANT : envoyé sur TOUTES les réponses (T11/A7) : le navigateur ne devine jamais un type différent du Content-Type annoncé.
+const SECURITY_HEADERS = { 'X-Content-Type-Options': 'nosniff' };
+
+/** Vrai si `real` (chemin réel, liens résolus) est la racine ou se trouve dessous. */
+const isInside = (realRoot, real) => real === realRoot || real.startsWith(realRoot + sep);
+
 function reply(res, status, text, headers = {}) {
-  res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', ...headers });
+  res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS, ...headers });
   res.end(`${status} ${text}\n`);
 }
 
@@ -116,11 +122,13 @@ function parseRange(header, size) {
  */
 export function createStaticServer({ root }) {
   const absRoot = resolve(root);
+  const realRootPromise = realpath(absRoot).catch(() => absRoot);
   return http.createServer(async (req, res) => {
     try {
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         return reply(res, 405, 'Méthode non autorisée', { Allow: 'GET, HEAD' });
       }
+      const realRoot = await realRootPromise;
       const urlPath = (req.url ?? '/').split('?')[0].split('#')[0];
       let file;
       try {
@@ -136,8 +144,13 @@ export function createStaticServer({ root }) {
         info = await stat(file).catch(() => null);
       }
       if (!info?.isFile()) return reply(res, 404, 'Introuvable');
+      // INVARIANT : un lien symbolique ne doit jamais faire sortir de la racine du projet (T11/A7).
+      const real = await realpath(file).catch(() => null);
+      if (real === null) return reply(res, 404, 'Introuvable');
+      if (!isInside(realRoot, real)) return reply(res, 403, 'Accès interdit');
 
       const headers = {
+        ...SECURITY_HEADERS,
         'Content-Type': MIME_TYPES[extname(file).toLowerCase()] ?? DEFAULT_MIME,
         'Cache-Control': 'no-cache',
         'Accept-Ranges': 'bytes',
