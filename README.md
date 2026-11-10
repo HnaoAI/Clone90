@@ -108,3 +108,11 @@ Le guide de publication sur GitHub Pages arrivera avec le ticket T8.
 
 - Police **Press Start 2P** (Copyright 2012 The Press Start 2P Project Authors, licence SIL Open Font License 1.1) : fichiers `PressStart2P-Regular.ttf` et `OFL.txt` pris dans le dépôt google/fonts (https://github.com/google/fonts/tree/main/ofl/pressstart2p), copiés dans `assets/fonts/`. Téléchargement accepté par Hicham le 2026-11-09.
 - Logos des machines : dessins maison générés par `scripts/generate-logos.mjs`, sans reprise des logos officiels.
+
+## Relever la version d'EmulatorJS
+
+La version est épinglée dans une seule constante, `EJS_CDN_VERSION` de `js/config.js` (4.2.3 depuis T10). Pour la relever :
+1. Changer la constante, puis lancer un jeu Amiga multi-disquettes (ex. Leander) et un jeu Neo Geo en vrai.
+2. Retester les trois contournements de `guardDiskMenuStartup` dans `js/player/launcher.js` : (a) le jeu démarre sans « Failed to start game », (b) pas de plantage au démarrage, (c) un changement de disquette par le menu « Disks » fonctionne du premier coup.
+3. Retirer un contournement devenu inutile (et son test dans `tests/launcher.test.mjs`) ; ne garder que ceux dont le défaut existe encore.
+4. Mettre à jour `docs/architecture.md` (3.1 et section 4).

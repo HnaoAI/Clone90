@@ -101,7 +101,7 @@ Notes importantes :
 - Donc : `EJS_threads` reste à `false` (défaut), **pas d'en-têtes COOP/COEP**, pas de `coi-serviceworker`.
 - GitHub Pages ne permet pas d'ajouter des en-têtes HTTP. Ce n'est pas bloquant ici. Si un jour un cœur à threads est ajouté (PSP, DOS), la solution documentée dans l'écosystème est le shim `coi-serviceworker` (fait semblant d'envoyer COOP/COEP). À noter : le CDN EmulatorJS envoie déjà `Cross-Origin-Resource-Policy: cross-origin`, donc un futur COEP ne casserait pas le chargement des cœurs.
 - Autres contraintes GitHub Pages à respecter : tous les chemins **relatifs** (le site vit sous `/<dépôt>/`), routage par **hash** (`#/neogeo`) car pas de réécriture d'URL, HTTPS fourni (donc service worker/PWA OK).
-- Version du CDN : `stable` (4.2.3 aujourd'hui). Une seule constante dans `js/config.js` (`EJS_CDN_VERSION`) pour la changer ou l'épingler. Vérifier en T0 si `https://cdn.emulatorjs.org/4.2.3/data/` répond (épinglage), sinon rester sur `stable`.
+- Version du CDN : **épinglée à `4.2.3`** depuis T10 (les contournements multi-disquettes sont propres à cette version ; `stable` bouge avec le temps). Une seule constante dans `js/config.js` (`EJS_CDN_VERSION`) pour la changer ou l'épingler. Vérifier en T0 si `https://cdn.emulatorjs.org/4.2.3/data/` répond (épinglage), sinon rester sur `stable`.
 
 ## 5. Arborescence
 
@@ -312,7 +312,7 @@ Limites à connaître :
 1. **Compatibilité des romsets** (fbneo, Neo Geo) : un zip incorrect ou d'une autre version de romset ne démarre pas, sans message utile. Atténuation : README précis, rappel de l'exigence dans l'écran d'erreur.
 2. **Kickstart Amiga** : nom exact imposé, modèle choisi par puae à valider (T0). Sans BIOS valide, EmulatorJS peut démarrer en AROS de repli ou échouer selon le cœur.
 3. **IPF** peut ne pas être lisible (capsimg). Vérifié en T0 ; sinon conseiller ADF/ADZ/DMS.
-4. **Dépendance au CDN** : pas de jeu si EmulatorJS est inaccessible la première fois. Version `stable` = 4.2.3 ; épingler après validation.
+4. **Dépendance au CDN** : pas de jeu si EmulatorJS est inaccessible la première fois. Version épinglée à 4.2.3 (T10) ; la relever demande de retester les contournements (README).
 5. **Plein écran et son** refusés sans geste utilisateur : traité par l'écran "Jouer".
 6. **Mapping clavier/manette** : conflit possible entre l'écoute de sortie et celle d'EmulatorJS ; neutralisé par le maintien de 1 s et la lecture seule.
 7. **Logos de marques** : les logos officiels sont des marques déposées ; pour un dépôt public prévoir des logos maison ou des textes stylisés (arbitrage PO, section 12).

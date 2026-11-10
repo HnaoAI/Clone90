@@ -77,8 +77,8 @@ test('filtre CRITIQUE (règle 6) : roms/, bios/ et games.json ne sont jamais gé
 });
 
 test('filtre CRITIQUE : une autre origine (CDN EmulatorJS) n\'est jamais gérée, même avec un chemin de la coquille', () => {
-  assert.equal(sw.shouldHandle('GET', 'https://cdn.emulatorjs.org/stable/data/loader.js', SCOPE), false);
-  assert.equal(sw.shouldHandle('GET', 'https://cdn.emulatorjs.org/stable/data/cores/fbneo-wasm.data', SCOPE), false);
+  assert.equal(sw.shouldHandle('GET', 'https://cdn.emulatorjs.org/4.2.3/data/loader.js', SCOPE), false);
+  assert.equal(sw.shouldHandle('GET', 'https://cdn.emulatorjs.org/4.2.3/data/cores/fbneo-wasm.data', SCOPE), false);
   assert.equal(sw.shouldHandle('GET', 'https://cdn.emulatorjs.org/index.html', SCOPE), false);
   assert.equal(sw.shouldHandle('GET', 'http://localhost:9999/index.html', SCOPE), false);
 });

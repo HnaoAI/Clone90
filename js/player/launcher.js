@@ -3,7 +3,7 @@
 // INVARIANT : c'est le SEUL module qui connaît EmulatorJS (CLAUDE.md règle 4). Les autres ne voient que pauseEmulator/resumeEmulator.
 // INVARIANT : les variables EJS_* sont posées AVANT l'injection de loader.js (le loader les lit une seule fois à son chargement).
 //
-// Validé en T0 avec de vrais fichiers sur le CDN stable (Neo Geo, romset viewpoin) : EJS_onGameStart, EJS_emulator.pause()/play(),
+// Validé en T0 avec de vrais fichiers sur le CDN (stable, 4.2.3 aujourd'hui) (Neo Geo, romset viewpoin) : EJS_onGameStart, EJS_emulator.pause()/play(),
 // chemin de jeu encodé, et BIOS Neo Geo gardé zippé (voir "keepZipped" ci-dessous). Reste ouvert (pas de Kickstart ni de jeu Amiga
 // réels) : 'bios/kick40068.A1200' retrouvé par puae, IPF, multi-disques.
 // Multi-disquettes (T10) : voir diskSetFiles ci-dessous (m3u virtuel + disquettes posées par EJS_externalFiles).
@@ -146,7 +146,7 @@ export const fetchBytes = async (url) => {
 };
 
 /**
- * Contournements de défauts d'EmulatorJS stable (constatés en T10 avec puae et un jeu à plusieurs disques). startGame() construit le
+ * Contournements de défauts d'EmulatorJS 4.2.3 (version épinglée dans config.js, à retester avant tout changement ; constatés en T10 avec puae et un jeu à plusieurs disques). startGame() construit le
  * menu des disques AVANT le menu des réglages, et ce menu "sélectionne" le disque courant au passage :
  *  1. menuOptionChanged écrit dans `allSettings`, que seul le menu des réglages crée : "Cannot set properties of undefined (setting 'disk')",
  *     puis "Failed to start game". On donne donc `allSettings = {}` à l'instance dès qu'EmulatorJS la crée (son constructeur ne démarre que
