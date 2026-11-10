@@ -1,7 +1,7 @@
 // Tests de scripts/serve.mjs (T1) : serveur statique local sans dépendance.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import net from 'node:net';
@@ -273,4 +273,37 @@ test('X-Content-Type-Options: nosniff sur toutes les réponses (200, 206, 403, 4
   ];
   assert.deepEqual(responses.map((r) => r.status), [200, 206, 403, 404, 400, 405, 416, 200]);
   for (const r of responses) assert.equal(r.headers.get('x-content-type-options'), 'nosniff', `statut ${r.status}`);
+});
+
+// T11 / A7, arbitrage PO : roms/ et bios/ peuvent être liés vers un autre emplacement ; leur realpath devient leur racine.
+test('roms lié vers un dossier externe : fichiers servis, mais un lien sortant de ce dossier externe est refusé (403)', async () => {
+  const ext = join(sandbox, 'disque-externe');
+  mkdirSync(join(ext, 'roms', 'amiga'), { recursive: true });
+  writeFileSync(join(ext, 'roms', 'amiga', 'ext.adf'), 'EXT');
+  writeFileSync(join(ext, 'roms', 'amiga', 'interne.adf'), 'INTERNE');
+  symlinkSync(join(ext, 'roms', 'amiga', 'interne.adf'), join(ext, 'roms', 'amiga', 'alias.adf'));
+  symlinkSync(join(sandbox, 'secret.txt'), join(ext, 'roms', 'amiga', 'dehors.adf'));
+  symlinkSync(join(site, 'docs', 'a.md'), join(ext, 'roms', 'amiga', 'projet.adf'));
+  symlinkSync(join(ext, 'roms', 'amiga', 'nexiste-pas'), join(ext, 'roms', 'amiga', 'casse.adf'));
+  mkdirSync(join(sandbox, 'ailleurs'));
+  writeFileSync(join(sandbox, 'ailleurs', 'x.adf'), 'AILLEURS');
+  symlinkSync(join(sandbox, 'ailleurs'), join(ext, 'roms', 'amiga', 'sous-lien'));
+
+  const roms = join(site, 'roms');
+  const saved = join(site, 'roms-origine');
+  renameSync(roms, saved);
+  symlinkSync(join(ext, 'roms'), roms);
+  try {
+    const ok = await get('/roms/amiga/ext.adf');
+    assert.equal(ok.status, 200);
+    assert.equal(await ok.text(), 'EXT');
+    assert.equal((await get('/roms/amiga/alias.adf')).status, 200, 'lien interne au dossier externe');
+    assert.equal((await get('/roms/amiga/dehors.adf')).status, 403, 'lien vers un fichier hors du dossier externe');
+    assert.equal((await get('/roms/amiga/projet.adf')).status, 403, 'lien vers ailleurs dans le projet');
+    assert.equal((await get('/roms/amiga/sous-lien/x.adf')).status, 403, 'sous-dossier lié ailleurs');
+    assert.equal((await get('/roms/amiga/casse.adf')).status, 404, 'lien cassé');
+  } finally {
+    rmSync(roms);
+    renameSync(saved, roms);
+  }
 });

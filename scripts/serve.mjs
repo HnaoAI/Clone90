@@ -76,6 +76,19 @@ export function resolvePort(argv, env) {
 // INVARIANT : envoyé sur TOUTES les réponses (T11/A7) : le navigateur ne devine jamais un type différent du Content-Type annoncé.
 const SECURITY_HEADERS = { 'X-Content-Type-Options': 'nosniff' };
 
+// roms/ et bios/ peuvent être des liens vers un autre disque : leur racine autorisée est leur propre realpath (T11/A7, arbitrage PO).
+const LINKABLE_DIRS = new Set(['roms', 'bios']);
+
+/**
+ * Racine dans laquelle le chemin réel du fichier doit rester : le realpath de roms/ ou bios/ pour ces dossiers, sinon la racine du projet.
+ * INVARIANT : un lien individuel (fichier ou sous-dossier) qui sort de ce realpath reste refusé.
+ */
+async function allowedRealRoot(root, realRoot, file) {
+  const top = relative(root, file).split(sep)[0];
+  if (!LINKABLE_DIRS.has(top)) return realRoot;
+  return realpath(join(root, top)).catch(() => null);
+}
+
 /** Vrai si `real` (chemin réel, liens résolus) est la racine ou se trouve dessous. */
 const isInside = (realRoot, real) => real === realRoot || real.startsWith(realRoot + sep);
 
@@ -147,7 +160,8 @@ export function createStaticServer({ root }) {
       // INVARIANT : un lien symbolique ne doit jamais faire sortir de la racine du projet (T11/A7).
       const real = await realpath(file).catch(() => null);
       if (real === null) return reply(res, 404, 'Introuvable');
-      if (!isInside(realRoot, real)) return reply(res, 403, 'Accès interdit');
+      const allowed = await allowedRealRoot(absRoot, realRoot, file);
+      if (allowed === null || !isInside(allowed, real)) return reply(res, 403, 'Accès interdit');
 
       const headers = {
         ...SECURITY_HEADERS,

@@ -21,6 +21,7 @@ Le site est alors sur <http://localhost:8080>. Le serveur affiche aussi l'adress
 - Autre port : `node scripts/serve.mjs --port 9000` ou `PORT=9000 node scripts/serve.mjs`.
 - Sans Node : `python3 -m http.server 8080` fonctionne aussi (sans requêtes Range).
 - Le serveur sert la racine du projet quel que soit le dossier d'où vous le lancez, et uniquement les fichiers publics du site (pas `.git`, `docs/`, `tickets/`, etc.).
+- Liens symboliques : `roms/` et `bios/` peuvent être des liens vers un autre disque (ex. `roms` vers `/Volumes/Disque/roms`). Un lien placé DANS ces dossiers (fichier ou sous-dossier) qui pointe hors de leur emplacement réel est refusé (403), comme tout lien du reste du projet qui sort de la racine du projet.
 - Sur Android en réseau local (HTTP), le jeu fonctionne mais le site ne peut pas être installé comme application (limite du navigateur hors HTTPS).
 
 ## Où mettre les ROMs et les BIOS
