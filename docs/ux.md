@@ -250,6 +250,7 @@ Pendant le jeu, **toutes les touches et boutons vont à EmulatorJS**. Le site n'
 
 - Disquette suivante, en cycle (3 puis 1). Front montant : un appui maintenu = un changement.
 - Retour : toast « Disquette 2 / 3 » 2 s (région `role="status"`, bas de l'écran, sans prendre le focus, sans recouvrir le bouton Menu ni le rappel de sortie), animation coupée en reduced-motion.
+- Rappel : 2e ligne « Disquette : Select + RB - F9 » dans le bandeau de sortie (3 premiers lancements, 4 s), jeux à plusieurs disquettes seulement, pas sur tactile sans manette.
 - Ignoré pendant la boîte de confirmation de sortie. Le numéro est lu dans le cœur d'émulation : cohérent si le joueur change aussi par le menu d'EmulatorJS (dont l'affichage peut rester sur l'ancien disque).
 
 **Après la sortie** : arrêt complet de l'émulateur (son coupé immédiatement), sortie du plein écran, retour sur la grille de la machine, **focus sur la tuile du jeu quitté**, défilement restauré pour qu'elle soit visible.

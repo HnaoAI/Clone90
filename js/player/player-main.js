@@ -140,7 +140,7 @@ function showExitHint() {
   if (!shouldShowExitHint(storage)) return null;
   const noPointerHover = window.matchMedia?.('(hover: none)').matches === true;
   const hasGamepad = Array.from(navigator.getGamepads?.() ?? []).some(Boolean);
-  const hint = renderExitHint(noPointerHover && !hasGamepad);
+  const hint = renderExitHint(noPointerHover && !hasGamepad, diskCount > 1);
   chrome.append(hint);
   setTimeout(() => hint.remove(), EXIT_HINT_MS);
   return hint;

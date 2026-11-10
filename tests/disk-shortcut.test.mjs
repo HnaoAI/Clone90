@@ -183,3 +183,12 @@ test('switchToDisk : appelle une seule fois handleSpecialOptions(\'disk\', n), l
   assert.deepEqual(calls, [['disk', '2']]);
   assert.throws(() => switchToDisk({}, 1), /EmulatorJS/);
 });
+
+// Rappel de sortie (avis ux) : 2e ligne seulement pour un jeu à plusieurs disquettes, jamais sur tactile sans manette.
+import { exitHintText, EXIT_HINT_TEXT, DISK_HINT_TEXT } from '../js/player/exit-hint.js';
+test('rappel : ligne disquette seulement pour un jeu multi-disquettes, pas en tactile seul', () => {
+  assert.equal(exitHintText(false, false), EXIT_HINT_TEXT);
+  assert.equal(exitHintText(false, true), `${EXIT_HINT_TEXT}\n${DISK_HINT_TEXT}`);
+  assert.equal(DISK_HINT_TEXT, 'Disquette : Select + RB - F9');
+  assert.equal(exitHintText(true, true), exitHintText(true, false));
+});
