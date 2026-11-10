@@ -10,6 +10,14 @@ export const MENU_NAV_ID = 'menu';
 export const PLAY_NAV_ID = 'play';
 export const BACK_NAV_ID = 'back';
 
+/**
+ * Que faire d'une demande de sortie (Menu, F10, Select+Start, retour du navigateur) selon la phase de player-main.js.
+ * INVARIANT : 'error' quitte directement (T11/A2) ; le Menu et la sortie doivent marcher même si le moteur n'a pas chargé.
+ * @param {string} phase 'boot' | 'ready' | 'playing' | 'dialog' | 'error'
+ * @returns {'leave'|'confirm'|'none'} quitter tout de suite, ouvrir la confirmation, ou ignorer
+ */
+export const exitDecision = (phase) => (phase === 'playing' ? 'confirm' : ['dialog', 'ready', 'error'].includes(phase) ? 'leave' : 'none');
+
 /** Options de la boîte de confirmation de sortie (docs/ux.md 3.4). @param {string} gameTitle */
 export const exitDialogOptions = (gameTitle) => ({
   title: `Quitter ${gameTitle} ?`,

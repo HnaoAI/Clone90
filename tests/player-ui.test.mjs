@@ -73,3 +73,18 @@ test('exitHintText : texte court sur tactile sans manette, complet sinon', () =>
   assert.equal(exitHintText(true), 'Quitter : bouton Menu');
   assert.match(exitHintText(false), /Select \+ Start.*F10.*Menu/);
 });
+
+// T11 / A2
+import { exitDecision } from '../js/player/player-ui.js';
+
+test('exitDecision A2 : en erreur (moteur non chargé) le Menu et la sortie quittent directement', () => {
+  assert.equal(exitDecision('error'), 'leave');
+  assert.equal(exitDecision('ready'), 'leave');
+  assert.equal(exitDecision('dialog'), 'leave');
+});
+
+test('exitDecision : pendant le jeu on demande confirmation ; au démarrage ou phase inconnue, rien', () => {
+  assert.equal(exitDecision('playing'), 'confirm');
+  assert.equal(exitDecision('boot'), 'none');
+  assert.equal(exitDecision(undefined), 'none');
+});
