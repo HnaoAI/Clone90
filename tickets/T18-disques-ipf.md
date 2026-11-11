@@ -10,9 +10,10 @@ Hicham a mis `Leander_Disk1.ipf`, `Leander_Disk2.ipf`, `Leander_Disk3.ipf` dans 
 - Générateur : regroupe aussi `Disk1`, `Disk_1`, `Disk-1`, `Disk 1`, `_Disk1`, `Disque1`, `Disc1` et `Nom_D1` (`parseLooseDiskTag`). Conditions : même dossier, même extension, même nom de base, numéros 1..n sans trou (n >= 2). Sinon jeux simples (avertissement si plusieurs fichiers non consécutifs). `Disk Wars` n'est pas une étiquette (pas de numéro). `LeanderD1` non plus. Titre : nom de base, ou nom du dossier si la base est vide (`Disk1.adf`). Les règles TOSEC, m3u, cue, doublons, casse sont inchangées.
 - Avertissement du générateur pour tout jeu `.ipf`.
 - Écran « Ce jeu n'a pas pu démarrer » : explication IPF si le jeu est un `.ipf` ou si puae parle de C.A.P.S. / capsimg.
+- Champ `diskSets: true` dans systems.json (Amiga seule) : le générateur ne regroupe que pour ces machines, et le lanceur ignore `disks` ailleurs.
 - Version 0.18.0.
 
-## Conclusion IPF : VÉRIFIÉ non pris en charge (build puae 2.0.2, EmulatorJS 4.2.3)
+## Conclusion IPF : non pris en charge d'après l'analyse du cœur 4.2.3 (puae 2.0.2), non confirmé en navigateur
 Preuves (téléchargement de `https://cdn.emulatorjs.org/4.2.3/data/cores/puae-wasm.data`, archive 7z contenant `puae_libretro.wasm`) :
 1. Le wasm contient `.ipf`, `capsimg.so`, `CAPSInit`, `CAPSLockImage`..., `Failed to load CAPS plug-in.`, `CAPS library '%s' not found!` : le code IPF est compilé en mode « plugin chargé à l'exécution ». Dans libretro-uae (`sources/src/caps/caps.c`), ce mode est le cas `#ifndef HAVE_CAPS_CAPSIMAGE_H` (le Makefile n'active le lien statique que pour `capsimg=1`) : `load_capslib()` appelle `uae_dlopen("<dossier système>/capsimg.so")`, via `dlopen` (`sources/src/caps/uae_dlopen.c`).
 2. Le même wasm contient `dynamic linking not enabled` (stub dlopen d'Emscripten sans MAIN_MODULE) et le glue `puae_libretro.js` ne contient aucune trace de `dlopen`/`dynamicLibraries`. dlopen échoue donc toujours.

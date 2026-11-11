@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, copyFile } from 'node
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
-  cleanTitle, makeId, resolveTitle, parseM3u, parseCue, parseLooseDiskTag, readSystems, generateGames, runGenerate, pickSystemDir,
+  cleanTitle, makeId, resolveTitle, parseM3u, parseCue, parseLooseDiskTag, parseDiskTag, readSystems, generateGames, runGenerate, pickSystemDir,
 } from '../scripts/generate-games.mjs';
 
 const FIXED_DATE = new Date('2026-11-09T21:00:00.000Z');
@@ -674,4 +674,25 @@ test('T18 : un jeu IPF (ou un groupe de disquettes IPF) est listé mais le gén�
     assert.ok(ipf.every((w) => /ADF/.test(w)));
     assert.ok(!ipf.some((w) => /Bon/.test(w)));
   });
+});
+
+test('T18 diskSets : sur une machine sans diskSets (Master System), Foo_Disk1 / Foo_Disk2 et le format TOSEC ne sont jamais regroupés', async () => {
+  await withProject({
+    'roms/mastersystem/Foo_Disk1.sms': 'x', 'roms/mastersystem/Foo_Disk2.sms': 'x',
+    'roms/mastersystem/Bar (Disk 1 of 2).sms': 'x', 'roms/mastersystem/Bar (Disk 2 of 2).sms': 'x',
+  }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.equal(result.games.length, 4);
+    assert.ok(result.games.every((g) => !('disks' in g)));
+    assert.deepEqual(result.warnings.filter((w) => /incomplet|non regroup/.test(w)), []);
+  });
+});
+
+test('T18 performance : un nom de 5000 caractères est analysé en moins de 200 ms (pas de retour sur trace catastrophique)', () => {
+  const started = Date.now();
+  for (const stem of [`${'a'.repeat(5000)} Disk ${'1'.repeat(3000)}x`, `${'_ '.repeat(2500)}Disk`, `${'a '.repeat(2500)}Disk 1 ${'('.repeat(2000)}`, `${'(a)'.repeat(1700)}_Disk1`, `${'a'.repeat(5000)}`]) {
+    parseLooseDiskTag(stem);
+    parseDiskTag(stem);
+  }
+  assert.ok(Date.now() - started < 200, `trop lent : ${Date.now() - started} ms`);
 });

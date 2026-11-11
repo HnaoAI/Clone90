@@ -54,7 +54,7 @@ EmulatorJS n'accepte que des **noms de fichier précis**. Renommez votre Kicksta
 | `kick39106.A4000`, `kick40068.A4000` | A4000 |
 | `kick40060.CD32` | CD32 |
 
-Les jeux Amiga (`.adf`, `.adz`, `.dms`, `.ipf`, `.hdf`, `.hdz`, `.lha`, `.zip`, `.m3u`) vont dans `roms/amiga/` (la casse du dossier n'a pas d'importance : `roms/Amiga/` est trouvé aussi). Testé avec un vrai Kickstart 3.1 A1200 renommé `kick40068.A1200` et un `.adf` : le jeu démarre, l'émulation est réglée sur le modèle A1200. **Le format IPF n'est pas pris en charge** : le cœur Amiga d'EmulatorJS 4.2.3 ne contient pas la bibliothèque qui le lit (voir « Format IPF » plus bas). Utilisez des ADF. Jeux à plusieurs disquettes : voir « Amiga multi-disquettes » plus bas.
+Les jeux Amiga (`.adf`, `.adz`, `.dms`, `.ipf`, `.hdf`, `.hdz`, `.lha`, `.zip`, `.m3u`) vont dans `roms/amiga/` (la casse du dossier n'a pas d'importance : `roms/Amiga/` est trouvé aussi). Testé avec un vrai Kickstart 3.1 A1200 renommé `kick40068.A1200` et un `.adf` : le jeu démarre, l'émulation est réglée sur le modèle A1200. **Le format IPF n'est probablement pas pris en charge** (d'après l'analyse du cœur, non confirmé en navigateur) : le cœur Amiga d'EmulatorJS 4.2.3 ne contient pas la bibliothèque qui le lit (voir « Format IPF » plus bas). Utilisez des ADF. Jeux à plusieurs disquettes : voir « Amiga multi-disquettes » plus bas.
 
 ### BIOS Neo Geo
 
@@ -100,7 +100,7 @@ Le script lit `systems.json`, scanne `roms/<machine>/` (un niveau de sous-dossie
 
 ## Format IPF (T18)
 
-Le cœur Amiga (puae) d'EmulatorJS 4.2.3 liste `.ipf` comme extension, mais **ne peut pas lire les IPF** : il cherche la bibliothèque `capsimg.so` par chargement dynamique, or son build WebAssembly le désactive (message « dynamic linking not enabled ») et la CDN ne fournit pas ce fichier. Les IPF restent listés par `generate-games.mjs`, qui avertit « au format IPF ... utilisez des ADF ». **Convertissez vos IPF en ADF** (outil de conservation de votre choix, ou téléchargez la version ADF de vos propres jeux). Si le moteur refuse un jeu IPF, l'écran « Ce jeu n'a pas pu démarrer » l'explique ; le cœur peut aussi démarrer sans erreur et laisser un lecteur vide (écran « insérez une disquette »).
+Le cœur Amiga (puae) d'EmulatorJS 4.2.3 liste `.ipf` comme extension, mais **ne peut vraisemblablement pas lire les IPF** (analyse du binaire et du source, non confirmée en navigateur) : il cherche la bibliothèque `capsimg.so` par chargement dynamique, or son build WebAssembly le désactive (message « dynamic linking not enabled ») et la CDN ne fournit pas ce fichier. Les IPF restent listés par `generate-games.mjs`, qui avertit « au format IPF ... utilisez des ADF ». **Préférez des ADF** (outil de conservation de votre choix, ou téléchargez la version ADF de vos propres jeux). Si le moteur refuse un jeu IPF, l'écran « Ce jeu n'a pas pu démarrer » l'explique ; le cœur peut aussi démarrer sans erreur et laisser un lecteur vide (écran « insérez une disquette »).
 
 ## Changer de disquette en jeu
 

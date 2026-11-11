@@ -289,7 +289,8 @@ export function buildSystemGames({ system, files, texts, titles, dirName = syste
     if (ext !== 'm3u' && referenced.has(f.toLowerCase())) continue;
     candidates.push(f);
   }
-  const { singles, groups } = groupDiskSets(candidates, system.id, warnings);
+  // T18 : seules les machines avec `diskSets: true` (systems.json) regroupent des disquettes ; ailleurs « Disk 1 » est un nom comme un autre.
+  const { singles, groups } = system.diskSets === true ? groupDiskSets(candidates, system.id, warnings) : { singles: candidates, groups: [] };
   for (const f of singles) addGame(makeId(system.id, stemOf(f)), buildGame(f, stemOf(f), [stemOf(f)]), f);
   for (const group of groups) {
     const kept = keepOneFilePerDisk(group, system.id, warnings);
@@ -304,9 +305,9 @@ export function buildSystemGames({ system, files, texts, titles, dirName = syste
     game.disks = kept.map((d) => `roms/${dirName}/${d.file}`);
     addGame(game.id, game, first.file);
   }
-  // T18 : le cœur puae d'EmulatorJS 4.2.3 ne lit pas l'IPF (capsimg.so absent, chargement dynamique désactivé : voir docs/architecture.md 3.1 et le ticket T18).
+  // T18 : d'après l'analyse du cœur puae d'EmulatorJS 4.2.3 (non confirmée en navigateur), l'IPF n'est probablement pas lu (capsimg.so absent, chargement dynamique désactivé : voir docs/architecture.md 3.1 et le ticket T18).
   for (const game of byId.values()) {
-    if (extOf(game.file) === 'ipf') warnings.push(`${system.id} : ${game.title} est au format IPF, que le cœur d'EmulatorJS ne sait pas lire : utilisez des ADF`);
+    if (extOf(game.file) === 'ipf') warnings.push(`${system.id} : ${game.title} est au format IPF, que le cœur d'EmulatorJS 4.2.3 ne lit probablement pas (non confirmé en navigateur) : préférez des ADF`);
   }
   const games = [...byId.values()].sort((a, b) =>
     compareTitles(a.title, b.title) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));

@@ -47,7 +47,7 @@ export function describeLoadError({ reason, gamesStatus, message }) {
   return { title: 'Impossible de lancer ce jeu.', detail: message ?? 'Erreur inconnue.' };
 }
 
-const IPF_EXPLANATION = "Les fichiers IPF ne sont pas lus par le moteur (il manque le module C.A.P.S.). Utilisez des disquettes au format ADF.";
+const IPF_EXPLANATION = "Les fichiers IPF ne sont probablement pas lus par le moteur (il manque le module C.A.P.S.). Utilisez des disquettes au format ADF.";
 const IPF_CORE_MESSAGE = /C\.A\.P\.S|capsimg|CAPS (?:library|plug-?in)/i;
 
 /**

@@ -7,7 +7,7 @@ import { buildRetroArchCfgExtra } from '../js/player/retroarch-cfg.js';
 import { describeDiskTrace } from '../js/player/diagnostic-log.js';
 
 const amiga = {
-  id: 'amiga', name: 'Amiga', emulatorjsCore: 'amiga', disableRetroArchHotkeys: true,
+  id: 'amiga', name: 'Amiga', emulatorjsCore: 'amiga', diskSets: true, disableRetroArchHotkeys: true,
   bios: [{ file: 'kick40068.A1200', required: true, role: 'default' }],
   coreOptions: { puae_model: 'A1200', puae_floppy_multidrive: 'disabled' },
 };
