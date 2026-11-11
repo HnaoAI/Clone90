@@ -1,5 +1,6 @@
-/* Base commune (T5) : variables (docs/ux.md 5.2), typographie, en-tête, focus, message, bouton, toast.
-   Les écrans ont leur feuille : home.css (accueil), grid.css (grille, T6). */
+/* Base commune (T5, refonte « Cartouche bleue » T24) : variables (docs/ux.md 5.2), typographie, cadre pixel, en-tête, focus, boutons, toast, boîte de dialogue.
+   Les écrans ont leur feuille : home.css (accueil), grid.css (grille), player.css (page de jeu).
+   INVARIANT : toute couleur est déclarée ici, dans :root, et nulle part ailleurs (tests/design.test.mjs). */
 @font-face {
   font-family: "Press Start 2P";
   src: url("../assets/fonts/PressStart2P-Regular.ttf") format("truetype");
@@ -9,36 +10,66 @@
 }
 
 :root {
-  --bg: #0f1117;
-  --surface: #1a1d27;
-  --surface-2: #252a38;
-  --border: #2f3547;
-  --text: #f2f0e9;
-  --text-muted: #a9adbb;
-  --accent: #ffb000;
+  /* Fonds : rayures horizontales de 32 px --bg / --band (écran) ; --bg-deep / --band-deep derrière le jeu (page player). */
+  --bg: #0a1233;
+  --band: #0e1b52;
+  --bg-deep: #05091f;
+  --band-deep: #070d2c;
+  /* Cartes, en-tête, boîte (--panel), boutons secondaires (--panel-2), barre de titre rayée de la boîte (--panel-2 / --panel-3). */
+  --panel: #16296e;
+  --panel-2: #1f3a9c;
+  --panel-3: #2646b0;
+  /* Cadre pixel : contour noir (--line, 4 px), biseau clair en haut à gauche, sombre en bas à droite. Le biseau clair porte la limite visible (7.6:1 sur --bg). */
+  --line: #000000;
+  --bevel-hi: #6fa8ff;
+  --bevel-lo: #0a1a66;
+  --text: #ffffff;
+  --text-muted: #b9c8ff;
+  /* Jaune : titres, bouton principal, cadre et plaque de nom des éléments focalisés. Biseaux jaunes pour les cadres « actifs ». */
+  --accent: #ffd23f;
+  --accent-hi: #fff3a8;
+  --accent-lo: #b88a00;
   --on-accent: #1a1200;
   --focus: #3ee0ff;
-  --danger: #ff6b6b;
-  --disabled: #5c6275;
+  /* Bouton Quitter et texte d'erreur. */
+  --danger: #b3202a;
+  --danger-hi: #ff6b73;
+  --danger-lo: #6e0f16;
+  --danger-text: #ff8a8a;
+  /* Machine à 0 jeu : cadre terne et logo hachuré. */
+  --disabled-bg: #1b2147;
+  --disabled-hi: #4a5486;
+  --disabled-lo: #11163a;
+  --stripe-a: #2a3162;
+  --stripe-b: #222850;
+  /* Voiles semi-transparents : fond de la boîte de dialogue, panneau de diagnostic. */
+  --scrim: rgba(5, 9, 31, 0.82);
+  --scrim-strong: rgba(5, 9, 31, 0.94);
 
-  /* Couleur d'accent par machine (visuel de repli). Une variable par machine de systems.json (champ `accent`). */
+  /* Couleur d'accent par machine (visuel de repli et logos). Une variable par machine de systems.json (champ `accent`). */
   --m-arcade: #c0392b; --m-neogeo: #7a5a06; --m-amiga: #a84300;
   --m-nes: #b03a2e; --m-snes: #6c3fa0; --m-gameboy: #4a6a2e;
   --m-gameboycolor: #7d3c98; --m-mastersystem: #1f5fa8; --m-gamegear: #2c3e50;
   --m-megadrive: #2b2b2b; --m-megacd: #34495e; --m-32x: #8e2a2a;
 
-  /* Police pixel : Press Start 2P (licence OFL, assets/fonts/OFL.txt), déclarée par @font-face ci-dessous ; repli monospace. */
+  /* Cadres pixel (box-shadow), un par ton. Pas de border-radius ni de clip-path (il couperait l'anneau de focus). */
+  --frame: 0 0 0 4px var(--line), inset 4px 4px 0 var(--bevel-hi), inset -4px -4px 0 var(--bevel-lo);
+  --frame-accent: 0 0 0 4px var(--line), inset 4px 4px 0 var(--accent-hi), inset -4px -4px 0 var(--accent-lo);
+  --frame-danger: 0 0 0 4px var(--line), inset 4px 4px 0 var(--danger-hi), inset -4px -4px 0 var(--danger-lo);
+  --frame-disabled: 0 0 0 4px var(--line), inset 4px 4px 0 var(--disabled-hi), inset -4px -4px 0 var(--disabled-lo);
+
+  /* Police pixel : Press Start 2P (licence OFL, assets/fonts/OFL.txt), déclarée par @font-face ci-dessus ; repli monospace. */
   --font-pixel: "Press Start 2P", ui-monospace, "SF Mono", Consolas, monospace;
   --font-text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Consolas, monospace;
 
   --gap: 24px;
   --margin-x: 48px;
-  --radius: 8px;
+  --focus-offset: 8px;
 }
 
 @media (max-width: 599px) {
-  :root { --gap: 12px; --margin-x: 16px; }
+  :root { --gap: 16px; --margin-x: 16px; --focus-offset: 4px; }
 }
 
 * { box-sizing: border-box; }
@@ -48,7 +79,7 @@ html { color-scheme: dark; }
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background: var(--bg) repeating-linear-gradient(180deg, var(--bg) 0 32px, var(--band) 32px 64px);
   color: var(--text);
   font-family: var(--font-text);
   font-size: 1rem;
@@ -59,11 +90,13 @@ body {
 .app-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--gap);
   min-height: 64px;
   padding: 8px var(--margin-x);
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  border-bottom: 4px solid var(--line);
+  box-shadow: inset 0 -4px 0 var(--bevel-hi);
 }
 
 .site-title {
@@ -72,39 +105,68 @@ body {
   font-size: 1.25rem;
   font-weight: 400;
   color: var(--accent);
+  text-shadow: 3px 3px 0 var(--line);
 }
+
+/* Petite jauge de 4 barres croissantes, purement décorative (aria-hidden dans index.html). */
+.header-bars { display: flex; gap: 4px; align-items: flex-end; }
+.header-bars i { width: 8px; background: var(--focus); box-shadow: 0 0 0 2px var(--line); }
+.header-bars i:nth-child(1) { height: 10px; }
+.header-bars i:nth-child(2) { height: 16px; }
+.header-bars i:nth-child(3) { height: 22px; }
+.header-bars i:nth-child(4) { height: 28px; }
 
 .screen { padding: 24px var(--margin-x) 48px; }
 
 .screen-title {
-  margin: 0 0 24px;
+  margin: 0 0 28px;
   font-family: var(--font-pixel);
   font-size: 1rem;
   font-weight: 400;
   line-height: 1.6;
+  text-shadow: 2px 2px 0 var(--line);
 }
 
 .muted, .key-hint { color: var(--text-muted); }
 
-/* Anneau de focus (docs/ux.md 4.3) : clavier (focus-visible) ou manette (classe posée par app.js). Jamais la couleur seule. */
+/* Anneau de focus (docs/ux.md 4.3) : clavier (focus-visible) ou manette (classe posée par app.js). Jamais la couleur seule :
+   s'y ajoutent le curseur ▶ (forme), la plaque de nom jaune et l'agrandissement (voir home.css, grid.css). */
 a:focus-visible, button:focus-visible,
 .input-gamepad a:focus, .input-gamepad button:focus {
   outline: 4px solid var(--focus);
-  outline-offset: 3px;
+  outline-offset: var(--focus-offset);
 }
 a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: none; }
 .input-gamepad a:focus, .input-gamepad button:focus { outline: 4px solid var(--focus); }
 
+/* Curseur ▶ clignotant : pseudo-élément (aucun balisage JS, absent de l'arbre d'accessibilité grâce à l'alternative vide).
+   Visible seulement sur l'élément focalisé (mêmes sélecteurs que l'anneau). Clignotement 1 Hz, coupé par prefers-reduced-motion (curseur fixe). */
+.machine-tile::before, .game-tile::before, .button::before {
+  content: "\25B6\FE0E"; /* FE0E : forme texte, jamais l'emoji */
+  content: "\25B6\FE0E" / "";
+  display: none;
+  font-family: var(--font-pixel);
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 2px 2px 0 var(--line);
+  animation: blink 1s steps(1) infinite;
+}
+.machine-tile::before, .game-tile::before { position: absolute; left: -6px; top: -14px; z-index: 3; }
+.button::before { margin-right: 10px; color: var(--on-accent); text-shadow: none; }
+.machine-tile:focus-visible::before, .game-tile:focus-visible::before, .button:focus-visible::before,
+.input-gamepad .machine-tile:focus::before, .input-gamepad .game-tile:focus::before, .input-gamepad .button:focus::before { display: block; }
+
+@keyframes blink { 50% { opacity: 0; } }
+
 /* Message d'état (games.json absent, etc.) */
 .banner {
-  margin: 0 0 24px;
-  padding: 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--radius);
+  margin: 0 4px 28px;
+  padding: 16px 20px;
+  background: var(--panel);
+  box-shadow: var(--frame);
 }
-.banner strong { display: block; margin-bottom: 4px; }
+.banner strong { display: block; margin-bottom: 4px; color: var(--accent); }
 .banner p { margin: 0; color: var(--text-muted); }
 
 code { font-family: var(--font-mono); color: var(--text); user-select: all; }
@@ -112,64 +174,75 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
 .message-screen { max-width: 40rem; margin: 0 auto; text-align: center; }
 .message-screen p { margin: 0 0 16px; }
 
-.button {
+/* Boutons : principal jaune (.button), secondaire bleu (retour, Menu), danger rouge. Capitales légèrement espacées, état pressé décalé de 2 px. */
+.button, .back-button, .menu-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   min-width: 48px;
   min-height: 48px;
   padding: 12px 24px;
-  background: var(--accent);
-  color: var(--on-accent);
   border: 0;
-  border-radius: var(--radius);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
+  transition: transform 150ms;
 }
+.button:active, .back-button:active, .menu-button:active { transform: translate(2px, 2px); }
+.button { background: var(--accent); color: var(--on-accent); box-shadow: var(--frame-accent); }
+.back-button, .menu-button { padding: 8px 16px; background: var(--panel-2); color: var(--text); box-shadow: var(--frame); }
+.dialog-button.is-danger { background: var(--danger); color: var(--text); box-shadow: var(--frame-danger); }
 
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 24px;
+  bottom: 28px;
   transform: translateX(-50%);
-  max-width: calc(100vw - 32px);
+  max-width: calc(100vw - 40px);
   padding: 12px 20px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--frame);
   opacity: 0;
   pointer-events: none;
   transition: opacity 150ms;
 }
 .toast.is-visible { opacity: 1; }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
-}
-
-/* Boîte de confirmation (js/ui/dialog.js) : partagée par la grille et le player. */
+/* Boîte de confirmation (js/ui/dialog.js) : partagée par la grille et le player. Barre de titre rayée bleue, corps, boutons. */
 .dialog-backdrop {
   position: fixed;
   inset: 0;
   z-index: 100;
   display: grid;
   place-items: center;
-  padding: 16px;
-  background: rgba(15, 17, 23, 0.85);
+  padding: 20px;
+  background: var(--scrim);
 }
 .dialog-box {
-  width: min(100%, 24rem);
-  padding: 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  width: min(100%, 26rem);
+  background: var(--panel);
+  box-shadow: var(--frame);
 }
-.dialog-title { margin: 0 0 12px; font-size: 1.25rem; }
+.dialog-title {
+  margin: 4px 4px 0;
+  padding: 16px 20px;
+  font-size: 1.25rem;
+  background: repeating-linear-gradient(90deg, var(--panel-2) 0 8px, var(--panel-3) 8px 16px);
+  border-bottom: 4px solid var(--line);
+}
+.dialog-body { padding: 20px 24px 28px; }
 .dialog-message { margin: 0 0 24px; color: var(--text-muted); }
-.dialog-actions { display: flex; gap: 12px; justify-content: flex-end; }
-.dialog-button.is-danger { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.dialog-actions { display: flex; gap: 20px; justify-content: flex-end; flex-wrap: wrap; }
 
-/* Marge de défilement : scrollIntoView (js/input/focus-nav.js) garde visibles l'anneau de focus (4 px + 3 px) et la mise à l'échelle 1.05 (CA-N6). */
-[data-nav] { scroll-margin: 20px; }
+/* Marge de défilement : scrollIntoView (js/input/focus-nav.js) garde visibles le cadre (4 px), l'anneau de focus (4 px + décalage) et la mise à l'échelle 1.05 (CA-N6). */
+[data-nav] { scroll-margin: 32px; }
+
+/* Réduction des animations (docs/ux.md 4.3, CA-V4) : coupe TOUT (transitions, clignotement du curseur et de « PRÊT ? », échelle des tuiles).
+   INVARIANT : toute animation ajoutée dans css/ est couverte par cette règle (tests/design.test.mjs). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}

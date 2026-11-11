@@ -1,6 +1,11 @@
-/* Page de jeu (T7) : écran Jouer, chargement, bouton Menu avec anneau, rappel de sortie. docs/ux.md 3.4 et 4.4.
+/* Page de jeu (T7, design T24) : écran Jouer, chargement, bouton Menu avec anneau, rappel de sortie. docs/ux.md 3.4 et 4.4.
    Les variables et la boîte de confirmation viennent de base.css ; la jaquette (.game-cover) de grid.css. */
-.player-body { margin: 0; min-height: 100vh; background: #000; overflow: hidden; }
+.player-body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg-deep) repeating-linear-gradient(180deg, var(--bg-deep) 0 32px, var(--band-deep) 32px 64px);
+  overflow: hidden;
+}
 
 .player-screen {
   position: fixed;
@@ -8,14 +13,14 @@
   z-index: 10;
   display: grid;
   place-items: center;
-  padding: 24px var(--margin-x);
+  padding: 72px var(--margin-x) 24px; /* 72 px en haut : place du bouton Menu */
   overflow-y: auto;
   pointer-events: none; /* le jeu en dessous reste utilisable ; les écrans et boutons réactivent */
 }
 .player-screen > * { pointer-events: auto; }
 body.is-playing .player-screen, body.is-playing .player-screen > * { pointer-events: none; }
 
-#game { position: fixed; inset: 0; z-index: 1; width: 100%; height: 100%; background: #000; }
+#game { position: fixed; inset: 0; z-index: 1; width: 100%; height: 100%; background: var(--line); }
 #game[hidden] { display: none; }
 
 .play-screen {
@@ -27,21 +32,25 @@ body.is-playing .player-screen, body.is-playing .player-screen > * { pointer-eve
   text-align: center;
 }
 .play-screen p { margin: 0; }
-.play-cover { width: min(60vw, 14rem); }
-.play-title { margin: 0; font-family: var(--font-pixel); font-size: 1rem; font-weight: 400; line-height: 1.6; }
-.play-button { min-width: 12rem; min-height: 64px; font-size: 1.5rem; }
+.play-cover { width: min(60vw, 14rem); margin: 4px; }
+.play-title { margin: 0; font-family: var(--font-pixel); font-size: 1rem; font-weight: 400; line-height: 1.6; text-shadow: 2px 2px 0 var(--line); }
+.play-button { min-width: 12rem; min-height: 64px; font-family: var(--font-pixel); font-size: 1.5rem; letter-spacing: 0; text-transform: none; }
 .play-message p { color: var(--text-muted); }
+.play-message .play-title { color: var(--danger-text); }
+
+/* « PRÊT ? » : décoratif (aria-hidden), clignote à 1 Hz comme le curseur ; fixe sous prefers-reduced-motion (base.css). */
+.ready { margin: 0; font-family: var(--font-pixel); font-size: 1rem; color: var(--accent); text-shadow: 2px 2px 0 var(--line); animation: blink 1s steps(1) infinite; }
 
 .loading-screen { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
-body.is-playing .player-screen { background: var(--bg); }
+body.is-playing .player-screen { background: var(--bg-deep); }
 body.is-playing .player-screen:empty { display: none; }
 
 /* Bouton Menu : coin haut gauche, au-dessus du lecteur, hors des contrôles virtuels (en bas). */
 .chrome { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
 .menu-wrap {
   position: absolute;
-  top: calc(8px + env(safe-area-inset-top, 0px));
-  left: calc(8px + env(safe-area-inset-left, 0px));
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: calc(16px + env(safe-area-inset-left, 0px));
   pointer-events: auto;
   opacity: 1; /* écrans Jouer, chargement, erreurs : contraste plein (CA-V2) */
   transition: opacity 200ms;
@@ -52,28 +61,15 @@ body.is-playing .menu-wrap { opacity: 0.6; }
 .menu-wrap:hover, .menu-wrap:focus-within, .menu-wrap.is-holding, body.is-playing .menu-wrap:hover, body.is-playing .menu-wrap:focus-within, body.is-playing .menu-wrap.is-holding { opacity: 1; }
 .is-idle .menu-wrap:not(:focus-within):not(.is-holding) { opacity: 0; }
 
-.menu-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 48px;
-  min-height: 48px;
-  padding: 8px 16px;
-  background: var(--surface-2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
+/* Bouton Menu : apparence partagée avec les autres boutons secondaires (base.css) ; ici seulement sa taille. */
+.menu-button { padding: 8px 16px; }
 
 /* Anneau de progression du maintien (Select+Start ou Échap) autour du bouton : trait de 4 px, jamais la couleur seule (texte Menu reste). */
 .menu-ring {
   position: absolute;
-  inset: -4px;
-  width: calc(100% + 8px);
-  height: calc(100% + 8px);
+  inset: -8px; /* hors du contour noir de 4 px du bouton */
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
   overflow: visible;
   pointer-events: none;
   opacity: 0;
@@ -83,15 +79,14 @@ body.is-playing .menu-wrap { opacity: 0.6; }
 
 .exit-hint {
   position: absolute;
-  top: calc(68px + env(safe-area-inset-top, 0px)); /* sous le bouton Menu (48 px + marges) : pas de chevauchement sur téléphone */
+  top: calc(88px + env(safe-area-inset-top, 0px)); /* sous le bouton Menu (16 px + 48 px + anneau et cadre) : pas de chevauchement sur téléphone */
   left: 50%;
   transform: translateX(-50%);
-  max-width: calc(100vw - 32px);
+  max-width: calc(100vw - 40px);
   margin: 0;
   padding: 8px 16px;
-  background: rgba(15, 17, 23, 0.85);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--frame);
   color: var(--text);
   font-size: 0.875rem;
   text-align: center;
@@ -105,15 +100,15 @@ body.is-playing .menu-wrap { opacity: 0.6; }
 .diag {
   position: fixed;
   z-index: 60;
-  top: calc(8px + env(safe-area-inset-top, 0px));
-  right: calc(8px + env(safe-area-inset-right, 0px));
-  max-width: calc(100vw - 16px);
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  max-width: calc(100vw - 32px);
   font: 0.75rem/1.4 var(--font-mono);
   color: var(--text);
 }
 .diag.is-open {
-  left: calc(8px + env(safe-area-inset-left, 0px));
-  top: calc(64px + env(safe-area-inset-top, 0px));
+  left: calc(16px + env(safe-area-inset-left, 0px));
+  top: calc(88px + env(safe-area-inset-top, 0px));
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -124,9 +119,8 @@ body.is-playing .menu-wrap { opacity: 0.6; }
 .diag-toggle, .diag-button {
   min-height: 32px;
   padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-2);
+  border: 2px solid var(--bevel-hi);
+  background: var(--panel-2);
   color: var(--text);
   font: inherit;
   opacity: 0.85;
@@ -139,9 +133,8 @@ body.is-playing .menu-wrap { opacity: 0.6; }
   max-height: calc(100dvh - 120px);
   overflow-y: auto;
   padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: rgba(15, 17, 23, 0.94);
+  border: 2px solid var(--bevel-hi);
+  background: var(--scrim-strong);
   user-select: text;
 }
 .diag-body[hidden] { display: none; }
