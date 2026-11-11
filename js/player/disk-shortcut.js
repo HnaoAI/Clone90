@@ -6,6 +6,9 @@
 import { PAD_SELECT, PAD_START } from './exit-guard.js';
 
 export const DISK_KEY = 'F9';
+/** Noms de source transmis à changeDisk (journal de diagnostic, T16). */
+export const DISK_SOURCE_KEY = 'F9';
+export const DISK_SOURCE_PAD = 'Select+RB';
 /** RB dans le mapping standard. */
 export const PAD_NEXT_DISK = 5;
 
@@ -33,7 +36,7 @@ const hasModifier = (e) => e.ctrlKey || e.altKey || e.metaKey;
  * Raccourci de changement de disquette. Tout est injectable pour les tests.
  * @param {object} options
  * @param {() => ({index: number, count: number}|null)} options.getDiskState état lu dans le cœur à chaque appui (jamais copié) ; null = indisponible
- * @param {(index: number) => (void|Promise<void>)} options.changeDisk même fonction que le menu d'EmulatorJS ; peut lever ou rejeter
+ * @param {(index: number, source: string) => (void|Promise<void>)} options.changeDisk même fonction que le menu d'EmulatorJS (reçoit l'index puis la source, 'F9' ou 'Select+RB') ; peut lever ou rejeter
  * @param {(index: number, count: number) => void} options.onChanged changement réussi (toast)
  * @param {(error: Error) => void} [options.onError] changement échoué
  * @param {() => boolean} [options.isEnabled] faux hors phase de jeu (boîte de confirmation ouverte)
@@ -61,14 +64,14 @@ export function createDiskShortcut(options) {
   };
 
   /** Passe à la disquette suivante si le jeu en a plusieurs. Ignoré pendant un changement en cours. */
-  function trigger() {
+  function trigger(source) {
     if (busy || !isEnabled()) return;
     const state = getDiskState();
     if (!state || !(state.count > 1)) return;
     const index = nextDiskIndex(state.index, state.count);
     busy = true;
     let result;
-    try { result = changeDisk(index); } catch (error) { finish(error); return; }
+    try { result = changeDisk(index, source); } catch (error) { finish(error); return; }
     if (typeof result?.then === 'function') result.then(() => finish(null, index, state.count), (error) => finish(error));
     else finish(null, index, state.count);
   }
@@ -80,13 +83,13 @@ export function createDiskShortcut(options) {
     const onKeyDown = (e) => {
       if (e.key !== DISK_KEY || hasModifier(e)) return;
       e.preventDefault();
-      if (!e.repeat) trigger();
+      if (!e.repeat) trigger(DISK_SOURCE_KEY);
     };
     // Front montant de RB avec Select déjà tenu : un appui maintenu ne change qu'une fois, et RB pressé avant Select (bouton de jeu) ne compte pas.
     const loop = () => {
       const pads = getGamepads() ?? [];
       const rbHeld = isPadRbHeld(pads);
-      if (!rbWasHeld && isNextDiskPadHeld(pads)) trigger();
+      if (!rbWasHeld && isNextDiskPadHeld(pads)) trigger(DISK_SOURCE_PAD);
       rbWasHeld = rbHeld;
       frameId = requestFrame(loop);
     };

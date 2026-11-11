@@ -75,3 +75,6 @@
 @media (prefers-reduced-motion: reduce) {
   .machine-tile:focus-visible, .input-gamepad .machine-tile:focus { transform: none; }
 }
+
+/* Numéro de version (T16) : discret, en bas de l'accueil, lisible (contraste de --text-muted). */
+.app-version { margin: 16px 0 0; text-align: center; color: var(--text-muted); font-size: 0.8125rem; }

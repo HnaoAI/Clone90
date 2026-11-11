@@ -1,7 +1,7 @@
 // Tests de l'accueil (T5) : tuiles machines, états, messages, choix d'écran, rendu avec document factice.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMachineTiles, describeGamesStatus, renderMachineGrid } from '../js/ui/machine-grid.js';
+import { buildMachineTiles, describeGamesStatus, renderMachineGrid, renderHome } from '../js/ui/machine-grid.js';
 import { accentVar } from '../js/ui/logo.js';
 import { formatGameCount } from '../js/ui/format.js';
 import { visibleSystems, resolveRoute } from '../js/screens.js';
@@ -152,4 +152,14 @@ test('describeGamesStatus A6 : hors ligne, absent et invalide ont trois messages
   assert.doesNotMatch(offline.text + offline.title, /illisible/i);
   assert.doesNotMatch(offline.text, /generate-games/, 'relancer le générateur ne règle pas une coupure réseau');
   assert.match(invalid.title, /illisible/i);
+});
+
+test('T16 renderHome : le numéro de version « Clone90 vX - JJ/MM/AAAA » est affiché en bas de l\'accueil', async () => {
+  const { formatVersionLabel } = await import('../js/version.js');
+  const root = renderHome({ tiles: tilesFor([sys('amiga', 1)], [game('amiga', 1)]), gamesStatus: 'ok' }, doc);
+  const versions = find(root, (n) => /app-version/.test(n.attrs.class ?? ''));
+  assert.equal(versions.length, 1);
+  assert.equal(versions[0].textContent, formatVersionLabel());
+  assert.match(versions[0].textContent, /^Clone90 v0\.\d+\.\d+ - \d{2}\/\d{2}\/\d{4}$/);
+  assert.equal(root.children.at(-1), versions[0], 'dernier élément de l\'accueil');
 });

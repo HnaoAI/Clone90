@@ -23,3 +23,6 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `generate-logos.test.mjs` : logos SVG (un par machine, valides, sans doublon, couleurs et contraste, fichiers à jour) (T5b).
 - `retroarch-cfg.test.mjs` : lignes ajoutées au retroarch.cfg, raccourcis à nul, surcharge de `getRetroArchCfg` (T14).
 - `ejs-start-watch.test.mjs` : détection d'un contenu refusé par le cœur, sans faux positif, hook de `EJS_Runtime` (T14).
+- `version.test.mjs` : format de `js/version.js`, ticket à jour, libellé, cohérence avec `sw.js` et `pwa.js` (T16).
+- `diagnostic-log.test.mjs`, `diagnostic-panel.test.mjs` : journal et panneau du mode `debug=1`, absent sans `debug=1` (T16).
+- `disk-trace.test.mjs` : journal des changements de disquette (ok, unreachable puis ok, double échec et rétablissement, état 0,5/2/5 s), lignes du cœur, niveau de log selon debug (T16).

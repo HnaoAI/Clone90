@@ -149,6 +149,8 @@ export function createStaticServer({ root }) {
       } catch {
         return reply(res, 400, 'Requête invalide');
       }
+      // T16 : les navigateurs demandent /favicon.ico tout seuls ; les pages déclarent leur icône, donc on répond « introuvable » (pas une alerte 403 dans la console).
+      if (file === null && urlPath === '/favicon.ico') return reply(res, 404, 'Introuvable');
       if (file === null) return reply(res, 403, 'Accès interdit');
 
       let info = await stat(file).catch(() => null);

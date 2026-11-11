@@ -10,7 +10,10 @@
 // (input/input_keymaps.c) ; `log_verbosity`, `frontend_log_level`, `libretro_log_level` (configuration.c l.2351-2352 et 3549-3562).
 
 // Erreurs seulement (niveau 3 = ERROR) : ce qu'il faut pour voir "[ERROR] [Content]: Failed to load content" sans bruit ni coût.
-const ERROR_LOG_LINES = ['log_verbosity = true', 'frontend_log_level = 3', 'libretro_log_level = 3'];
+// Mode diagnostic (T16, `debug=1`) : niveau 1 (info) pour voir les lignes du cœur du type « Disk (2) inserted in drive DF0 ».
+const logLines = (level) => ['log_verbosity = true', `frontend_log_level = ${level}`, `libretro_log_level = ${level}`];
+export const ERROR_LOG_LEVEL = 3;
+export const DEBUG_LOG_LEVEL = 1;
 
 /**
  * Toutes les actions de raccourci de RetroArch ("meta binds" de input_config_bind_map), sauf enable_hotkey (lié à rien par défaut).
@@ -30,12 +33,13 @@ export const RETROARCH_HOTKEYS = [
 
 /**
  * Lignes à ajouter au retroarch.cfg d'EmulatorJS.
- * @param {{disableHotkeys?: boolean}} [options] disableHotkeys : met tous les raccourcis de RetroArch à "nul" (champ `disableRetroArchHotkeys` de systems.json)
+ * @param {{disableHotkeys?: boolean, debug?: boolean}} [options] disableHotkeys : met tous les raccourcis de RetroArch à "nul" (champ `disableRetroArchHotkeys` de systems.json) ;
+ *   debug : journal du cœur au niveau info (mode diagnostic) au lieu de erreurs seulement
  * @returns {string} lignes terminées par un retour à la ligne
  */
-export function buildRetroArchCfgExtra({ disableHotkeys = false } = {}) {
+export function buildRetroArchCfgExtra({ disableHotkeys = false, debug = false } = {}) {
   const hotkeyLines = disableHotkeys ? RETROARCH_HOTKEYS.map((name) => `input_${name} = "nul"`) : [];
-  return `${[...ERROR_LOG_LINES, ...hotkeyLines].join('\n')}\n`;
+  return `${[...logLines(debug ? DEBUG_LOG_LEVEL : ERROR_LOG_LEVEL), ...hotkeyLines].join('\n')}\n`;
 }
 
 /**

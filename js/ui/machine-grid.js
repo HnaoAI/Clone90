@@ -1,4 +1,4 @@
-// Écran d'accueil (T5) : tuiles des machines (docs/ux.md 3.1). Dépend de data.js, router.js, ui/dom.js, ui/format.js.
+// Écran d'accueil (T5) : tuiles des machines (docs/ux.md 3.1). Dépend de data.js, router.js, version.js, ui/dom.js, ui/format.js.
 // Logique pure (buildMachineTiles, describeGamesStatus) séparée du rendu (renderMachineGrid), testable sans navigateur.
 // INVARIANT : aucune liste de machines ici, tout vient de systems.json. Les tuiles sont des liens `#/<machine>`
 // (clic, tap, middle-click natifs) marqués `data-nav` : le clavier et la manette passent par js/input/.
@@ -7,6 +7,7 @@ import { buildHash } from '../router.js';
 import { el } from './dom.js';
 import { accentVar, createLogo } from './logo.js';
 import { formatGameCount, splitCode } from './format.js';
+import { formatVersionLabel } from '../version.js';
 
 /**
  * Tuiles de l'accueil : machines avec jeux d'abord, machines à 0 jeu ensuite (grisées), ordre de systems.json conservé
@@ -93,5 +94,6 @@ export function renderHome({ tiles, gamesStatus, skipped = 0 }, doc = globalThis
     ], doc),
     renderMachineGrid(tiles, doc),
     el('p', { class: 'key-hint', text: 'Flèches : choisir  -  Entrée / A : ouvrir' }, [], doc),
+    el('p', { class: 'app-version', text: formatVersionLabel() }, [], doc),
   ], doc);
 }
