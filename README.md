@@ -9,6 +9,10 @@ Site web pour jouer aux jeux rétro des années 90 avec [EmulatorJS](https://emu
 - Guide pas à pas (lancer en local, jouer sur Android, publier sur GitHub Pages) : [docs/guide.md](docs/guide.md)
 - Tickets : [tickets/](tickets/)
 
+## Apparence
+
+Design « Cartouche bleue » (T24) : bleu profond, cadres pixel, curseur jaune et « PRÊT ? » qui clignotent doucement (1 Hz, figés si le système demande de réduire les animations). Toutes les couleurs sont des variables de `css/base.css` ; pour changer l'une d'elles, modifier cette variable puis relancer `node scripts/generate-logos.mjs` et `node scripts/generate-icons.mjs` (les logos et icônes en sont dérivés ; la génération refuse un texte illisible, contraste sous 4.5:1). Détail : [docs/ux.md](docs/ux.md), section 5.
+
 ## Lancer en local
 
 Prérequis : [Node.js](https://nodejs.org) 18 ou plus récent. Aucune installation de paquet n'est nécessaire.

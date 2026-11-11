@@ -132,7 +132,7 @@ emulateur/
   data/
     titles.json              surcharges de titres (arcade/neogeo), commité
   css/
-    base.css  home.css  grid.css  player.css      (variables = docs/ux.md section 5)
+    base.css  home.css  grid.css  player.css      (variables = docs/ux.md section 5, source unique des couleurs : css/base.css)
   js/
     config.js                constantes (version CDN, chemins roms/bios)
     data.js                  charge/valide systems.json + games.json

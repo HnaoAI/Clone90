@@ -88,7 +88,7 @@ export function createCover(tile, machine, doc) {
 function renderHeader(machine, count, doc) {
   return el('header', { class: 'grid-header' }, [
     el('a', { class: 'back-button', attrs: { href: buildHash({ name: 'home' }), 'aria-label': 'Retour aux machines' }, dataset: { nav: '', navId: BACK_NAV_ID } }, [
-      el('span', { text: '<', attrs: { 'aria-hidden': 'true' } }, [], doc),
+      el('span', { text: '\u25C0\uFE0E', attrs: { 'aria-hidden': 'true' } }, [], doc),
       el('span', { class: 'back-label', text: 'Machines' }, [], doc),
     ], doc),
     el('h2', { class: 'grid-title' }, [machine.name], doc),
@@ -99,7 +99,7 @@ function renderHeader(machine, count, doc) {
 function renderEmptyState(machine, doc) {
   const empty = describeEmptyState(machine);
   return el('section', { class: 'empty-state' }, [
-    el('span', { class: 'empty-logo' }, [createLogo({ logo: assetUrl(machine.logo ?? null), name: machine.name, accent: 'var(--disabled)' }, doc)], doc),
+    el('span', { class: 'empty-logo' }, [createLogo({ logo: assetUrl(machine.logo ?? null), name: machine.name, accent: 'var(--disabled-bg)' }, doc)], doc),
     el('p', { class: 'empty-title', text: empty.title }, [], doc),
     el('p', {}, ['Déposez vos ROMs dans le dossier : ', el('code', { text: empty.path }, [], doc)], doc),
     el('p', {}, ['puis lancez ', el('code', { text: 'node scripts/generate-games.mjs' }, [], doc), ' et rechargez la page.'], doc),

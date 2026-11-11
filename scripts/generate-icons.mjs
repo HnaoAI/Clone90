@@ -1,14 +1,17 @@
 // Génère les icônes PWA (T8) en PNG, sans dépendance ni téléchargement (zlib de Node) : assets/icons/icon-192.png, icon-512.png
-// et les versions maskable. Motif maison : "C90" en grands pixels jaunes sur fond sombre (palette docs/ux.md 5.2).
+// et les versions maskable. Motif maison : "C90" en grands pixels jaunes sur fond bleu nuit (palette de css/base.css).
 // Usage : node scripts/generate-icons.mjs   (à relancer seulement pour changer le dessin ; les PNG sont commités)
 import { deflateSync } from 'node:zlib';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROJECT_ROOT } from './project-root.mjs';
 import { GLYPHS } from './pixel-font.mjs';
+import { readCssColors, hexToRgb } from './css-colors.mjs';
 
-const BG = [0x0f, 0x11, 0x17];
-const FG = [0xff, 0xb0, 0x00];
+// Couleurs lues dans css/base.css (--bg et --accent) : une seule source pour la palette (T24).
+const colors = readCssColors(readFileSync(join(PROJECT_ROOT, 'css', 'base.css'), 'utf8'));
+const BG = hexToRgb(colors['--bg']);
+const FG = hexToRgb(colors['--accent']);
 const TEXT = ['C', '9', '0'];
 
 /** Image RGB de `size` pixels : texte centré, occupant `fill` (0 à 1) de la largeur ; le reste est le fond. */

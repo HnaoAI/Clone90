@@ -1,7 +1,7 @@
 // Tests de l'accueil (T5) : tuiles machines, états, messages, choix d'écran, rendu avec document factice.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMachineTiles, describeGamesStatus, renderMachineGrid, renderHome } from '../js/ui/machine-grid.js';
+import { buildMachineTiles, describeGamesStatus, renderMachineGrid, renderHome, gaugeSegments, GAUGE_SEGMENTS } from '../js/ui/machine-grid.js';
 import { accentVar } from '../js/ui/logo.js';
 import { formatGameCount } from '../js/ui/format.js';
 import { visibleSystems, resolveRoute } from '../js/screens.js';
@@ -55,8 +55,8 @@ test('buildMachineTiles : logo encodé, null si absent ; accent en variable CSS'
 
 test('accentVar : seule une variable --m-xxx est acceptée, sinon repli neutre (pas d\'injection CSS)', () => {
   assert.equal(accentVar('--m-neogeo'), 'var(--m-neogeo)');
-  assert.equal(accentVar('red; background:url(x)'), 'var(--surface-2)');
-  assert.equal(accentVar(undefined), 'var(--surface-2)');
+  assert.equal(accentVar('red; background:url(x)'), 'var(--panel-2)');
+  assert.equal(accentVar(undefined), 'var(--panel-2)');
 });
 
 test('describeGamesStatus : ok sans rien à dire, absent explique GitHub Pages et la solution locale', () => {
@@ -162,4 +162,26 @@ test('T16 renderHome : le numéro de version « Clone90 vX - JJ/MM/AAAA » est a
   assert.equal(versions[0].textContent, formatVersionLabel());
   assert.match(versions[0].textContent, /^Clone90 v0\.\d+\.\d+ - \d{2}\/\d{2}\/\d{4}$/);
   assert.equal(root.children.at(-1), versions[0], 'dernier élément de l\'accueil');
+});
+
+// --- T24 : jauge décorative de la tuile ---
+test('T24 gaugeSegments : un segment pour 2 jeux, plafonné à 6, 0 jeu = tout éteint', () => {
+  const lit = (count) => gaugeSegments(count).filter(Boolean).length;
+  assert.equal(gaugeSegments(0).length, GAUGE_SEGMENTS);
+  assert.deepEqual([0, 1, 2, 3, 8, 11, 12, 13, 5000].map(lit), [0, 1, 1, 2, 4, 6, 6, 6, 6]);
+  assert.deepEqual(gaugeSegments(3), [true, true, false, false, false, false], 'allumée du bas vers le haut');
+});
+
+test('T24 gaugeSegments : valeurs invalides (négatif, NaN, undefined) = jauge éteinte, jamais d\'erreur', () => {
+  for (const bad of [-4, Number.NaN, undefined, null, Infinity * -1]) assert.equal(gaugeSegments(bad).filter(Boolean).length, 0);
+});
+
+test('T24 renderMachineGrid : jauge aria-hidden de 6 segments dans le logo, texte du nombre de jeux conservé', () => {
+  const root = renderMachineGrid(tilesFor([sys('amiga', 1), sys('nes', 2)], [game('amiga', 1), game('amiga', 2), game('amiga', 3)]), doc);
+  const gauges = find(root, (n) => n.attrs?.class === 'gauge');
+  assert.equal(gauges.length, 2);
+  for (const g of gauges) { assert.equal(g.attrs['aria-hidden'], 'true'); assert.equal(g.children.length, GAUGE_SEGMENTS); }
+  assert.deepEqual(gauges[0].children.map((c) => c.attrs.class === 'is-on'), gaugeSegments(3));
+  assert.equal(find(gauges[1], (n) => n.attrs?.class === 'is-on').length, 0, '0 jeu : aucun segment allumé');
+  assert.ok(find(root, (n) => n.textContent === '3 jeux').length === 1);
 });

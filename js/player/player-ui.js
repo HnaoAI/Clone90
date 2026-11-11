@@ -67,6 +67,9 @@ export function describeStartFailure({ coreMessages = [], gameFiles = [] } = {})
   return { title: "Ce jeu n'a pas pu démarrer", details };
 }
 
+/** Mention décorative de l'écran Jouer (aria-hidden, clignote à 1 Hz sauf prefers-reduced-motion, T24). */
+export const READY_LABEL = 'PRÊT ?';
+
 /** Textes de l'écran Jouer. @returns {{title: string, machineName: string, playLabel: string}} */
 export const playScreenModel = (machine, game) => ({ title: game.title, machineName: machine.name, playLabel: 'Jouer' });
 
@@ -85,6 +88,7 @@ export function renderPlayScreen({ machine, game, onPlay }, doc = globalThis.doc
     el('div', { class: 'play-cover' }, [createCover(tile, machine, doc)], doc),
     el('h1', { class: 'play-title', text: text.title }, [], doc),
     el('p', { class: 'muted', text: text.machineName }, [], doc),
+    el('p', { class: 'ready', text: READY_LABEL, attrs: { 'aria-hidden': 'true' } }, [], doc),
     navButton(text.playLabel, PLAY_NAV_ID, onPlay, doc, 'play-button'),
   ], doc);
 }
@@ -120,10 +124,10 @@ export function createMenuButton({ onClick }, doc = globalThis.document) {
   svg.setAttribute('class', 'menu-ring');
   svg.setAttribute('aria-hidden', 'true');
   const rect = doc.createElementNS(SVG_NS, 'rect');
-  for (const [k, v] of Object.entries({ x: 0, y: 0, width: '100%', height: '100%', rx: 10, pathLength: 100, 'stroke-dasharray': 100, 'stroke-dashoffset': 100 })) rect.setAttribute(k, String(v));
+  for (const [k, v] of Object.entries({ x: 0, y: 0, width: '100%', height: '100%', pathLength: 100, 'stroke-dasharray': 100, 'stroke-dashoffset': 100 })) rect.setAttribute(k, String(v));
   svg.append(rect);
   const button = el('button', { class: 'menu-button', attrs: { type: 'button', 'aria-label': 'Menu' }, dataset: { nav: '', navId: MENU_NAV_ID }, on: { click: onClick } }, [
-    el('span', { text: '⌂', attrs: { 'aria-hidden': 'true' } }, [], doc),
+    el('span', { text: '\u25C0\uFE0E', attrs: { 'aria-hidden': 'true' } }, [], doc),
     el('span', { text: 'Menu' }, [], doc),
   ], doc);
   const element = el('div', { class: 'menu-wrap' }, [button, svg], doc);

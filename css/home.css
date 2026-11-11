@@ -1,4 +1,4 @@
-/* Accueil (T5) : cartes des machines, docs/ux.md 3.1 et 5.4.
+/* Accueil (T5, design T24) : cartes des machines en cadre pixel, jauge de jeux, état focalisé. docs/ux.md 3.1 et 5.4.
    Flex centré (et non grid) : avec 2 machines la rangée est centrée, les cartes gardent leur taille. */
 .machine-list {
   --cols: 4;
@@ -21,24 +21,26 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   width: 100%;
   min-height: 140px;
   aspect-ratio: 4 / 3;
   padding: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--frame);
   color: var(--text);
   text-decoration: none;
   transition: transform 150ms, background-color 150ms;
 }
-@media (max-width: 599px) { .machine-tile { aspect-ratio: auto; min-height: 132px; padding: 8px; } }
+@media (max-width: 599px) { .machine-tile { aspect-ratio: auto; min-height: 132px; padding: 10px; } }
 
-@media (hover: hover) { .machine-tile:hover { background: var(--surface-2); } }
-.machine-tile:focus-visible, .input-gamepad .machine-tile:focus { transform: scale(1.05); z-index: 1; }
+@media (hover: hover) { .machine-tile:hover { background: var(--panel-2); } }
+
+/* Focus : curseur ▶ (base.css), anneau cyan, cadre et plaque de nom jaunes, échelle 1.05. Quatre indices indépendants de la couleur. */
+.machine-tile:focus-visible, .input-gamepad .machine-tile:focus { transform: scale(1.05); z-index: 2; box-shadow: var(--frame-accent); }
 
 .machine-logo {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: grid;
@@ -46,10 +48,15 @@
   place-items: center;
   overflow: hidden;
   padding: 8px;
-  background: var(--tile-accent, var(--surface-2));
-  border-radius: 4px;
+  background: var(--tile-accent, var(--panel-2));
 }
+.machine-tile .machine-logo { padding-right: 22px; border: 3px solid var(--line); } /* 22 px à droite : place de la jauge */
 .machine-logo img { width: 100%; height: 100%; object-fit: contain; }
+
+/* Jauge verticale de 6 segments (js/ui/machine-grid.js, gaugeSegments) : décorative (aria-hidden), le texte « N jeux » reste l'information. */
+.gauge { position: absolute; right: 5px; top: 6px; bottom: 6px; width: 10px; display: flex; flex-direction: column-reverse; gap: 2px; }
+.gauge i { flex: 1; max-height: 14px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); }
+.gauge i.is-on { background: var(--focus); }
 
 .logo-fallback {
   font-family: var(--font-pixel);
@@ -58,16 +65,24 @@
   text-align: center;
   overflow-wrap: anywhere;
   color: var(--text);
+  text-shadow: 2px 2px 0 var(--line);
 }
 
-.machine-name { font-weight: 600; font-size: 1rem; text-align: center; }
-.machine-count { color: var(--text-muted); font-size: 0.9375rem; text-align: center; }
+.machine-name { padding: 2px 4px; font-weight: 700; font-size: 1rem; text-align: center; }
+.machine-count { margin-top: -4px; color: var(--text-muted); font-size: 0.9375rem; text-align: center; }
 
-/* 0 jeu : grisé mais lisible (le texte reste en --text-muted, la mention "0 jeu" porte l'information). */
-.machine-tile.is-empty { border-style: dashed; }
-.machine-tile.is-empty .machine-logo { background: var(--disabled); filter: grayscale(1); }
+.machine-tile:focus-visible .machine-name, .input-gamepad .machine-tile:focus .machine-name {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 0 0 2px var(--line);
+}
+
+/* 0 jeu : cadre terne, logo hachuré en gris (le texte reste en --text-muted, la mention « 0 jeu » porte l'information). */
+.machine-tile.is-empty { background: var(--disabled-bg); box-shadow: var(--frame-disabled); }
+.machine-tile.is-empty:focus-visible, .input-gamepad .machine-tile.is-empty:focus { box-shadow: var(--frame-accent); }
+.machine-tile.is-empty .machine-logo { background: repeating-linear-gradient(45deg, var(--stripe-a) 0 6px, var(--stripe-b) 6px 12px); filter: grayscale(1); }
 .machine-tile.is-empty .machine-name { color: var(--text-muted); }
-.machine-tile:focus-visible .machine-name, .input-gamepad .machine-tile:focus .machine-name { font-weight: 700; color: var(--text); }
+.machine-tile.is-empty:focus-visible .machine-name, .input-gamepad .machine-tile.is-empty:focus .machine-name { color: var(--on-accent); }
 
 .key-hint { margin: 32px 0 0; text-align: center; }
 @media (hover: none) and (pointer: coarse) { .key-hint { display: none; } }
