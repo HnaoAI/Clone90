@@ -36,6 +36,16 @@ Double-cliquez sur **`Lancer Clone90.command`** (à la racine du dossier). Il me
 - Le lanceur n'écoute que sur ce Mac (`--host 127.0.0.1`) : vos jeux ne sont pas visibles depuis le réseau. Pour jouer depuis le téléphone, lancez à la main `node scripts/serve.mjs` (sans `--host`), sur un réseau de confiance seulement (chez vous), jamais sur un Wi-Fi public.
 - Cela ne concerne que le Mac. Sous Windows et Linux, utilisez les commandes de la section « Lancer en local ».
 
+## Choisir le dossier de vos jeux
+
+Vos ROMs (et vos BIOS) peuvent rester sur un autre disque ou dans un autre dossier que le projet. Double-cliquez sur **`Choisir le dossier des jeux.command`** (à la racine du dossier) : une fenêtre du Mac vous demande le dossier de vos ROMs, puis si vos BIOS sont dans `bios/` du projet ou dans un autre dossier. Annuler à n'importe quelle étape ne change rien.
+
+- **La première fois**, comme pour le lanceur : clic droit (ou `Ctrl` + clic) sur le fichier, **Ouvrir**, puis **Ouvrir**.
+- Le dossier choisi doit contenir **un sous-dossier par machine**, comme `roms/` : `amiga/`, `neogeo/`, `arcade/`... (identifiants de `systems.json`).
+- Le choix est écrit dans `clone90.local.json` (fichier personnel, ignoré par git, jamais servi par le site). Exemple : `{ "romsDir": "/Volumes/Disque/ROMs", "biosDir": "/Volumes/Disque/BIOS" }`. Chaque clé est facultative ; sans elle, c'est `roms/` ou `bios/` du projet. Un chemin faux est signalé en français et Clone90 revient au dossier du projet.
+- Pour revenir au dossier du projet : supprimez `clone90.local.json`. On peut aussi simplement garder `roms/` dans le projet.
+- Après le choix, `Lancer Clone90.command` (ou `node scripts/generate-games.mjs`) affiche le dossier des jeux utilisé. Rien ne change dans le navigateur ni sur GitHub Pages.
+
 ## Où mettre les ROMs et les BIOS
 
 Ces dossiers sont ignorés par git : rien de ce que vous y mettez n'est publié. Créez-les s'ils n'existent pas.

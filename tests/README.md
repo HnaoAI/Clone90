@@ -27,5 +27,8 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `diagnostic-log.test.mjs`, `diagnostic-panel.test.mjs` : journal et panneau du mode `debug=1`, absent sans `debug=1` (T16).
 - `disk-trace.test.mjs` : journal des changements de disquette (ok, unreachable puis ok, double échec et rétablissement, état 0,5/2/5 s), lignes du cœur, niveau de log selon debug (T16).
 - `pages.test.mjs` : publication GitHub Pages, `.nojekyll` présent, jamais servi ni mis en cache, pas de nom en `_` (T17).
+- `local-settings.test.mjs` : réglages `clone90.local.json` (lecture, validation, fusion) et générateur sur un `romsDir` choisi (T23).
+- `serve-dossiers.test.mjs` : serveur avec `romsDir` et `biosDir` choisis, refus de sortie, réglage jamais servi (T23).
+- `choisir-dossier-mac.test.mjs` : `Choisir le dossier des jeux.command` et lanceur (`bash -n`, bits exécutables) (T23).
 - `launcher-mac.test.mjs` : lanceur Mac `Lancer Clone90.command` (contenu, `bash -n`, jamais servi ni mis en cache) (T20).
 - `samples.test.mjs` : samples fbneo (plan de lancement Zaxxon avec et sans pack, Neo Geo, Amiga, validation de `samples`, liste blanche du serveur, service worker, générateur) (T22).

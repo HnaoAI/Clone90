@@ -326,7 +326,7 @@ Plein écran : appel `requestFullscreen` dans le gestionnaire du clic "Jouer". M
 
 ## 9. Serveur local et limites de plateforme
 
-`scripts/serve.mjs` (Node, sans dépendance) : sert le dossier courant, port 8080 par défaut (`PORT` modifiable), MIME corrects (`.wasm`, `.json`, `.webmanifest`, `.adf` et inconnus en `application/octet-stream`), **requêtes Range** (utile pour les gros fichiers), `Cache-Control: no-cache` en développement, écoute sur toutes les interfaces pour l'accès depuis un téléphone, affiche l'URL locale et l'URL réseau (`http://192.168.x.x:8080`). Repli sans Node : `python3 -m http.server 8080`.
+`scripts/serve.mjs` (Node, sans dépendance) : sert le dossier courant, port 8080 par défaut (`PORT` modifiable), MIME corrects (`.wasm`, `.json`, `.webmanifest`, `.adf` et inconnus en `application/octet-stream`), **requêtes Range** (utile pour les gros fichiers), `Cache-Control: no-cache` en développement, écoute sur toutes les interfaces pour l'accès depuis un téléphone, affiche l'URL locale et l'URL réseau (`http://192.168.x.x:8080`). Repli sans Node : `python3 -m http.server 8080`. **T23** : `clone90.local.json` (ignoré par git, jamais servi) peut rediriger `roms/` et `bios/` vers d'autres dossiers (`romsDir`, `biosDir`, lus par `scripts/local-settings.mjs`) ; l'adresse web et les chemins de `games.json` restent `roms/...`, et le realpath du dossier choisi devient la racine autorisée (règle T11).
 
 Limites à connaître :
 - **Mac/PC** : `http://localhost:8080` est un contexte sécurisé, le service worker et l'installation PWA fonctionnent.

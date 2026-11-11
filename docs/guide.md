@@ -16,6 +16,16 @@ Ce guide est écrit pour Hicham (Mac, navigateur Opera ou Chrome, et un téléph
 - Le détail machine par machine (extensions, noms de BIOS) est dans le tableau du [README](../README.md#où-mettre-les-roms-et-les-bios). Créez les dossiers s'ils n'existent pas.
 - Ces dossiers ne sont jamais envoyés sur GitHub : le fichier `.gitignore` les en empêche.
 
+### Choisir le dossier de vos jeux
+
+Vos ROMs (et vos BIOS) peuvent rester sur un autre disque ou dans un autre dossier que le projet. Double-cliquez sur **`Choisir le dossier des jeux.command`** (à la racine du dossier) : une fenêtre du Mac vous demande le dossier de vos ROMs, puis si vos BIOS sont dans `bios/` du projet ou dans un autre dossier. Annuler à n'importe quelle étape ne change rien.
+
+- **La première fois**, comme pour le lanceur : clic droit (ou `Ctrl` + clic) sur le fichier, **Ouvrir**, puis **Ouvrir**.
+- Le dossier choisi doit contenir **un sous-dossier par machine**, comme `roms/` : `amiga/`, `neogeo/`, `arcade/`... (identifiants de `systems.json`).
+- Le choix est écrit dans `clone90.local.json` (fichier personnel, ignoré par git, jamais servi par le site). Exemple : `{ "romsDir": "/Volumes/Disque/ROMs", "biosDir": "/Volumes/Disque/BIOS" }`. Chaque clé est facultative ; sans elle, c'est `roms/` ou `bios/` du projet. Un chemin faux est signalé en français et Clone90 revient au dossier du projet.
+- Pour revenir au dossier du projet : supprimez `clone90.local.json`. On peut aussi simplement garder `roms/` dans le projet.
+- Après le choix, `Lancer Clone90.command` (ou `node scripts/generate-games.mjs`) affiche le dossier des jeux utilisé. Rien ne change dans le navigateur ni sur GitHub Pages.
+
 ### Démarrer
 
 1. Après chaque ajout ou retrait de jeu, dans le Terminal :
