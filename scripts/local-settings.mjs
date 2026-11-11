@@ -35,16 +35,27 @@ function tooWideFolders() {
   return wide;
 }
 
-/** Message d'erreur en français si la valeur n'est pas un chemin absolu vers un dossier existant, sinon null. */
-export async function folderProblem(key, value) {
-  if (typeof value !== 'string' || !isAbsolute(value)) {
-    return `${LOCAL_SETTINGS_FILE} : ${key} doit être un chemin absolu (ex. /Volumes/Disque/ROMs)`;
-  }
+/**
+ * Raison du refus d'un dossier : 'not-absolute', 'too-wide' ou 'not-a-folder' ; null s'il est accepté.
+ * Règle unique, partagée par le fichier de réglages, la ligne de commande et l'API locale (T25).
+ */
+export async function folderProblemKind(value) {
+  if (typeof value !== 'string' || !isAbsolute(value)) return 'not-absolute';
   // INVARIANT : le serveur écoute par défaut sur toutes les interfaces ; un dossier trop large exposerait son contenu au réseau (revue T23).
   const wide = resolve(value).replace(/\/+$/, '') || '/';
-  if (tooWideFolders().has(wide)) return `${LOCAL_SETTINGS_FILE} : ${key} : dossier trop large : choisissez le dossier qui contient directement vos jeux (${value})`;
+  if (tooWideFolders().has(wide)) return 'too-wide';
   const info = await stat(value).catch(() => null);
-  return info?.isDirectory() ? null : `${LOCAL_SETTINGS_FILE} : ${key} n'est pas un dossier existant : ${value}`;
+  return info?.isDirectory() ? null : 'not-a-folder';
+}
+
+/** Message d'erreur en français si la valeur n'est pas un chemin absolu vers un dossier existant, sinon null. */
+export async function folderProblem(key, value) {
+  switch (await folderProblemKind(value)) {
+    case 'not-absolute': return `${LOCAL_SETTINGS_FILE} : ${key} doit être un chemin absolu (ex. /Volumes/Disque/ROMs)`;
+    case 'too-wide': return `${LOCAL_SETTINGS_FILE} : ${key} : dossier trop large : choisissez le dossier qui contient directement vos jeux (${value})`;
+    case 'not-a-folder': return `${LOCAL_SETTINGS_FILE} : ${key} n'est pas un dossier existant : ${value}`;
+    default: return null;
+  }
 }
 
 /**

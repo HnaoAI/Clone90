@@ -8,6 +8,8 @@ import { extname, resolve, sep, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { PROJECT_ROOT } from './project-root.mjs';
 import { readLocalSettings, describeFolders } from './local-settings.mjs';
+import { createSettingsApi } from './settings-api.mjs';
+import { chooseFolderOnMac } from './mac-folder-dialog.mjs';
 
 export const DEFAULT_PORT = 8080;
 /** Écoute sur toutes les interfaces par défaut (téléphone Android du même Wi-Fi). Le lanceur Mac (T20) passe --host 127.0.0.1. */
@@ -100,6 +102,14 @@ export function isLocalOnlyHost(host) {
   return host === 'localhost' || host === '::1' || /^127\./.test(host);
 }
 
+/**
+ * L'API locale des dossiers (T25, settings-api.mjs) n'existe que si le serveur n'écoute que sur ce Mac (mode du lanceur) et sous macOS
+ * (boîte « choisir un dossier » via osascript). Ouvert au réseau local, /api/ répond 404 : un téléphone ne peut pas changer les dossiers.
+ */
+export function isSettingsApiEnabled(host, platform = process.platform) {
+  return platform === 'darwin' && isLocalOnlyHost(host);
+}
+
 // INVARIANT : envoyé sur TOUTES les réponses (T11/A7) : le navigateur ne devine jamais un type différent du Content-Type annoncé.
 const SECURITY_HEADERS = { 'X-Content-Type-Options': 'nosniff' };
 
@@ -163,21 +173,22 @@ function parseRange(header, size) {
 
 /**
  * Crée le serveur HTTP statique (non démarré : l'appelant appelle `listen`).
- * @param {{root: string, romsDir?: string, biosDir?: string}} options racine à servir ; `romsDir` et `biosDir` (absolus) remplacent
- *   roms/ et bios/ du projet (T23, voir local-settings.mjs)
- * @returns {http.Server}
+ * @param {{root: string, romsDir?: string, biosDir?: string, api?: {handle: Function}}} options racine à servir ; `romsDir` et `biosDir` (absolus) remplacent
+ *   roms/ et bios/ du projet (T23, voir local-settings.mjs) ; `api` traite /api/... (T25), sinon /api/ répond 404
+ * @returns {http.Server & {setFolders: (folders: {romsDir?: string, biosDir?: string}) => void}} `setFolders` change les dossiers sans redémarrer (T25)
  */
-export function createStaticServer({ root, romsDir, biosDir }) {
+export function createStaticServer({ root, romsDir, biosDir, api }) {
   const absRoot = resolve(root);
   const dirs = { roms: romsDir && resolve(romsDir), bios: biosDir && resolve(biosDir) };
   const realRootPromise = realpath(absRoot).catch(() => absRoot);
-  return http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     try {
+      const urlPath = (req.url ?? '/').split('?')[0].split('#')[0];
+      if (urlPath === '/api' || urlPath.startsWith('/api/')) return api ? await api.handle(req, res) : reply(res, 404, 'Introuvable');
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         return reply(res, 405, 'Méthode non autorisée', { Allow: 'GET, HEAD' });
       }
       const realRoot = await realRootPromise;
-      const urlPath = (req.url ?? '/').split('?')[0].split('#')[0];
       let file;
       try {
         file = resolveInsideRoot(absRoot, urlPath);
@@ -230,6 +241,11 @@ export function createStaticServer({ root, romsDir, biosDir }) {
       else res.destroy();
     }
   });
+  server.setFolders = (folders) => {
+    dirs.roms = folders.romsDir && resolve(folders.romsDir);
+    dirs.bios = folders.biosDir && resolve(folders.biosDir);
+  };
+  return server;
 }
 
 /** Adresses IPv4 non locales de la machine, pour jouer depuis un téléphone du même réseau. */
@@ -250,7 +266,11 @@ async function main() {
     process.exit(1);
   }
   const settings = await readLocalSettings(PROJECT_ROOT);
-  const server = createStaticServer({ root: PROJECT_ROOT, romsDir: settings.romsDir, biosDir: settings.biosDir });
+  const api = createSettingsApi({
+    root: PROJECT_ROOT, enabled: isSettingsApiEnabled(host), getPort: () => server.address().port,
+    applyFolders: (folders) => server.setFolders(folders), chooseFolder: chooseFolderOnMac, baseHeaders: SECURITY_HEADERS,
+  });
+  const server = createStaticServer({ root: PROJECT_ROOT, romsDir: settings.romsDir, biosDir: settings.biosDir, api });
   server.on('error', (err) => {
     console.error(err.code === 'EADDRINUSE'
       ? `Le port ${port} est déjà utilisé. Essayez : node scripts/serve.mjs --port ${port + 1}`
