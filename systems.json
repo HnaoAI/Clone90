@@ -107,7 +107,7 @@
           "file": "bios_MD.bin",
           "required": false,
           "role": "optional",
-          "note": "BIOS TMSS, facultatif"
+          "note": "BIOS TMSS, facultatif et inactif par défaut (option du cœur « System Boot ROM » désactivée)"
         }
       ],
       "logo": "assets/logos/megadrive.svg",
@@ -135,29 +135,32 @@
       "emulatorjsCore": "segaCD",
       "extensions": [
         "cue",
-        "bin",
         "iso",
         "chd",
-        "m3u"
+        "zip"
       ],
+      "biosAtLeastOne": true,
       "bios": [
         {
           "file": "bios_CD_E.bin",
           "required": false,
           "role": "optional",
-          "note": "Mega-CD européen"
+          "preload": true,
+          "note": "Mega-CD européen. Il en faut au moins un, celui de la région du disque (le cœur le choisit)"
         },
         {
           "file": "bios_CD_U.bin",
           "required": false,
           "role": "optional",
-          "note": "Sega CD américain"
+          "preload": true,
+          "note": "Sega CD américain. Il en faut au moins un, celui de la région du disque"
         },
         {
           "file": "bios_CD_J.bin",
           "required": false,
           "role": "optional",
-          "note": "Mega-CD japonais"
+          "preload": true,
+          "note": "Mega-CD japonais. Il en faut au moins un, celui de la région du disque"
         }
       ],
       "logo": "assets/logos/megacd.svg",
@@ -188,9 +191,18 @@
         "nes",
         "fds",
         "unf",
+        "unif",
         "zip"
       ],
-      "bios": [],
+      "bios": [
+        {
+          "file": "disksys.rom",
+          "required": false,
+          "role": "optional",
+          "preload": true,
+          "note": "BIOS du Famicom Disk System, nécessaire seulement pour les jeux .fds"
+        }
+      ],
       "logo": "assets/logos/nes.svg",
       "accent": "--m-nes",
       "wave": 2
@@ -203,6 +215,8 @@
       "extensions": [
         "sfc",
         "smc",
+        "swc",
+        "fig",
         "zip"
       ],
       "bios": [],
@@ -224,7 +238,8 @@
           "file": "gb_bios.bin",
           "required": false,
           "role": "optional",
-          "note": "BIOS facultatif"
+          "preload": true,
+          "note": "BIOS facultatif (logo de démarrage officiel)"
         }
       ],
       "logo": "assets/logos/gameboy.svg",
@@ -245,7 +260,8 @@
           "file": "gbc_bios.bin",
           "required": false,
           "role": "optional",
-          "note": "BIOS facultatif"
+          "preload": true,
+          "note": "BIOS facultatif (logo de démarrage officiel)"
         }
       ],
       "logo": "assets/logos/gameboycolor.svg",

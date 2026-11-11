@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, copyFile } from 'node
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
-  cleanTitle, makeId, resolveTitle, parseM3u, readSystems, generateGames, runGenerate, pickSystemDir,
+  cleanTitle, makeId, resolveTitle, parseM3u, parseCue, readSystems, generateGames, runGenerate, pickSystemDir,
 } from '../scripts/generate-games.mjs';
 
 const FIXED_DATE = new Date('2026-11-09T21:00:00.000Z');
@@ -424,5 +424,86 @@ test('multi-disquettes : sortie de games.json inchangée (version 1) pour un jeu
   await withProject({ 'roms/amiga/Lemmings.adf': 'x' }, async (root) => {
     const [game] = await gamesOf(root);
     assert.equal('disks' in game, false);
+  });
+});
+
+// --- T15 : .cue et ses fichiers (Mega-CD) = UN jeu ---
+const SONIC = 'Sonic CD (USA)';
+const cueText = (...names) => `${names.map((n, i) => `FILE "${n}" BINARY\n  TRACK ${String(i + 1).padStart(2, '0')} ${i ? 'AUDIO' : 'MODE1/2352'}\n    INDEX 01 00:00:00`).join('\n')}\n`;
+
+test('T15 parseCue : noms des lignes FILE (avec ou sans guillemets, \\ devient /), rien d\'autre', () => {
+  assert.deepEqual(parseCue(cueText('a b.bin', 'Track 02.wav')), ['a b.bin', 'Track 02.wav']);
+  assert.deepEqual(parseCue('REM x\r\nFILE disque.bin BINARY\r\nFILE "sous\\dossier.bin" BINARY\r\n'), ['disque.bin', 'sous/dossier.bin']);
+  assert.deepEqual(parseCue(''), []);
+  assert.deepEqual(parseCue('\uFEFFFILE "x.bin" BINARY'), ['x.bin']);
+});
+
+test('T15 cue+bin : un seul jeu, le .bin n\'est pas listé à part, extraFiles porte le .bin', async () => {
+  await withProject({
+    [`roms/megacd/${SONIC}.cue`]: cueText(`${SONIC}.bin`), [`roms/megacd/${SONIC}.bin`]: 'x', 'roms/megacd/Autre.chd': 'x',
+  }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.deepEqual(result.games.map((g) => g.file), ['roms/megacd/Autre.chd', `roms/megacd/${SONIC}.cue`]);
+    const game = result.games[1];
+    assert.equal(game.title, 'Sonic CD');
+    assert.deepEqual(game.extraFiles, [{ file: `roms/megacd/${SONIC}.bin`, as: `${SONIC}.bin` }]);
+    assert.equal('extraFiles' in result.games[0], false);
+    assert.deepEqual(result.warnings, []);
+  });
+});
+
+test('T15 cue+bin : plusieurs pistes (bin + audio), l\'ordre du .cue est gardé', async () => {
+  await withProject({
+    'roms/megacd/J.cue': cueText('J (Track 1).bin', 'J (Track 2).wav', 'J (Track 3).wav'),
+    'roms/megacd/J (Track 1).bin': 'x', 'roms/megacd/J (Track 2).wav': 'x', 'roms/megacd/J (Track 3).wav': 'x',
+  }, async (root) => {
+    const games = await gamesOf(root);
+    assert.equal(games.length, 1);
+    assert.deepEqual(games[0].extraFiles.map((e) => e.as), ['J (Track 1).bin', 'J (Track 2).wav', 'J (Track 3).wav']);
+  });
+});
+
+test('T15 cue+bin : casse différente et sous-dossier, le nom écrit dans le .cue est gardé dans `as`, le chemin est le vrai', async () => {
+  await withProject({
+    'roms/megacd/jeu/Jeu.cue': cueText('JEU.BIN'), 'roms/megacd/jeu/jeu.bin': 'x',
+  }, async (root) => {
+    const [game] = await gamesOf(root);
+    assert.deepEqual(game.extraFiles, [{ file: 'roms/megacd/jeu/jeu.bin', as: 'JEU.BIN' }]);
+  });
+});
+
+test('T15 cue+bin : .bin absent = jeu gardé avec avertissement (le lanceur le signalera), .bin orphelin = ignoré avec avertissement', async () => {
+  await withProject({ 'roms/megacd/A.cue': cueText('A.bin'), 'roms/megacd/Orphelin.bin': 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.deepEqual(result.games.map((g) => g.file), ['roms/megacd/A.cue']);
+    assert.deepEqual(result.games[0].extraFiles, [{ file: 'roms/megacd/A.bin', as: 'A.bin' }]);
+    assert.ok(result.warnings.some((w) => /A\.bin/.test(w) && /introuvable|manquant/.test(w)), result.warnings.join('|'));
+    assert.ok(result.warnings.some((w) => /Orphelin\.bin/.test(w) && /non prise en charge/.test(w)));
+    assert.equal(result.warnings.some((w) => /A\.bin.*non prise en charge/.test(w)), false);
+  });
+});
+
+test('T15 cue : un .bin cité ne déclenche pas l\'avertissement « extension non prise en charge »', async () => {
+  await withProject({ [`roms/megacd/${SONIC}.cue`]: cueText(`${SONIC}.bin`), [`roms/megacd/${SONIC}.bin`]: 'x' }, async (root) => {
+    assert.deepEqual((await generateGames({ root, now: FIXED_DATE })).warnings, []);
+  });
+});
+
+test('T15 cue : nom avec « Disk 1 » n\'est pas pris pour une disquette (pas de disks), .cue vide ou illisible ne plante pas', async () => {
+  await withProject({
+    'roms/megacd/X (Disk 1 of 2).cue': cueText('x1.bin'), 'roms/megacd/X (Disk 2 of 2).cue': cueText('x2.bin'),
+    'roms/megacd/x1.bin': 'x', 'roms/megacd/x2.bin': 'x', 'roms/megacd/Vide.cue': '',
+  }, async (root) => {
+    const games = await gamesOf(root);
+    assert.equal(games.length, 3);
+    assert.ok(games.every((g) => !('disks' in g)));
+    assert.equal('extraFiles' in games.find((g) => g.file.endsWith('Vide.cue')), false);
+  });
+});
+
+test('T15 cue : chemin sortant du dossier (..) ou absolu ignoré, jamais de chemin hors roms/', async () => {
+  await withProject({ 'roms/megacd/M.cue': cueText('../../secret.bin', '/etc/passwd') }, async (root) => {
+    const [game] = await gamesOf(root);
+    assert.equal('extraFiles' in game, false);
   });
 });

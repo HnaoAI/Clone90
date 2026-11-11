@@ -450,12 +450,14 @@ test('T14 disquette : une autre option que disk ne déclenche ni filtre, ni rapp
 // --- T14 : lignes ajoutées au retroarch.cfg par surcharge de getRetroArchCfg, détection d'échec branchée ---
 const amigaWithHotkeys = { ...amiga, disableRetroArchHotkeys: true };
 
-test('T14 buildLaunchPlan : lignes de cfg à ajouter pour toute machine, raccourcis à nul pour l\'Amiga seulement', () => {
+test('T14/T15 buildLaunchPlan : lignes de cfg à ajouter pour toute machine, raccourcis à nul pour TOUTES par défaut, `disableRetroArchHotkeys: false` les laisse', () => {
   const a = buildLaunchPlan({ system: amigaWithHotkeys, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } });
   const n = buildLaunchPlan({ system: neogeo, game: mslug });
+  const off = buildLaunchPlan({ system: { ...neogeo, disableRetroArchHotkeys: false }, game: mslug });
   assert.match(a.retroarchCfgExtra, /^input_menu_toggle = "nul"$/m);
   assert.match(a.retroarchCfgExtra, /^input_audio_mute = "nul"$/m);
-  assert.ok(!n.retroarchCfgExtra.includes('input_'), 'Neo Geo : aucun raccourci touché');
+  assert.match(n.retroarchCfgExtra, /^input_menu_toggle = "nul"$/m, 'T15 : par défaut pour toute machine (protège si la personne active le clavier direct)');
+  assert.ok(!off.retroarchCfgExtra.includes('input_'), 'false : aucun raccourci touché');
   assert.match(n.retroarchCfgExtra, /^log_verbosity = true$/m);
   assert.ok(!/autosave_interval/.test(n.retroarchCfgExtra), 'aucune ligne d\'EmulatorJS recopiée');
 });
@@ -513,4 +515,102 @@ test('T14 loadEmulator : un démarrage sans erreur (même lent) n\'appelle jamai
   options.printErr('[INFO] Loading content');
   win.EJS_onGameStart();
   assert.equal(failed, 0);
+});
+
+// --- T15 : .cue + fichiers (Mega-CD) et BIOS posés en plus (preload) ---
+const realSystem = (id) => realSystems.find((s) => s.id === id);
+const sonic = {
+  id: 'megacd/sonic_cd_usa', system: 'megacd', title: 'Sonic CD', cover: null,
+  file: 'roms/megacd/Sonic CD (USA).cue',
+  extraFiles: [{ file: 'roms/megacd/Sonic CD (USA).bin', as: 'Sonic CD (USA).bin' }, { file: 'roms/megacd/Sonic CD (USA) (Track 2).wav', as: 'Sonic CD (USA) (Track 2).wav' }],
+};
+
+test('T15 buildLaunchPlan cue : le .cue est le jeu, chaque fichier du .cue est posé à la racine sous le nom écrit dans le .cue', () => {
+  const plan = buildLaunchPlan({ system: realSystem('megacd'), game: sonic });
+  assert.equal(plan.globals.EJS_gameUrl, 'roms/megacd/Sonic%20CD%20(USA).cue');
+  assert.equal(plan.virtualGame, null);
+  assert.deepEqual(plan.rawFiles.filter((r) => !r.fsPath.startsWith('/bios_')), [
+    { url: 'roms/megacd/Sonic%20CD%20(USA).bin', fsPath: '/Sonic CD (USA).bin' },
+    { url: 'roms/megacd/Sonic%20CD%20(USA)%20(Track%202).wav', fsPath: '/Sonic CD (USA) (Track 2).wav' },
+  ]);
+});
+
+test('T15 buildLaunchPlan cue : .cue et fichiers sont contrôlés comme jeu requis, un fichier absent donne « Jeu introuvable »', async () => {
+  const plan = buildLaunchPlan({ system: realSystem('megacd'), game: sonic });
+  assert.deepEqual(plan.files.filter((f) => f.kind === 'game').map((f) => f.path), [sonic.file, ...sonic.extraFiles.map((e) => e.file)]);
+  const { missing } = await checkPlanFiles(plan, async (url) => !url.endsWith('.wav'));
+  assert.deepEqual(missing.map((f) => f.path), ['roms/megacd/Sonic CD (USA) (Track 2).wav']);
+  assert.equal(describeMissing(missing)[0].title, 'Jeu introuvable');
+});
+
+test('T15 buildLaunchPlan : un jeu sans extraFiles est inchangé (aucun rawFile hors BIOS)', () => {
+  const plan = buildLaunchPlan({ system: realSystem('snes'), game: { id: 'snes/x', system: 'snes', title: 'X', file: 'roms/snes/x.sfc' } });
+  assert.deepEqual(plan.rawFiles, []);
+  assert.equal(plan.globals.EJS_gameUrl, 'roms/snes/x.sfc');
+});
+
+test('T15 Mega-CD (systems.json réel) : les trois BIOS sont dans rawFiles sous leur nom exact, jamais EJS_biosUrl', () => {
+  const plan = buildLaunchPlan({ system: realSystem('megacd'), game: sonic });
+  assert.deepEqual(plan.rawFiles.filter((r) => r.fsPath.startsWith('/bios_')).map((r) => [r.url, r.fsPath]), [
+    ['bios/bios_CD_E.bin', '/bios_CD_E.bin'], ['bios/bios_CD_U.bin', '/bios_CD_U.bin'], ['bios/bios_CD_J.bin', '/bios_CD_J.bin'],
+  ]);
+  assert.equal('EJS_biosUrl' in plan.globals, false);
+  assert.deepEqual(plan.files.filter((f) => f.kind === 'bios').map((f) => f.required), [false, false, false]);
+});
+
+test('T15 Mega-CD : seuls les BIOS présents sont gardés (HEAD), les absents ne sont ni téléchargés ni une erreur', async () => {
+  const plan = buildLaunchPlan({ system: realSystem('megacd'), game: sonic });
+  const { missing, plan: cleaned } = await checkPlanFiles(plan, async (url) => !/bios_CD_(U|J)/.test(url));
+  assert.deepEqual(missing, []);
+  assert.deepEqual(cleaned.rawFiles.filter((r) => r.fsPath.startsWith('/bios_')).map((r) => r.fsPath), ['/bios_CD_E.bin']);
+  assert.equal(cleaned.rawFiles.length, 1 + 2, 'BIOS E + les 2 fichiers du .cue');
+});
+
+test('T15 checkPlanFiles : un BIOS preload absent ne retire PAS le BIOS par défaut présent (EJS_biosUrl conservé)', async () => {
+  const system = { id: 'x', name: 'X', emulatorjsCore: 'x', bios: [
+    { file: 'main.rom', required: true, role: 'default' }, { file: 'extra.bin', required: false, role: 'optional', preload: true }] };
+  const plan = buildLaunchPlan({ system, game: { id: 'x/a', system: 'x', title: 'A', file: 'roms/x/a.bin' } });
+  assert.equal(plan.globals.EJS_biosUrl, 'bios/main.rom');
+  const { plan: cleaned } = await checkPlanFiles(plan, async (url) => url !== 'bios/extra.bin');
+  assert.equal(cleaned.globals.EJS_biosUrl, 'bios/main.rom');
+  assert.deepEqual(cleaned.rawFiles, []);
+});
+
+test('T15 BIOS preload requis absent reste une erreur ; Game Boy et NES (systems.json réel) posent leur BIOS facultatif', async () => {
+  const strict = { id: 'x', emulatorjsCore: 'x', bios: [{ file: 'r.bin', required: true, role: 'optional', preload: true }] };
+  const { missing } = await checkPlanFiles(buildLaunchPlan({ system: strict, game: mslug }), async (u) => !u.startsWith('bios/'));
+  assert.deepEqual(missing.map((f) => f.kind), ['bios']);
+  const gbPlan = buildLaunchPlan({ system: realSystem('gameboy'), game: { id: 'gameboy/t', system: 'gameboy', title: 'T', file: 'roms/gameboy/t.gb' } });
+  assert.deepEqual(gbPlan.rawFiles, [{ url: 'bios/gb_bios.bin', fsPath: '/gb_bios.bin' }]);
+  const nesPlan = buildLaunchPlan({ system: realSystem('nes'), game: { id: 'nes/t', system: 'nes', title: 'T', file: 'roms/nes/t.fds' } });
+  assert.deepEqual(nesPlan.rawFiles, [{ url: 'bios/disksys.rom', fsPath: '/disksys.rom' }]);
+});
+
+test('T15 loadEmulator : les fichiers du .cue sont lus en octets sous leur nom exact (espaces, parenthèses) dans EJS_externalFiles', async () => {
+  const plan = buildLaunchPlan({ system: realSystem('megacd'), game: sonic });
+  const filtered = { ...plan, rawFiles: plan.rawFiles.filter((r) => !r.fsPath.startsWith('/bios_')) };
+  const { win, doc } = fakeEnv();
+  await loadEmulator(filtered, { win, doc, getBytes: async (url) => new Uint8Array([url.length]) });
+  assert.deepEqual(Object.keys(win.EJS_externalFiles), ['/Sonic CD (USA).bin', '/Sonic CD (USA) (Track 2).wav']);
+  assert.ok(win.EJS_externalFiles['/Sonic CD (USA).bin'] instanceof Uint8Array);
+});
+
+test('T15 Mega-CD : aucun des trois BIOS présent = fichier manquant bloquant avec un message clair', async () => {
+  const plan = buildLaunchPlan({ system: realSystem('megacd'), game: sonic });
+  const { missing } = await checkPlanFiles(plan, async (url) => !url.startsWith('bios/'));
+  assert.equal(missing.length, 1);
+  assert.deepEqual(describeMissing(missing), [{ title: 'BIOS manquant', detail: 'Placez au moins un BIOS Mega-CD (bios_CD_E.bin, bios_CD_U.bin, bios_CD_J.bin) dans le dossier bios/ (nom exact, voir le README).' }]);
+});
+
+test('T15 Mega-CD : un seul BIOS présent suffit (pas d\'erreur), les deux autres sont retirés', async () => {
+  const plan = buildLaunchPlan({ system: realSystem('megacd'), game: sonic });
+  const { missing, plan: cleaned } = await checkPlanFiles(plan, async (url) => url !== 'bios/bios_CD_E.bin' && url !== 'bios/bios_CD_J.bin');
+  assert.deepEqual(missing, []);
+  assert.deepEqual(cleaned.rawFiles.filter((r) => r.fsPath.startsWith('/bios_')).map((r) => r.fsPath), ['/bios_CD_U.bin']);
+});
+
+test('T15 une machine sans biosAtLeastOne (Game Boy) sans BIOS n\'est pas bloquée', async () => {
+  const plan = buildLaunchPlan({ system: realSystem('gameboy'), game: { id: 'gameboy/t', system: 'gameboy', title: 'T', file: 'roms/gameboy/t.gb' } });
+  assert.equal(plan.atLeastOneBios, null);
+  assert.deepEqual((await checkPlanFiles(plan, async (u) => !u.startsWith('bios/'))).missing, []);
 });

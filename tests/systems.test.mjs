@@ -142,3 +142,75 @@ test('systems.json : aucun BIOS requis hors amiga et neogeo', () => {
     assert.ok(s.bios.every((b) => b.required === false), `${s.id}`);
   }
 });
+
+// --- T15 : les 10 machines de la vague 2, vérifiées contre EmulatorJS 4.2.3 ---
+// Copie de getCores() (https://cdn.emulatorjs.org/4.2.3/data/src/emulator.js l.2-44) pour les machines de systems.json : alias -> cœurs, le premier est le cœur par défaut.
+const EJS_423_CORES = {
+  arcade: ['fbneo', 'fbalpha2012_cps1', 'fbalpha2012_cps2'], segaMS: ['smsplus', 'genesis_plus_gx', 'picodrive'],
+  segaMD: ['genesis_plus_gx', 'picodrive'], segaGG: ['genesis_plus_gx'], segaCD: ['genesis_plus_gx', 'picodrive'],
+  sega32x: ['picodrive'], nes: ['fceumm', 'nestopia'], snes: ['snes9x'], gb: ['gambatte'], amiga: ['puae'],
+};
+// "extensions" du core.json de chaque cœur par défaut (cores/<cœur>-wasm.data du CDN 4.2.3, lu le 2026-11-11).
+const CORE_JSON_EXTENSIONS = {
+  fbneo: ['zip', '7z'],
+  smsplus: ['m3u', 'mdx', 'md', 'smd', 'gen', 'bin', 'cue', 'iso', 'chd', 'bms', 'sms', 'gg', 'sg', '68k', 'sgd'],
+  genesis_plus_gx: ['m3u', 'mdx', 'md', 'smd', 'gen', 'bin', 'cue', 'iso', 'chd', 'bms', 'sms', 'gg', 'sg', '68k', 'sgd'],
+  picodrive: ['bin', 'gen', 'smd', 'md', '32x', 'cue', 'iso', 'sms', '68k', 'chd'],
+  fceumm: ['fds', 'nes', 'unif', 'unf'], snes9x: ['smc', 'sfc', 'swc', 'fig', 'bs', 'st'], gambatte: ['gb', 'gbc', 'dmg'],
+};
+const WAVE_2 = ['arcade', 'mastersystem', 'megadrive', 'gamegear', 'megacd', '32x', 'nes', 'snes', 'gameboy', 'gameboycolor'];
+const WAVE_2_SYSTEMS = WAVE_2.map(byId);
+
+test('T15 chaque machine de la vague 2 a un alias de cœur connu d\'EmulatorJS 4.2.3', () => {
+  for (const s of WAVE_2_SYSTEMS) assert.ok(EJS_423_CORES[s.emulatorjsCore], `${s.id} : alias ${s.emulatorjsCore} inconnu`);
+});
+
+test('T15 chaque extension de la vague 2 est acceptée par le cœur par défaut (core.json 4.2.3) ou est une archive zip', () => {
+  for (const s of WAVE_2_SYSTEMS) {
+    const core = EJS_423_CORES[s.emulatorjsCore][0];
+    for (const ext of s.extensions) {
+      assert.ok(ext === 'zip' || CORE_JSON_EXTENSIONS[core].includes(ext), `${s.id} : "${ext}" n'est pas une extension de ${core}`);
+    }
+  }
+});
+
+test('T15 aucune machine en double (id, nom affiché, logo)', () => {
+  for (const key of ['id', 'name', 'logo', 'accent']) {
+    const values = systems.map((s) => s[key]);
+    assert.equal(new Set(values).size, values.length, `doublon sur ${key}`);
+  }
+});
+
+test('T15 Mega-CD : cue, iso, chd et zip ; ni bin ni m3u (un bin seul ou un m3u seul ne peut pas démarrer, T15)', () => {
+  assert.deepEqual(byId('megacd').extensions, ['cue', 'iso', 'chd', 'zip']);
+});
+
+test('T15 Mega-CD : les trois BIOS régionaux sont posés (preload) quand ils existent, aucun n\'est passé à EJS_biosUrl', () => {
+  for (const b of byId('megacd').bios) {
+    assert.equal(b.preload, true, b.file);
+    assert.notEqual(b.role, 'default', `${b.file} : un BIOS preload ne passe pas par EJS_biosUrl`);
+  }
+});
+
+test('T15 preload : seulement les BIOS dont le cœur se sert vraiment (Mega-CD, Game Boy, Game Boy Color, NES disksys.rom)', () => {
+  const preloaded = systems.flatMap((s) => s.bios.filter((b) => b.preload).map((b) => `${s.id}/${b.file}`)).sort();
+  assert.deepEqual(preloaded, [
+    'gameboy/gb_bios.bin', 'gameboycolor/gbc_bios.bin', 'megacd/bios_CD_E.bin', 'megacd/bios_CD_J.bin', 'megacd/bios_CD_U.bin', 'nes/disksys.rom',
+  ]);
+  for (const s of systems) for (const b of s.bios) if ('preload' in b) assert.equal(typeof b.preload, 'boolean');
+});
+
+test('T15 disableRetroArchHotkeys : jamais à false dans systems.json (le défaut du lanceur protège toutes les machines)', () => {
+  for (const s of systems) assert.notEqual(s.disableRetroArchHotkeys, false, s.id);
+});
+
+test('T15 Mega-CD : biosAtLeastOne (au moins un des trois BIOS est nécessaire), absent ailleurs', () => {
+  assert.equal(byId('megacd').biosAtLeastOne, true);
+  for (const s of systems.filter((x) => x.id !== 'megacd')) assert.equal('biosAtLeastOne' in s, false, s.id);
+});
+
+test('T15 config : MAX_VISIBLE_WAVE vaut 2 et couvre la vague la plus haute de systems.json', async () => {
+  const { MAX_VISIBLE_WAVE } = await import('../js/config.js');
+  assert.equal(MAX_VISIBLE_WAVE, 2);
+  assert.ok(systems.every((s) => s.wave <= MAX_VISIBLE_WAVE));
+});

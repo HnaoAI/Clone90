@@ -39,12 +39,17 @@ export function validateSystems(raw) {
 const hasValidDisks = (g) => g.disks === undefined
   || (Array.isArray(g.disks) && g.disks.length >= 2 && g.disks.every(isRelativePath) && g.disks[0] === g.file);
 
+/** `extraFiles` (optionnel, T15) : fichiers cités par un .cue (Mega-CD), `file` = chemin sous roms/, `as` = nom écrit dans le .cue (chemin relatif sûr). */
+const hasValidExtraFiles = (g) => g.extraFiles === undefined
+  || (Array.isArray(g.extraFiles) && g.extraFiles.every((e) => isObject(e) && isRelativePath(e.file) && isRelativePath(e.as)));
+
 const isValidGame = (g, systemIds) => isObject(g)
   && isNonEmptyString(g.id) && isNonEmptyString(g.title)
   && systemIds.includes(g.system) && g.id.startsWith(`${g.system}/`)
   && isRelativePath(g.file)
   && (g.cover === null || g.cover === undefined || isRelativePath(g.cover))
-  && hasValidDisks(g);
+  && hasValidDisks(g)
+  && hasValidExtraFiles(g);
 
 /**
  * Valide games.json : les entrées invalides (champ manquant, machine inconnue, id dupliqué,
