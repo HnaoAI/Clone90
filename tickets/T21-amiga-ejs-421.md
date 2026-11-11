@@ -36,3 +36,7 @@ Fichiers lus : `https://cdn.emulatorjs.org/4.2.1/data/` `loader.js`, `src/emulat
 
 ## Vérification manuelle
 Lancer Gods en vrai : changement de disquette par F9, Select+RB et menu « Disks » ; le journal de diagnostic (`?debug=1`) ne doit montrer aucun « unreachable » et le jeu doit passer la demande de disquette 2. Lancer un jeu Neo Geo : la page charge 4.2.3 (onglet Réseau : `cdn.emulatorjs.org/4.2.3/`). Service worker : version 0.21.0.
+
+## Notes de revue (tech-lead, OK sans correction)
+- localStorage et IndexedDB sont partagés entre 4.2.1 (Amiga) et 4.2.3 (autres machines) : même origine, même base.
+- Les rapports du cœur puae sont identiques entre les deux versions : la différence est probablement dans le JavaScript d'EmulatorJS ; ne pas généraliser aux autres machines sans essai.
