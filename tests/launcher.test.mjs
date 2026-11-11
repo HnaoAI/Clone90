@@ -234,10 +234,10 @@ test('loadEmulator : le BIOS gardé zippé est lu en octets puis posé dans EJS_
   assert.equal('EJS_biosUrl' in seen[0], false);
 });
 
-test('loadEmulator : sans rawFiles, EJS_externalFiles n\'est pas défini', async () => {
+test('loadEmulator : sans rawFiles, EJS_externalFiles ne contient que le retroarch.cfg généré (T14)', async () => {
   const { win, doc } = fakeEnv();
   await loadEmulator(buildLaunchPlan({ system: amiga, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } }), { win, doc });
-  assert.equal('EJS_externalFiles' in win, false);
+  assert.deepEqual(Object.keys(win.EJS_externalFiles), ['/home/web_user/.config/retroarch/retroarch.cfg']);
 });
 
 test('loadEmulator : BIOS illisible donne une erreur claire et n\'injecte pas loader.js', async () => {
@@ -283,7 +283,7 @@ test('arcade (systems.json réel) : neogeo.zip absent, aucune erreur, rien à t�
   const fetched = [];
   await loadEmulator(plan, { win, doc, getBytes: async (u) => { fetched.push(u); return new Uint8Array(); } });
   assert.deepEqual(fetched, [], 'aucun téléchargement du BIOS absent');
-  assert.equal('EJS_externalFiles' in win, false);
+  assert.deepEqual(Object.keys(win.EJS_externalFiles), ['/home/web_user/.config/retroarch/retroarch.cfg'], 'seulement le cfg généré (T14)');
 });
 
 // --- T10 : jeux à plusieurs disquettes (m3u virtuel + disquettes en EJS_externalFiles) ---
@@ -338,7 +338,7 @@ test('loadEmulator : multi-disquettes pose EJS_gameUrl (File .m3u) et les disque
   await loadEmulator(buildLaunchPlan({ system: amiga, game: leander }), { win, doc, getBytes });
   assert.ok(seen[0].EJS_gameUrl instanceof File);
   assert.equal(seen[0].EJS_gameUrl.name, 'amiga_leander_1991_psygnosis.m3u');
-  assert.deepEqual(Object.keys(seen[0].EJS_externalFiles), ['/disk1.adf', '/disk2.adf', '/disk3.adf']);
+  assert.deepEqual(Object.keys(seen[0].EJS_externalFiles), ['/home/web_user/.config/retroarch/retroarch.cfg', '/disk1.adf', '/disk2.adf', '/disk3.adf']);
 });
 
 test('loadEmulator : contournements EmulatorJS (allSettings, disque déjà courant ignoré, changement rappelé une fois)', async () => {
@@ -380,6 +380,7 @@ test('buildLaunchPlan A1 : jeu, disquettes et BIOS avec # ? % sont encodés par 
   assert.equal(single.globals.EJS_gameUrl, 'roms/amiga/Turrican%20II%20%231.adf');
 });
 
+const graceTimer = (timers) => timers.find((t) => t.ms === STARTUP_GRACE_MS);
 // T14 : filtre "même disque" limité au démarrage, rétablissement si le second appel échoue.
 async function guardedEmulator({ failures = 0, current = 1 } = {}) {
   const { win, doc } = fakeEnv();
@@ -402,7 +403,7 @@ test('T14 disquette : au démarrage, re-choisir le disque courant est ignoré (a
   emulator.handleSpecialOptions('disk', '1');
   assert.equal(state.calls.length, 0);
   win.EJS_onGameStart();
-  assert.equal(timers.at(-1).ms, STARTUP_GRACE_MS);
+  assert.equal(graceTimer(timers).ms, STARTUP_GRACE_MS);
   assert.equal(STARTUP_GRACE_MS, 2000);
   emulator.handleSpecialOptions('disk', '1');
   assert.equal(state.calls.length, 0, 'le délai n\'est pas encore écoulé');
@@ -411,7 +412,7 @@ test('T14 disquette : au démarrage, re-choisir le disque courant est ignoré (a
 test('T14 disquette : après le délai de démarrage, re-choisir le disque courant appelle le vrai handler (sert de "réinsérer")', async () => {
   const { win, emulator, state, timers } = await guardedEmulator({ current: 1 });
   win.EJS_onGameStart();
-  timers.at(-1).fn();
+  graceTimer(timers).fn();
   emulator.handleSpecialOptions('disk', '1');
   assert.deepEqual(state.calls, [['disk', '1']]);
 });
@@ -419,7 +420,7 @@ test('T14 disquette : après le délai de démarrage, re-choisir le disque coura
 test('T14 disquette : un premier échec est rappelé une fois et réussit, sans rétablissement', async () => {
   const { win, emulator, state, timers } = await guardedEmulator({ failures: 1, current: 0 });
   win.EJS_onGameStart();
-  timers.at(-1).fn();
+  graceTimer(timers).fn();
   emulator.handleSpecialOptions('disk', '1');
   assert.deepEqual(state.calls, [['disk', '1'], ['disk', '1']]);
 });
@@ -427,7 +428,7 @@ test('T14 disquette : un premier échec est rappelé une fois et réussit, sans 
 test('T14 disquette : si le second appel échoue aussi, le disque d\'origine est réinséré puis l\'erreur remonte', async () => {
   const { win, emulator, state, timers } = await guardedEmulator({ failures: 2, current: 0 });
   win.EJS_onGameStart();
-  timers.at(-1).fn();
+  graceTimer(timers).fn();
   assert.throws(() => emulator.handleSpecialOptions('disk', '2'), /unreachable/);
   assert.deepEqual(state.calls, [['disk', '2'], ['disk', '2'], ['disk', '0']]);
 });
@@ -435,7 +436,7 @@ test('T14 disquette : si le second appel échoue aussi, le disque d\'origine est
 test('T14 disquette : un rétablissement qui échoue aussi ne masque pas l\'erreur d\'origine ni ne ferme le jeu', async () => {
   const { win, emulator, timers } = await guardedEmulator({ failures: 3, current: 0 });
   win.EJS_onGameStart();
-  timers.at(-1).fn();
+  graceTimer(timers).fn();
   assert.throws(() => emulator.handleSpecialOptions('disk', '2'), /unreachable/);
 });
 
@@ -444,4 +445,59 @@ test('T14 disquette : une autre option que disk ne déclenche ni filtre, ni rapp
   state.failuresLeft = 0;
   emulator.handleSpecialOptions('shader', 'x');
   assert.deepEqual(state.calls, [['shader', 'x']]);
+});
+
+// --- T14 : retroarch.cfg posé par EJS_externalFiles, détection d'échec branchée ---
+const amigaWithHotkeys = { ...amiga, disableRetroArchHotkeys: true };
+const CFG_PATH = '/home/web_user/.config/retroarch/retroarch.cfg';
+
+test('T14 buildLaunchPlan : un retroarch.cfg est prévu pour toute machine, raccourcis à nul pour l\'Amiga seulement', () => {
+  const a = buildLaunchPlan({ system: amigaWithHotkeys, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } });
+  const n = buildLaunchPlan({ system: neogeo, game: mslug });
+  assert.equal(a.generatedFiles[0].fsPath, CFG_PATH);
+  assert.equal(n.generatedFiles[0].fsPath, CFG_PATH);
+  assert.match(a.generatedFiles[0].text, /^input_menu_toggle = "nul"$/m);
+  assert.match(a.generatedFiles[0].text, /^input_audio_mute = "nul"$/m);
+  assert.ok(!n.generatedFiles[0].text.includes('input_'), 'Neo Geo : aucun raccourci touché');
+  assert.match(n.generatedFiles[0].text, /^autosave_interval = 60$/m, 'lignes d\'origine conservées');
+});
+
+test('T14 checkPlanFiles : le cfg généré survit à l\'épuration du plan', async () => {
+  const { plan } = await checkPlanFiles(buildLaunchPlan({ system: neogeo, game: mslug }), async () => true);
+  assert.equal(plan.generatedFiles.length, 1);
+});
+
+test('T14 loadEmulator : le cfg est posé via EJS_externalFiles en octets, à côté du BIOS gardé zippé', async () => {
+  const { win, doc } = fakeEnv();
+  const plan = buildLaunchPlan({ system: neogeo, game: mslug });
+  await loadEmulator(plan, { win, doc, getBytes });
+  assert.deepEqual(Object.keys(win.EJS_externalFiles).sort(), [CFG_PATH, '/neogeo.zip'].sort());
+  assert.ok(win.EJS_externalFiles[CFG_PATH] instanceof Uint8Array);
+  assert.equal(new TextDecoder().decode(win.EJS_externalFiles[CFG_PATH]), plan.generatedFiles[0].text);
+});
+
+test('T14 loadEmulator : onFailure reçoit l\'erreur du chargeur de contenu lue dans la sortie du cœur', async () => {
+  const { win, doc } = fakeEnv();
+  const failures = [];
+  await loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc, getBytes, onFailure: (i) => failures.push(i) });
+  const options = { print: () => {}, printErr: () => {} };
+  win.EJS_Runtime = () => Promise.resolve({}); // posé par le script du cœur
+  win.EJS_Runtime(options);
+  win.EJS_onGameStart();
+  options.printErr('[libretro ERROR] [FBNeo] ROM sp-s3.sp1 is missing');
+  options.printErr('[ERROR] [Content]: Failed to load content');
+  assert.equal(failures.length, 1);
+  assert.deepEqual(failures[0].coreMessages, ['[FBNeo] ROM sp-s3.sp1 is missing']);
+});
+
+test('T14 loadEmulator : un démarrage sans erreur (même lent) n\'appelle jamais onFailure', async () => {
+  const { win, doc } = fakeEnv();
+  let failed = 0;
+  await loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc, getBytes, setTimer: () => 1, onFailure: () => { failed += 1; } });
+  const options = {};
+  win.EJS_Runtime = () => Promise.resolve({});
+  win.EJS_Runtime(options);
+  options.printErr('[INFO] Loading content');
+  win.EJS_onGameStart();
+  assert.equal(failed, 0);
 });

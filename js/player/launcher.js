@@ -8,6 +8,8 @@
 // réels) : 'bios/kick40068.A1200' retrouvé par puae, IPF, multi-disques.
 // Multi-disquettes (T10) : voir diskSetFiles ci-dessous (m3u virtuel + disquettes posées par EJS_externalFiles).
 import { EJS_CDN_URL, BIOS_DIR } from '../config.js';
+import { buildRetroArchCfg, RETROARCH_CFG_PATH } from './retroarch-cfg.js';
+import { createStartFailureWatch, hookCoreOutput } from './ejs-start-watch.js';
 import { assetUrl, assetPathFromUrl, isRelativePath } from '../data.js';
 
 /** Délai (ms) après EJS_onGameStart pendant lequel le menu des disques peut encore "sélectionner" le disque courant tout seul (voir guardDiskMenuStartup). */
@@ -73,7 +75,7 @@ const hasDiskSet = (game) => Array.isArray(game.disks) && game.disks.length > 1;
  * entier à la racine (constaté en T0 : "ROM sp-s3.sp1 is missing"). Le plan le met donc dans `rawFiles` : loadEmulator le télécharge
  * et le pose tel quel via EJS_externalFiles (seule voie qui écrit sans extraire).
  * @param {{system: object, game: object, cdnUrl?: string}} input `cdnUrl` : surcharge pour les tests (défaut config.js)
- * @returns {{globals: Object<string, any>, loaderUrl: string, files: {kind: 'game'|'bios', path: string, url: string, required: boolean}[], rawFiles: {url: string, fsPath: string}[]}}
+ * @returns {{globals: Object<string, any>, loaderUrl: string, files: {kind: 'game'|'bios', path: string, url: string, required: boolean}[], rawFiles: {url: string, fsPath: string}[], generatedFiles: {fsPath: string, text: string}[]}}
  * @throws {Error} cœur absent, BIOS invalide
  */
 export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL }) {
@@ -104,7 +106,9 @@ export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL }) {
   const gamePaths = diskSet ? game.disks : [game.file];
   const files = gamePaths.map((path) => ({ kind: 'game', path, url: assetUrl(path), required: true }));
   if (bios) files.push({ kind: 'bios', path: biosPath, url: biosUrl, required: bios.required });
-  return { globals, loaderUrl: `${dataUrl}loader.js`, files, rawFiles, virtualGame: diskSet?.virtualGame ?? null };
+  // T14 : retroarch.cfg remplacé pour toute machine (journal d'erreurs pour détecter un échec) ; raccourcis RetroArch à nul si la machine le demande.
+  const generatedFiles = [{ fsPath: RETROARCH_CFG_PATH, text: buildRetroArchCfg({ disableHotkeys: system.disableRetroArchHotkeys === true }) }];
+  return { globals, loaderUrl: `${dataUrl}loader.js`, files, rawFiles, generatedFiles, virtualGame: diskSet?.virtualGame ?? null };
 }
 
 /**
@@ -203,14 +207,15 @@ function guardDiskMenuStartup(win, { setTimer = setTimeout } = {}) {
 /**
  * Pose les variables EJS_* puis charge loader.js depuis le CDN.
  * @param {{globals: object, loaderUrl: string, rawFiles?: {url: string, fsPath: string}[], virtualGame?: {name: string, text: string}|null}} plan
- * @param {{win?: Window, doc?: Document, onStart?: () => void, getBytes?: (url: string) => Promise<Uint8Array>}} [env]
- *   injectable pour les tests ; onStart : le jeu a démarré
+ * @param {{win?: Window, doc?: Document, onStart?: () => void, onFailure?: (info: {line: string, coreMessages: string[]}) => void, getBytes?: (url: string) => Promise<Uint8Array>}} [env]
+ *   injectable pour les tests ; onStart : le jeu a démarré ; onFailure : le cœur a refusé le contenu (voir ejs-start-watch.js), au plus une fois
  * @returns {Promise<void>} résolu quand loader.js est chargé (EmulatorJS charge ensuite le cœur et le jeu tout seul)
  * @throws {Error} #game absent, BIOS illisible, ou CDN inaccessible
  */
-export async function loadEmulator(plan, { win = globalThis.window, doc = globalThis.document, onStart = () => {}, getBytes = fetchBytes, setTimer = setTimeout } = {}) {
+export async function loadEmulator(plan, { win = globalThis.window, doc = globalThis.document, onStart = () => {}, onFailure = () => {}, getBytes = fetchBytes, setTimer = setTimeout } = {}) {
   if (!doc.getElementById(GAME_ELEMENT_ID)) throw new Error(`Élément #${GAME_ELEMENT_ID} absent de la page`);
   const externalFiles = {};
+  for (const { fsPath, text } of plan.generatedFiles ?? []) externalFiles[fsPath] = new TextEncoder().encode(text); // Uint8Array, comme les fichiers bruts
   for (const { url, fsPath } of plan.rawFiles ?? []) {
     try { externalFiles[fsPath] = await getBytes(url); } catch (e) { throw new Error(`Fichier ${assetPathFromUrl(url)} illisible (${e.message}).`); }
   }
@@ -219,7 +224,9 @@ export async function loadEmulator(plan, { win = globalThis.window, doc = global
     if (Object.keys(externalFiles).length) win.EJS_externalFiles = externalFiles;
     const diskGuard = plan.virtualGame ? guardDiskMenuStartup(win, { setTimer }) : null;
     if (plan.virtualGame) win.EJS_gameUrl = new File([plan.virtualGame.text], plan.virtualGame.name, { type: 'audio/x-mpegurl' });
-    win.EJS_onGameStart = () => { diskGuard?.gameStarted(); onStart(); };
+    const watch = createStartFailureWatch({ onFailure, setTimer });
+    hookCoreOutput(win, (line) => watch.feed(line));
+    win.EJS_onGameStart = () => { diskGuard?.gameStarted(); watch.started(); onStart(); };
     const script = doc.createElement('script');
     script.src = plan.loaderUrl;
     script.onload = () => resolve();

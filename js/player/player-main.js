@@ -18,7 +18,7 @@ import { createDiskShortcut, diskToastText, DISK_ERROR_TEXT } from './disk-short
 import { shouldShowExitHint, EXIT_HINT_MS } from './exit-hint.js';
 import {
   renderPlayScreen, renderPlayerMessage, renderLoading, renderExitHint, createMenuButton, exitDialogOptions,
-  describeLoadError, exitDecision, PLAY_NAV_ID, BACK_NAV_ID,
+  describeLoadError, describeStartFailure, exitDecision, PLAY_NAV_ID, BACK_NAV_ID,
 } from './player-ui.js';
 
 const MENU_IDLE_MS = 3000;
@@ -35,6 +35,8 @@ let leaveUrl = HOME_PAGE;
 let menu = null;
 let currentGameTitle = '';
 let diskCount = 1;
+let pendingStartFailure = null; // échec du cœur arrivé pendant la boîte de confirmation (T14)
+let exitHint = null;
 
 /** Quitte la page (location.replace : le jeu n'a pas besoin d'être dans l'historique). Le déchargement coupe moteur et son. */
 function leave(url) {
@@ -74,6 +76,25 @@ async function openExitDialog() {
   if (confirmed) { goBack(); return; }
   resumeEmulator(window);
   phase = 'playing';
+  if (pendingStartFailure) showStartFailure(pendingStartFailure);
+}
+
+/**
+ * Le cœur a refusé le jeu (T14) : RetroArch affiche son menu natif ; on le coupe et on montre notre erreur.
+ * INVARIANT (T11/A2) : phase 'error', donc garde, popstate et bouton Menu restent armés et la sortie se fait en un appui.
+ */
+function showStartFailure(info) {
+  if (phase === 'dialog') { pendingStartFailure = info; return; }
+  if (phase !== 'playing') return;
+  pendingStartFailure = null;
+  pauseEmulator(window);
+  exitHint?.remove();
+  diskShortcut.stop();
+  gameElement.hidden = true;
+  document.body.classList.remove('is-playing');
+  const { title, details } = describeStartFailure(info);
+  console.error('Le cœur a refusé le jeu :', info);
+  showMessage({ title, details });
 }
 
 function onPopState() {
@@ -162,9 +183,9 @@ async function play(plan) {
   if (diskCount > 1) diskShortcut.start();
   history.pushState({ clone90: 'exit-guard' }, '');
   window.addEventListener('popstate', onPopState);
-  const exitHint = showExitHint();
+  exitHint = showExitHint();
   try {
-    await loadEmulator(plan, { onStart: hideLoading });
+    await loadEmulator(plan, { onStart: hideLoading, onFailure: showStartFailure });
   } catch (e) {
     // INVARIANT (T11/A2) : on reste armé (garde, popstate, bouton Menu) : phase 'error' quitte en un seul appui.
     exitHint?.remove();

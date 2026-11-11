@@ -47,6 +47,21 @@ export function describeLoadError({ reason, gamesStatus, message }) {
   return { title: 'Impossible de lancer ce jeu.', detail: message ?? 'Erreur inconnue.' };
 }
 
+/**
+ * Écran d'erreur quand le cœur a refusé le jeu (T14). La raison est devinée d'après les messages du cœur (ex. FBNeo "ROM ... is missing").
+ * @param {{coreMessages?: string[]}} [info] messages d'erreur du cœur (ejs-start-watch.js)
+ * @returns {{title: string, details: string[]}}
+ */
+export function describeStartFailure({ coreMessages = [] } = {}) {
+  const missing = coreMessages.some((m) => /missing|not found|required|introuvable|manquant/i.test(m));
+  const details = [missing
+    ? "Un fichier du jeu ou du BIOS est manquant ou incorrect (mauvais nom ou mauvaise version)."
+    : "Le moteur a refusé ce fichier : le jeu ou le BIOS est peut-être incorrect ou incompatible.",
+  "Vérifiez les dossiers roms/ et bios/ (voir le README)."];
+  if (coreMessages.length) details.push(`Détail technique : ${coreMessages.at(-1)}`);
+  return { title: "Ce jeu n'a pas pu démarrer", details };
+}
+
 /** Textes de l'écran Jouer. @returns {{title: string, machineName: string, playLabel: string}} */
 export const playScreenModel = (machine, game) => ({ title: game.title, machineName: machine.name, playLabel: 'Jouer' });
 
