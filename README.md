@@ -32,12 +32,16 @@ Le site est alors sur <http://localhost:8080>. Le serveur affiche aussi l'adress
 
 ## Lancer sans Terminal (Mac)
 
-Double-cliquez sur **`Lancer Clone90.command`** (à la racine du dossier). Il met à jour la liste des jeux, démarre Clone90 et ouvre la page dans votre navigateur. Pour arrêter, fermez la fenêtre (ou `Ctrl + C`).
+Double-cliquez sur **`Clone90.app`** (à la racine du dossier). Elle met à jour la liste des jeux, démarre Clone90 en arrière-plan et ouvre la page dans votre navigateur, **sans fenêtre Terminal**.
 
-- **La première fois**, macOS peut bloquer un script téléchargé : clic droit (ou `Ctrl` + clic) sur le fichier, **Ouvrir**, puis **Ouvrir** dans la fenêtre qui s'affiche. Ensuite le double-clic suffit.
-- Vous pouvez glisser le fichier dans le Dock, ou en faire un alias sur le Bureau.
-- Il faut Node.js (<https://nodejs.org>) ; sinon le lanceur vous le dit.
-- Le lanceur n'écoute que sur ce Mac (`--host 127.0.0.1`) : vos jeux ne sont pas visibles depuis le réseau. Pour jouer depuis le téléphone, lancez à la main `node scripts/serve.mjs` (sans `--host`), sur un réseau de confiance seulement (chez vous), jamais sur un Wi-Fi public.
+- **La première fois**, macOS bloque une application non signée par un développeur identifié : clic droit (ou `Ctrl` + clic) sur `Clone90.app`, **Ouvrir**, puis **Ouvrir** dans la fenêtre qui s'affiche. Ensuite le double-clic suffit.
+- Si macOS dit que l'application est « endommagée » (fichier téléchargé, mis en quarantaine), vous pouvez, si vous le souhaitez, lancer dans le Terminal `xattr -dr com.apple.quarantine <le dossier de Clone90>` (glissez le dossier dans la fenêtre pour écrire son chemin), puis recommencer.
+- Glissez `Clone90.app` dans le Dock pour la retrouver. Un clic sur son icône quand elle tourne rouvre la page.
+- **Pour arrêter** : clic droit sur l'icône dans le Dock, **Quitter** (ou `Cmd` + `Q`). Seul le serveur lancé par l'application est arrêté.
+- Il faut Node.js (<https://nodejs.org>) ; sinon l'application vous le dit. Si Clone90 ne démarre pas, le détail est dans `~/Library/Logs/Clone90.log`.
+- L'application n'écoute que sur ce Mac (`--host 127.0.0.1`) : vos jeux ne sont pas visibles depuis le réseau. Pour jouer depuis le téléphone, lancez à la main `node scripts/serve.mjs` (sans `--host`), sur un réseau de confiance seulement (chez vous), jamais sur un Wi-Fi public.
+- **Solution de secours** : `Lancer Clone90.command` (même principe, mais dans une fenêtre Terminal qu'il faut laisser ouverte ; la fermer arrête Clone90).
+- Pour reconstruire l'application après une modification de `scripts/mac-app/Clone90.applescript` : `bash scripts/build-mac-app.sh`.
 - Cela ne concerne que le Mac. Sous Windows et Linux, utilisez les commandes de la section « Lancer en local ».
 
 ## Choisir le dossier de vos jeux

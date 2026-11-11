@@ -32,4 +32,5 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `choisir-dossier-mac.test.mjs` : `Choisir le dossier des jeux.command` et lanceur (`bash -n`, bits exécutables) (T23).
 - `launcher-mac.test.mjs` : lanceur Mac `Lancer Clone90.command` (contenu, `bash -n`, jamais servi ni mis en cache) (T20).
 - `design.test.mjs` : design « Cartouche bleue » (palette, contrastes WCAG, couleur déclarée une seule fois, `prefers-reduced-motion` couvre les animations, clignotement 1 Hz, focus, logos/icônes/manifeste alignés sur `base.css`) (T24).
+- `mac-app.test.mjs` : application Mac `Clone90.app` (source AppleScript, bundle, `bash -n` du script de construction, jamais servie ni mise en cache) (T26).
 - `samples.test.mjs` : samples fbneo (plan de lancement Zaxxon avec et sans pack, Neo Geo, Amiga, validation de `samples`, liste blanche du serveur, service worker, générateur) (T22).
