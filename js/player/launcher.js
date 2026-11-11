@@ -8,7 +8,7 @@
 // réels) : 'bios/kick40068.A1200' retrouvé par puae, IPF, multi-disques.
 // Multi-disquettes (T10) : voir diskSetFiles ci-dessous (m3u virtuel + disquettes posées par EJS_externalFiles).
 import { EJS_CDN_URL, BIOS_DIR } from '../config.js';
-import { buildRetroArchCfg, RETROARCH_CFG_PATH } from './retroarch-cfg.js';
+import { buildRetroArchCfgExtra, appendRetroArchCfg } from './retroarch-cfg.js';
 import { createStartFailureWatch, hookCoreOutput } from './ejs-start-watch.js';
 import { assetUrl, assetPathFromUrl, isRelativePath } from '../data.js';
 
@@ -75,7 +75,7 @@ const hasDiskSet = (game) => Array.isArray(game.disks) && game.disks.length > 1;
  * entier à la racine (constaté en T0 : "ROM sp-s3.sp1 is missing"). Le plan le met donc dans `rawFiles` : loadEmulator le télécharge
  * et le pose tel quel via EJS_externalFiles (seule voie qui écrit sans extraire).
  * @param {{system: object, game: object, cdnUrl?: string}} input `cdnUrl` : surcharge pour les tests (défaut config.js)
- * @returns {{globals: Object<string, any>, loaderUrl: string, files: {kind: 'game'|'bios', path: string, url: string, required: boolean}[], rawFiles: {url: string, fsPath: string}[], generatedFiles: {fsPath: string, text: string}[]}}
+ * @returns {{globals: Object<string, any>, loaderUrl: string, files: {kind: 'game'|'bios', path: string, url: string, required: boolean}[], rawFiles: {url: string, fsPath: string}[], retroarchCfgExtra: string}}
  * @throws {Error} cœur absent, BIOS invalide
  */
 export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL }) {
@@ -106,9 +106,9 @@ export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL }) {
   const gamePaths = diskSet ? game.disks : [game.file];
   const files = gamePaths.map((path) => ({ kind: 'game', path, url: assetUrl(path), required: true }));
   if (bios) files.push({ kind: 'bios', path: biosPath, url: biosUrl, required: bios.required });
-  // T14 : retroarch.cfg remplacé pour toute machine (journal d'erreurs pour détecter un échec) ; raccourcis RetroArch à nul si la machine le demande.
-  const generatedFiles = [{ fsPath: RETROARCH_CFG_PATH, text: buildRetroArchCfg({ disableHotkeys: system.disableRetroArchHotkeys === true }) }];
-  return { globals, loaderUrl: `${dataUrl}loader.js`, files, rawFiles, generatedFiles, virtualGame: diskSet?.virtualGame ?? null };
+  // T14 : lignes AJOUTÉES au retroarch.cfg d'EmulatorJS (journal d'erreurs pour détecter un échec ; raccourcis RetroArch à nul si la machine le demande).
+  const retroarchCfgExtra = buildRetroArchCfgExtra({ disableHotkeys: system.disableRetroArchHotkeys === true });
+  return { globals, loaderUrl: `${dataUrl}loader.js`, files, rawFiles, retroarchCfgExtra, virtualGame: diskSet?.virtualGame ?? null };
 }
 
 /**
@@ -153,6 +153,26 @@ export const fetchBytes = async (url) => {
 };
 
 /**
+ * Appelle chaque `hook(instance)` dès qu'EmulatorJS pose `window.EJS_emulator` (loader.js l.150 : `window.EJS_emulator = new EmulatorJS(...)`).
+ * Un seul accesseur pour tous les contournements (deux defineProperty sur la même propriété s'écraseraient).
+ * INVARIANT : à ce moment tous les scripts de loader.js sont chargés (dont GameManager.js, qui pose `window.EJS_GameManager`, l.464) et
+ * le constructeur d'EmulatorJS ne démarre que des téléchargements asynchrones ; GameManager n'est créé qu'ensuite (emulator.js l.918,
+ * `downloadFiles`). Les hooks sont donc posés AVANT le constructeur de GameManager.
+ * @param {Window} win @param {Array<(emulator: object) => void>} hooks
+ */
+function onEmulatorCreated(win, hooks) {
+  let instance = win.EJS_emulator;
+  Object.defineProperty(win, 'EJS_emulator', {
+    configurable: true,
+    get: () => instance,
+    set: (value) => {
+      if (value && typeof value === 'object') hooks.forEach((hook) => hook(value));
+      instance = value;
+    },
+  });
+}
+
+/**
  * Contournements de défauts d'EmulatorJS 4.2.3 (version épinglée dans config.js, à retester avant tout changement ; constatés en T10 avec puae et un jeu à plusieurs disques). startGame() construit le
  * menu des disques AVANT le menu des réglages, et ce menu "sélectionne" le disque courant au passage :
  *  1. menuOptionChanged écrit dans `allSettings`, que seul le menu des réglages crée : "Cannot set properties of undefined (setting 'disk')",
@@ -165,12 +185,10 @@ export const fetchBytes = async (url) => {
  *  3. Un vrai changement de disque (setCurrentDisk) lève "unreachable" au premier appel (le plateau du lecteur s'ouvre mais l'index ne
  *     change pas) et réussit au second : constaté sur 6 changements de suite, avec ou sans puae_floppy_multidrive. On rappelle donc une
  *     fois ; si le second appel échoue aussi, on tente de remettre le disque d'origine (try/catch), puis l'erreur remonte. Le jeu n'est pas fermé.
- * @param {Window} win
  * @param {{setTimer?: Function}} [env] minuterie injectable pour les tests
- * @returns {{gameStarted: () => void}} gameStarted : à appeler à EJS_onGameStart (la protection de démarrage prend fin STARTUP_GRACE_MS après)
+ * @returns {{patch: (emulator: object) => void, gameStarted: () => void}} patch : à appliquer à l'instance (onEmulatorCreated) ; gameStarted : à appeler à EJS_onGameStart (la protection de démarrage prend fin STARTUP_GRACE_MS après)
  */
-function guardDiskMenuStartup(win, { setTimer = setTimeout } = {}) {
-  let instance = win.EJS_emulator;
+function createDiskMenuGuard({ setTimer = setTimeout } = {}) {
   let startupOver = false;
   const patch = (emulator) => {
     emulator.allSettings ??= {};
@@ -193,15 +211,7 @@ function guardDiskMenuStartup(win, { setTimer = setTimeout } = {}) {
       }
     };
   };
-  Object.defineProperty(win, 'EJS_emulator', {
-    configurable: true,
-    get: () => instance,
-    set: (value) => {
-      if (value && typeof value === 'object') patch(value);
-      instance = value;
-    },
-  });
-  return { gameStarted: () => { setTimer(() => { startupOver = true; }, STARTUP_GRACE_MS); } };
+  return { patch, gameStarted: () => { setTimer(() => { startupOver = true; }, STARTUP_GRACE_MS); } };
 }
 
 /**
@@ -215,14 +225,14 @@ function guardDiskMenuStartup(win, { setTimer = setTimeout } = {}) {
 export async function loadEmulator(plan, { win = globalThis.window, doc = globalThis.document, onStart = () => {}, onFailure = () => {}, getBytes = fetchBytes, setTimer = setTimeout } = {}) {
   if (!doc.getElementById(GAME_ELEMENT_ID)) throw new Error(`Élément #${GAME_ELEMENT_ID} absent de la page`);
   const externalFiles = {};
-  for (const { fsPath, text } of plan.generatedFiles ?? []) externalFiles[fsPath] = new TextEncoder().encode(text); // Uint8Array, comme les fichiers bruts
   for (const { url, fsPath } of plan.rawFiles ?? []) {
     try { externalFiles[fsPath] = await getBytes(url); } catch (e) { throw new Error(`Fichier ${assetPathFromUrl(url)} illisible (${e.message}).`); }
   }
   return new Promise((resolve, reject) => {
     Object.assign(win, plan.globals);
     if (Object.keys(externalFiles).length) win.EJS_externalFiles = externalFiles;
-    const diskGuard = plan.virtualGame ? guardDiskMenuStartup(win, { setTimer }) : null;
+    const diskGuard = plan.virtualGame ? createDiskMenuGuard({ setTimer }) : null;
+    onEmulatorCreated(win, [() => appendRetroArchCfg(win, plan.retroarchCfgExtra), ...(diskGuard ? [diskGuard.patch] : [])]);
     if (plan.virtualGame) win.EJS_gameUrl = new File([plan.virtualGame.text], plan.virtualGame.name, { type: 'audio/x-mpegurl' });
     const watch = createStartFailureWatch({ onFailure, setTimer });
     hookCoreOutput(win, (line) => watch.feed(line));

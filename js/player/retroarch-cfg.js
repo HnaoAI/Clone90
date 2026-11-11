@@ -1,30 +1,13 @@
-// Fabrique le retroarch.cfg que le lanceur pose à la place de celui d'EmulatorJS (T14). Aucune dépendance. Utilisé par launcher.js seulement.
+// Lignes AJOUTÉES au retroarch.cfg qu'EmulatorJS 4.2.3 fabrique (T14). Aucune dépendance. Utilisé par launcher.js seulement.
 // Pourquoi : (A) avec "Direct Keyboard Input" actif (Amiga), RetroArch lit le clavier du document et ses raccourcis par défaut se
 // déclenchent (F1 menu, Échap quitter, F9 muet, Espace avance rapide, P pause...) ; (B) il faut des lignes d'erreur du chargeur de contenu
 // pour détecter qu'un cœur a refusé le jeu (ejs-start-watch.js).
-// INVARIANT : les lignes d'origine ci-dessous sont celles de getRetroArchCfg() d'EmulatorJS 4.2.3 (GameManager.js l.139-152), SANS les
-// 2 lignes de rembobinage ni les `retroarchOpts` du core.json (vides pour puae et fbneo, vérifié). À relire à chaque changement de
-// EJS_CDN_VERSION (tests/retroarch-cfg.test.mjs garde une copie).
+// Méthode : on enveloppe EJS_GameManager.prototype.getRetroArchCfg (GameManager.js l.139, appelée par le constructeur l.38) et on AJOUTE nos
+// lignes à son résultat. Rien d'EmulatorJS n'est recopié (rembobinage et retroarchOpts des cœurs conservés). Une clé en double est possible
+// seulement si EmulatorJS écrit lui-même une de nos clés, ce qu'il ne fait pas en 4.2.3.
 // Sources lues (RetroArch d'EmulatorJS, branche master) : clés `input_<base>` = préfixe "input" + base de la table input_config_bind_map
 // (configuration.c l.298-419 ; input_config_get_prefix et config_read_keybinds_conf dans input/input_driver.c) ; valeur "nul" = RETROK_UNKNOWN
 // (input/input_keymaps.c) ; `log_verbosity`, `frontend_log_level`, `libretro_log_level` (configuration.c l.2351-2352 et 3549-3562).
-
-/** Chemin où EmulatorJS 4.2.3 écrit son retroarch.cfg (GameManager.js l.38) ; notre fichier le remplace via EJS_externalFiles. */
-export const RETROARCH_CFG_PATH = '/home/web_user/.config/retroarch/retroarch.cfg';
-
-const ORIGINAL_LINES = [
-  'autosave_interval = 60',
-  'screenshot_directory = "/"',
-  'block_sram_overwrite = false',
-  'video_gpu_screenshot = false',
-  'audio_latency = 64',
-  'video_top_portrait_viewport = true',
-  'video_vsync = true',
-  'video_smooth = false',
-  'fastforward_ratio = 3.0',
-  'slowmotion_ratio = 3.0',
-  'savefile_directory = "/data/saves"',
-];
 
 // Erreurs seulement (niveau 3 = ERROR) : ce qu'il faut pour voir "[ERROR] [Content]: Failed to load content" sans bruit ni coût.
 const ERROR_LOG_LINES = ['log_verbosity = true', 'frontend_log_level = 3', 'libretro_log_level = 3'];
@@ -46,11 +29,28 @@ export const RETROARCH_HOTKEYS = [
 ];
 
 /**
- * Texte du retroarch.cfg.
+ * Lignes à ajouter au retroarch.cfg d'EmulatorJS.
  * @param {{disableHotkeys?: boolean}} [options] disableHotkeys : met tous les raccourcis de RetroArch à "nul" (champ `disableRetroArchHotkeys` de systems.json)
  * @returns {string} lignes terminées par un retour à la ligne
  */
-export function buildRetroArchCfg({ disableHotkeys = false } = {}) {
+export function buildRetroArchCfgExtra({ disableHotkeys = false } = {}) {
   const hotkeyLines = disableHotkeys ? RETROARCH_HOTKEYS.map((name) => `input_${name} = "nul"`) : [];
-  return `${[...ORIGINAL_LINES, ...ERROR_LOG_LINES, ...hotkeyLines].join('\n')}\n`;
+  return `${[...ERROR_LOG_LINES, ...hotkeyLines].join('\n')}\n`;
+}
+
+/**
+ * Fait ajouter `extra` au cfg produit par EmulatorJS. À appeler après le chargement de GameManager.js et avant la création du GameManager.
+ * Idempotent (un second appel ne double pas l'ajout). Si la classe ou la méthode manque, ne fait rien et le signale (jamais d'exception).
+ * @param {Window} win @param {string} extra
+ * @returns {boolean} vrai si la surcharge est en place
+ */
+export function appendRetroArchCfg(win, extra) {
+  const proto = win.EJS_GameManager?.prototype;
+  const original = proto?.getRetroArchCfg;
+  if (typeof original !== 'function') { console.warn('retroarch.cfg : EJS_GameManager.getRetroArchCfg introuvable, lignes T14 non ajoutées.'); return false; }
+  if (original.clone90Extra !== undefined) return true;
+  const patched = function getRetroArchCfgWithClone90() { return original.call(this) + extra; };
+  patched.clone90Extra = extra;
+  proto.getRetroArchCfg = patched;
+  return true;
 }

@@ -234,10 +234,10 @@ test('loadEmulator : le BIOS gardé zippé est lu en octets puis posé dans EJS_
   assert.equal('EJS_biosUrl' in seen[0], false);
 });
 
-test('loadEmulator : sans rawFiles, EJS_externalFiles ne contient que le retroarch.cfg généré (T14)', async () => {
+test('loadEmulator : sans rawFiles, EJS_externalFiles n\'est pas défini', async () => {
   const { win, doc } = fakeEnv();
   await loadEmulator(buildLaunchPlan({ system: amiga, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } }), { win, doc });
-  assert.deepEqual(Object.keys(win.EJS_externalFiles), ['/home/web_user/.config/retroarch/retroarch.cfg']);
+  assert.equal('EJS_externalFiles' in win, false);
 });
 
 test('loadEmulator : BIOS illisible donne une erreur claire et n\'injecte pas loader.js', async () => {
@@ -283,7 +283,7 @@ test('arcade (systems.json réel) : neogeo.zip absent, aucune erreur, rien à t�
   const fetched = [];
   await loadEmulator(plan, { win, doc, getBytes: async (u) => { fetched.push(u); return new Uint8Array(); } });
   assert.deepEqual(fetched, [], 'aucun téléchargement du BIOS absent');
-  assert.deepEqual(Object.keys(win.EJS_externalFiles), ['/home/web_user/.config/retroarch/retroarch.cfg'], 'seulement le cfg généré (T14)');
+  assert.equal('EJS_externalFiles' in win, false);
 });
 
 // --- T10 : jeux à plusieurs disquettes (m3u virtuel + disquettes en EJS_externalFiles) ---
@@ -338,7 +338,7 @@ test('loadEmulator : multi-disquettes pose EJS_gameUrl (File .m3u) et les disque
   await loadEmulator(buildLaunchPlan({ system: amiga, game: leander }), { win, doc, getBytes });
   assert.ok(seen[0].EJS_gameUrl instanceof File);
   assert.equal(seen[0].EJS_gameUrl.name, 'amiga_leander_1991_psygnosis.m3u');
-  assert.deepEqual(Object.keys(seen[0].EJS_externalFiles), ['/home/web_user/.config/retroarch/retroarch.cfg', '/disk1.adf', '/disk2.adf', '/disk3.adf']);
+  assert.deepEqual(Object.keys(seen[0].EJS_externalFiles), ['/disk1.adf', '/disk2.adf', '/disk3.adf']);
 });
 
 test('loadEmulator : contournements EmulatorJS (allSettings, disque déjà courant ignoré, changement rappelé une fois)', async () => {
@@ -447,33 +447,46 @@ test('T14 disquette : une autre option que disk ne déclenche ni filtre, ni rapp
   assert.deepEqual(state.calls, [['shader', 'x']]);
 });
 
-// --- T14 : retroarch.cfg posé par EJS_externalFiles, détection d'échec branchée ---
+// --- T14 : lignes ajoutées au retroarch.cfg par surcharge de getRetroArchCfg, détection d'échec branchée ---
 const amigaWithHotkeys = { ...amiga, disableRetroArchHotkeys: true };
-const CFG_PATH = '/home/web_user/.config/retroarch/retroarch.cfg';
 
-test('T14 buildLaunchPlan : un retroarch.cfg est prévu pour toute machine, raccourcis à nul pour l\'Amiga seulement', () => {
+test('T14 buildLaunchPlan : lignes de cfg à ajouter pour toute machine, raccourcis à nul pour l\'Amiga seulement', () => {
   const a = buildLaunchPlan({ system: amigaWithHotkeys, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } });
   const n = buildLaunchPlan({ system: neogeo, game: mslug });
-  assert.equal(a.generatedFiles[0].fsPath, CFG_PATH);
-  assert.equal(n.generatedFiles[0].fsPath, CFG_PATH);
-  assert.match(a.generatedFiles[0].text, /^input_menu_toggle = "nul"$/m);
-  assert.match(a.generatedFiles[0].text, /^input_audio_mute = "nul"$/m);
-  assert.ok(!n.generatedFiles[0].text.includes('input_'), 'Neo Geo : aucun raccourci touché');
-  assert.match(n.generatedFiles[0].text, /^autosave_interval = 60$/m, 'lignes d\'origine conservées');
+  assert.match(a.retroarchCfgExtra, /^input_menu_toggle = "nul"$/m);
+  assert.match(a.retroarchCfgExtra, /^input_audio_mute = "nul"$/m);
+  assert.ok(!n.retroarchCfgExtra.includes('input_'), 'Neo Geo : aucun raccourci touché');
+  assert.match(n.retroarchCfgExtra, /^log_verbosity = true$/m);
+  assert.ok(!/autosave_interval/.test(n.retroarchCfgExtra), 'aucune ligne d\'EmulatorJS recopiée');
 });
 
-test('T14 checkPlanFiles : le cfg généré survit à l\'épuration du plan', async () => {
+test('T14 checkPlanFiles : les lignes de cfg survivent à l\'épuration du plan', async () => {
   const { plan } = await checkPlanFiles(buildLaunchPlan({ system: neogeo, game: mslug }), async () => true);
-  assert.equal(plan.generatedFiles.length, 1);
+  assert.match(plan.retroarchCfgExtra, /log_verbosity/);
 });
 
-test('T14 loadEmulator : le cfg est posé via EJS_externalFiles en octets, à côté du BIOS gardé zippé', async () => {
+test('T14 loadEmulator : au moment où EmulatorJS pose EJS_emulator, getRetroArchCfg est déjà surchargé (avant le constructeur de GameManager)', async () => {
   const { win, doc } = fakeEnv();
-  const plan = buildLaunchPlan({ system: neogeo, game: mslug });
+  const plan = buildLaunchPlan({ system: amigaWithHotkeys, game: leander });
   await loadEmulator(plan, { win, doc, getBytes });
-  assert.deepEqual(Object.keys(win.EJS_externalFiles).sort(), [CFG_PATH, '/neogeo.zip'].sort());
-  assert.ok(win.EJS_externalFiles[CFG_PATH] instanceof Uint8Array);
-  assert.equal(new TextDecoder().decode(win.EJS_externalFiles[CFG_PATH]), plan.generatedFiles[0].text);
+  class GameManager { constructor() { this.cfg = this.getRetroArchCfg(); } getRetroArchCfg() { return 'rewind_enable = true\n'; } }
+  win.EJS_GameManager = GameManager; // GameManager.js est chargé avant `new EmulatorJS` (loader.js)
+  win.EJS_emulator = { gameManager: null }; // loader.js l.150
+  const cfg = new GameManager().cfg;
+  assert.ok(cfg.startsWith('rewind_enable = true\n'));
+  assert.ok(cfg.endsWith(plan.retroarchCfgExtra));
+  assert.match(cfg, /^input_audio_mute = "nul"$/m);
+});
+
+test('T14 loadEmulator : le contournement des disques et la surcharge du cfg cohabitent sur EJS_emulator', async () => {
+  const { win, doc } = fakeEnv();
+  await loadEmulator(buildLaunchPlan({ system: amigaWithHotkeys, game: leander }), { win, doc, getBytes });
+  class GameManager { getRetroArchCfg() { return 'a\n'; } }
+  win.EJS_GameManager = GameManager;
+  const emulator = { handleSpecialOptions() {} };
+  win.EJS_emulator = emulator;
+  assert.deepEqual(emulator.allSettings, {}, 'contournement des disques toujours appliqué');
+  assert.ok(new GameManager().getRetroArchCfg().length > 2, 'cfg surchargé');
 });
 
 test('T14 loadEmulator : onFailure reçoit l\'erreur du chargeur de contenu lue dans la sortie du cœur', async () => {

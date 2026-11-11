@@ -8,12 +8,12 @@
 A. Quand "Direct Keyboard Input" est actif (Amiga), les raccourcis par défaut de RetroArch se déclenchent : F1 menu, Échap quitter, F9 muet (conflit avec notre raccourci disquette T12), Espace avance rapide, P pause, F plein écran, H reset, etc.
 B. `EJS_onGameStart` est appelé même quand le cœur refuse le contenu : RetroArch affiche alors son menu natif sur fond noir et la personne reste bloquée. Il faut notre écran d'erreur en français.
 
-## Partie A : retroarch.cfg
-- `js/player/retroarch-cfg.js` (nouveau, seule source de vérité) fabrique le texte de `retroarch.cfg`. Il est posé par `EJS_externalFiles` à `/home/web_user/.config/retroarch/retroarch.cfg` : EmulatorJS 4.2.3 écrit son propre fichier dans le constructeur de `EJS_GameManager`, puis `loadExternalFiles()` (qui écrase), puis `callMain` (GameManager.js l.38, emulator.js `downloadFiles`).
-- Les 11 lignes d'origine de `getRetroArchCfg` (4.2.3) sont recopiées à l'identique (sans les 2 lignes de rembobinage, ni `retroarchOpts`, voir limites).
-- Si la machine a `"disableRetroArchHotkeys": true` dans `systems.json` (Amiga seulement) : une ligne `input_<action> = "nul"` par raccourci (liste complète des "meta binds" de `configuration.c`, pas seulement ceux qui ont une touche par défaut).
-- Journal d'erreurs (pour la partie B) : `log_verbosity = true`, `frontend_log_level = 3`, `libretro_log_level = 3` (erreurs seulement, donc quasi aucun coût).
-- Le clavier du jeu (taper, touches F du jeu) n'est pas touché : seuls les raccourcis RetroArch (`input_<meta>`) sont mis à nul, pas les touches du clavier émulé.
+## Partie A : retroarch.cfg (arbitrage du PO : AJOUTER des lignes, ne pas remplacer le fichier)
+- `js/player/retroarch-cfg.js` (seule source de vérité) fabrique les lignes à AJOUTER et surcharge `EJS_GameManager.prototype.getRetroArchCfg` pour les ajouter au texte qu'EmulatorJS produit. Rien d'EmulatorJS n'est recopié : rembobinage et `retroarchOpts` des cœurs sont conservés.
+- Moment (VÉRIFIÉ, 4.2.3) : loader.js charge tous ses scripts, dont GameManager.js qui pose `window.EJS_GameManager` (l.464), puis fait `window.EJS_emulator = new EmulatorJS(...)` (loader.js l.150). Notre accesseur sur `EJS_emulator` surcharge le prototype à cet instant. `new window.EJS_GameManager(...)` n'a lieu que plus tard, dans `downloadFiles` (emulator.js l.918), et son constructeur appelle `this.getRetroArchCfg()` (GameManager.js l.38) : la surcharge est donc posée avant.
+- Champ `disableRetroArchHotkeys: true` dans `systems.json` (Amiga seulement) : une ligne `input_<action> = "nul"` par raccourci (tous les "meta binds" de `configuration.c`).
+- Journal d'erreurs (partie B), pour toute machine : `log_verbosity = true`, `frontend_log_level = 3`, `libretro_log_level = 3`.
+- Le clavier du jeu n'est pas touché : seuls les raccourcis RetroArch sont mis à nul.
 
 ## Partie B : échec de démarrage
 - Signal retenu : une ligne d'erreur du chargeur de contenu de RetroArch, `[ERROR] [Content]: ...` (ex. "Failed to load content"), lue dans la sortie du cœur (`print`/`printErr`) interceptée dans `js/player/ejs-start-watch.js`. Les lignes `[libretro ERROR]` qui précèdent (ex. FBNeo "ROM ... is missing") donnent la raison.
@@ -21,17 +21,17 @@ B. `EJS_onGameStart` est appelé même quand le cœur refuse le contenu : RetroA
 - Écran d'erreur : « Ce jeu n'a pas pu démarrer » + raison en français + détail technique, bouton « Revenir à la liste », phase `error` (sortie en un appui, T11/A2).
 
 ## Critères d'acceptation
-1. Le cfg contient les lignes d'origine, identiques et dans l'ordre.
+1. Nos lignes sont ajoutées sans doublon ni ligne vide ; aucune ligne d'EmulatorJS n'est recopiée.
 2. Amiga : toutes les actions de raccourci sont à "nul". Neo Geo et autres : aucune.
-3. Le cfg est posé via `EJS_externalFiles` (octets) au bon chemin, pour toute machine.
+3. `getRetroArchCfg` est surchargé avant la création du GameManager, le texte d'EmulatorJS est conservé à l'identique et nos lignes sont à la fin.
 4. Une ligne `[ERROR] [Content]` déclenche `onFailure` une fois, avec les messages du cœur qui précèdent.
 5. Aucun faux positif : lignes normales, erreurs sans `[Content]`, démarrage lent sans ligne, lignes après la fenêtre d'écoute.
 6. Le hook ne casse pas `EJS_Runtime` (appel, retour, options `print`/`printErr` d'origine toujours appelées).
 7. Écran d'erreur : titre, raison (fichier manquant/incorrect si le cœur le dit), détail technique, sortie en un appui.
 
 ## Limites connues
-- Le cfg remplace celui d'EmulatorJS : `retroarchOpts` du `core.json` du cœur (vide pour puae et fbneo, VÉRIFIÉ) et le rembobinage (réglage EmulatorJS) ne sont plus appliqués. À revérifier pour chaque nouvelle machine (`core.json` du `.data` du cœur).
-- Dépend de la version épinglée du CDN (4.2.3).
+- Dépend de la version épinglée du CDN (4.2.3) : nom `getRetroArchCfg` et classe `window.EJS_GameManager`. Si l'un manque, on ne fait rien (avertissement console) : pas de raccourcis neutralisés et pas de détection d'échec, jamais de plantage.
+- HYPOTHÈSE à vérifier par Hicham : `stderr` de RetroArch arrive à `printErr` et la ligne est bien `[ERROR] ... [Content]: ...` (test avec un zip volontairement invalide, avec l'accord de Hicham).
 
 ## Vérification manuelle (Hicham)
 Voir le rapport de fin de ticket.
