@@ -53,7 +53,8 @@ Puis relancez `node scripts/serve.mjs`. Vos jeux et BIOS ne sont pas touchés.
 - **Quelle version tourne ?** Le numéro est en bas de l'accueil (par exemple "Clone90 v0.17.0 - 11/11/2026"). Après une mise à jour, si ce n'est pas le bon, l'ancienne version est restée en mémoire du navigateur.
 - **Recharger sans mémoire** : `Cmd + Maj + R` sur l'accueil.
 - **Mode diagnostic** : ajoutez `&debug=1` à la fin de l'adresse d'un jeu (celle de `player.html`). Une pastille "Diag" apparaît en haut à droite ; "Copier le journal" le copie pour me le coller. Rien n'est envoyé sur internet.
-- **Le jeu est lent ou saccadé** : le mode économie d'énergie (Mac en batterie, ou téléphone) peut brider le navigateur à 30 images par seconde. Branchez le chargeur et désactivez l'économie d'énergie, puis relancez le jeu.
+- **Le jeu est lent ou saccadé** : le mode économie d'énergie (Mac en batterie, ou téléphone) peut ralentir le jeu (sur un Mac à 11 % de batterie, on a constaté environ 30 images par seconde au lieu de 60). Branchez le chargeur et désactivez l'économie d'énergie, puis relancez le jeu.
+- **Un jeu à plusieurs disquettes reste bloqué sur la demande de disquette** : vérifiez que toutes les disquettes viennent du même ensemble de fichiers ; voir le mode `&debug=1` ci-dessus.
 - **"Aucun jeu trouvé"** : vous avez oublié `node scripts/generate-games.mjs` après avoir déposé les jeux, ou le serveur n'est pas lancé depuis le bon dossier.
 
 ## 2. Publier Clone90 sur GitHub Pages
