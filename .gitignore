@@ -1,6 +1,8 @@
 # Jeux et BIOS : jamais dans le dépôt (droits d'auteur, dépôt public)
 roms/
 bios/
+# Réglages personnels (dossier des ROMs et des BIOS, T23)
+clone90.local.json
 # Généré par scripts/generate-games.mjs
 games.json
 

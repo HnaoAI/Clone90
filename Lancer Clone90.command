@@ -23,6 +23,7 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 echo "Mise à jour de la liste des jeux..."
+# Affiche aussi le dossier des jeux et des BIOS utilisé (T23, réglable avec « Choisir le dossier des jeux »).
 node scripts/generate-games.mjs
 
 # Un serveur Clone90 répond déjà ? On ouvre simplement la page.

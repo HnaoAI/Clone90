@@ -4,6 +4,7 @@ import { readFile, readdir, stat, writeFile, rename, rm, access } from 'node:fs/
 import { posix, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { PROJECT_ROOT } from './project-root.mjs';
+import { readLocalSettings, describeFolders } from './local-settings.mjs';
 import { compareTitles } from '../js/sort.js';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp']; // ordre = priorité de la jaquette
@@ -346,7 +347,7 @@ const exists = (path) => access(path).then(() => true, () => false);
 /**
  * Scanne roms/ et construit le contenu de games.json (n'écrit rien).
  * @param {{root?: string, now?: Date}} options `now` injectable pour une sortie reproductible
- * @returns {Promise<{version: number, generatedAt: string, games: object[], warnings: string[], counts: Record<string, number>}>}
+ * @returns {Promise<{version: number, generatedAt: string, games: object[], warnings: string[], counts: Record<string, number>, folders: string[]}>} `folders` : dossiers ROMs/BIOS utilisés (T23)
  * @throws {Error} si systems.json est illisible
  */
 export async function generateGames({ root = PROJECT_ROOT, now = new Date() } = {}) {
@@ -355,10 +356,13 @@ export async function generateGames({ root = PROJECT_ROOT, now = new Date() } = 
   const titles = await readTitles(root, warnings);
   const games = [];
   const counts = {};
-  const romFolders = await readdir(join(root, 'roms')).catch(() => []);
+  // T23 : dossiers choisis dans clone90.local.json. Les chemins écrits dans games.json restent `roms/<machine>/...` (adresse web).
+  const settings = await readLocalSettings(root);
+  warnings.push(...settings.warnings);
+  const romFolders = await readdir(settings.romsDir).catch(() => []);
   for (const system of systems) {
     const dirName = pickSystemDir(romFolders, system.id);
-    const dir = join(root, 'roms', dirName);
+    const dir = join(settings.romsDir, dirName);
     const files = await listFiles(dir);
     const texts = {};
     for (const f of files.filter((x) => ['m3u', 'cue', 'bios'].includes(extOf(x)))) {
@@ -369,12 +373,12 @@ export async function generateGames({ root = PROJECT_ROOT, now = new Date() } = 
     counts[system.id] = result.games.length;
     games.push(...result.games);
     for (const bios of result.games.length ? system.bios ?? [] : []) {
-      if (bios.required && !(await exists(join(root, 'bios', bios.file)))) {
+      if (bios.required && !(await exists(join(settings.biosDir, bios.file)))) {
         warnings.push(`${system.id} : BIOS requis absent de bios/ : ${bios.file}`);
       }
     }
   }
-  return { version: 1, generatedAt: now.toISOString(), games, warnings, counts, systems };
+  return { version: 1, generatedAt: now.toISOString(), games, warnings, counts, systems, folders: describeFolders(settings) };
 }
 
 /**
@@ -390,7 +394,8 @@ export async function runGenerate({ root = PROJECT_ROOT, check = false, now = ne
     logError(err.message);
     return { exitCode: 1 };
   }
-  const { systems, counts, warnings, games } = result;
+  const { systems, counts, warnings, games, folders } = result;
+  for (const line of folders) log(line);
   for (const s of systems) if (counts[s.id]) log(`${s.name} : ${counts[s.id]} jeu(x)`);
   log(`Total : ${games.length} jeu(x)`);
   for (const w of warnings) log(`Avertissement : ${w}`);

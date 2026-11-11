@@ -7,6 +7,7 @@ import { networkInterfaces } from 'node:os';
 import { extname, resolve, sep, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { PROJECT_ROOT } from './project-root.mjs';
+import { readLocalSettings, describeFolders } from './local-settings.mjs';
 
 export const DEFAULT_PORT = 8080;
 /** Écoute sur toutes les interfaces par défaut (téléphone Android du même Wi-Fi). Le lanceur Mac (T20) passe --host 127.0.0.1. */
@@ -103,16 +104,22 @@ export function isLocalOnlyHost(host) {
 const SECURITY_HEADERS = { 'X-Content-Type-Options': 'nosniff' };
 
 // roms/ et bios/ peuvent être des liens vers un autre disque : leur racine autorisée est leur propre realpath (T11/A7, arbitrage PO).
+// T23 : ou des dossiers choisis dans clone90.local.json (options romsDir et biosDir) ; l'adresse web reste roms/... et bios/...
 const LINKABLE_DIRS = new Set(['roms', 'bios']);
 
+/** Dossier sur le disque d'une adresse publique : roms/ et bios/ peuvent être redirigés vers un autre dossier (T23). */
+function toDiskPath(root, file, top, dirs) {
+  const base = dirs[top];
+  return base ? join(base, relative(join(root, top), file)) : file;
+}
+
 /**
- * Racine dans laquelle le chemin réel du fichier doit rester : le realpath de roms/ ou bios/ pour ces dossiers, sinon la racine du projet.
+ * Racine dans laquelle le chemin réel du fichier doit rester : le realpath de roms/ ou bios/ (ou du dossier choisi) pour ces dossiers, sinon la racine du projet.
  * INVARIANT : un lien individuel (fichier ou sous-dossier) qui sort de ce realpath reste refusé.
  */
-async function allowedRealRoot(root, realRoot, file) {
-  const top = relative(root, file).split(sep)[0];
+async function allowedRealRoot(root, realRoot, top, dirs) {
   if (!LINKABLE_DIRS.has(top)) return realRoot;
-  return realpath(join(root, top)).catch(() => null);
+  return realpath(dirs[top] ?? join(root, top)).catch(() => null);
 }
 
 /** Vrai si `real` (chemin réel, liens résolus) est la racine ou se trouve dessous. */
@@ -156,11 +163,13 @@ function parseRange(header, size) {
 
 /**
  * Crée le serveur HTTP statique (non démarré : l'appelant appelle `listen`).
- * @param {{root: string}} options racine à servir
+ * @param {{root: string, romsDir?: string, biosDir?: string}} options racine à servir ; `romsDir` et `biosDir` (absolus) remplacent
+ *   roms/ et bios/ du projet (T23, voir local-settings.mjs)
  * @returns {http.Server}
  */
-export function createStaticServer({ root }) {
+export function createStaticServer({ root, romsDir, biosDir }) {
   const absRoot = resolve(root);
+  const dirs = { roms: romsDir && resolve(romsDir), bios: biosDir && resolve(biosDir) };
   const realRootPromise = realpath(absRoot).catch(() => absRoot);
   return http.createServer(async (req, res) => {
     try {
@@ -179,6 +188,8 @@ export function createStaticServer({ root }) {
       if (file === null && urlPath === '/favicon.ico') return reply(res, 404, 'Introuvable');
       if (file === null) return reply(res, 403, 'Accès interdit');
 
+      const top = relative(absRoot, file).split(sep)[0]; // avant la redirection : c'est l'adresse publique qui décide
+      file = toDiskPath(absRoot, file, top, dirs);
       let info = await stat(file).catch(() => null);
       if (info?.isDirectory()) {
         file = join(file, 'index.html');
@@ -188,7 +199,7 @@ export function createStaticServer({ root }) {
       // INVARIANT : un lien symbolique ne doit jamais faire sortir de la racine du projet (T11/A7).
       const real = await realpath(file).catch(() => null);
       if (real === null) return reply(res, 404, 'Introuvable');
-      const allowed = await allowedRealRoot(absRoot, realRoot, file);
+      const allowed = await allowedRealRoot(absRoot, realRoot, top, dirs);
       if (allowed === null || !isInside(allowed, real)) return reply(res, 403, 'Accès interdit');
 
       const headers = {
@@ -228,7 +239,7 @@ function networkUrls(port) {
     .map((i) => `http://${i.address}:${port}`);
 }
 
-function main() {
+async function main() {
   let port;
   let host;
   try {
@@ -238,7 +249,8 @@ function main() {
     console.error(err.message);
     process.exit(1);
   }
-  const server = createStaticServer({ root: PROJECT_ROOT });
+  const settings = await readLocalSettings(PROJECT_ROOT);
+  const server = createStaticServer({ root: PROJECT_ROOT, romsDir: settings.romsDir, biosDir: settings.biosDir });
   server.on('error', (err) => {
     console.error(err.code === 'EADDRINUSE'
       ? `Le port ${port} est déjà utilisé. Essayez : node scripts/serve.mjs --port ${port + 1}`
@@ -248,9 +260,10 @@ function main() {
   // Par défaut toutes les interfaces (téléphone du réseau local) ; --host 127.0.0.1 : ce Mac seulement.
   server.listen(port, host, () => {
     console.log(`Clone90 : http://localhost:${port}`);
+    for (const line of [...describeFolders(settings), ...settings.warnings.map((w) => `Avertissement : ${w}`)]) console.log(line);
     if (!isLocalOnlyHost(host)) for (const url of networkUrls(port)) console.log(`Réseau local : ${url}`);
     console.log('Ctrl+C pour arrêter.');
   });
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) main();
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await main();
