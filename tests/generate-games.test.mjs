@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, copyFile } from 'node
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
-  cleanTitle, makeId, resolveTitle, parseM3u, parseCue, readSystems, generateGames, runGenerate, pickSystemDir,
+  cleanTitle, makeId, resolveTitle, parseM3u, parseCue, parseLooseDiskTag, parseDiskTag, readSystems, generateGames, runGenerate, pickSystemDir,
 } from '../scripts/generate-games.mjs';
 
 const FIXED_DATE = new Date('2026-11-09T21:00:00.000Z');
@@ -506,4 +506,193 @@ test('T15 cue : chemin sortant du dossier (..) ou absolu ignoré, jamais de chem
     const [game] = await gamesOf(root);
     assert.equal('extraFiles' in game, false);
   });
+});
+
+// --- T18 : noms de disquette sans la forme TOSEC (Leander_Disk1.ipf ...) ---
+const LEANDER_DIR = 'Leander (1991)(Psygnosis)[0496]';
+const leanderIpf = (n, dir = `roms/Amiga/${LEANDER_DIR}`) => `${dir}/Leander_Disk${n}.ipf`;
+
+test('T18 : les trois fichiers exacts de Hicham (Leander_Disk1..3.ipf dans un sous-dossier) donnent UN jeu « Leander »', async () => {
+  await withProject({ [leanderIpf(1)]: 'x', [leanderIpf(2)]: 'x', [leanderIpf(3)]: 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.equal(result.games.length, 1);
+    const [game] = result.games;
+    assert.equal(game.title, 'Leander');
+    assert.equal(game.id, 'amiga/leander');
+    assert.equal(game.file, leanderIpf(1));
+    assert.deepEqual(game.disks, [leanderIpf(1), leanderIpf(2), leanderIpf(3)]);
+    assert.deepEqual(diskWarnings(result).filter((w) => !/IPF/.test(w)), [], 'seul l\'avertissement IPF est attendu');
+  });
+});
+
+test('T18 : parseLooseDiskTag reconnaît Disk1, Disk_1, Disk-1, Disk 1, _Disk1, Disque1, Disc1, D1 et rend la base', () => {
+  for (const stem of ['Leander Disk1', 'Leander_Disk_1', 'Leander-Disk-1', 'Leander Disk 1', 'Leander_Disk1', 'Leander Disque1', 'Leander Disc1', 'Leander_D1', 'Leander D1', 'leander DISK1']) {
+    const tag = parseLooseDiskTag(stem);
+    assert.equal(tag?.number, 1, stem);
+    assert.equal(tag.base.toLowerCase(), 'leander', stem);
+  }
+});
+
+test('T18 : parseLooseDiskTag garde les parenthèses utiles, retire les [drapeaux], accepte une base vide (nom de dossier utilisé ensuite)', () => {
+  assert.deepEqual(parseLooseDiskTag('Leander (1991)(Psygnosis)_Disk2 [a]'), { base: 'Leander (1991)(Psygnosis)', number: 2 });
+  assert.deepEqual(parseLooseDiskTag('Disk3'), { base: '', number: 3 });
+});
+
+test('T18 contre-exemples : Disk Wars, Disk 0, DiskEditor, Disk1a, D1 collé, Disk 1 of 3 (TOSEC) ne sont pas des étiquettes libres', () => {
+  for (const stem of ['Disk Wars', 'Disk 0', 'Leander Disk0', 'Disk Editor 1', 'Leander Disk1a', 'LeanderD1', 'Leander d1', 'Leander', 'Disk 2 Wars', 'Leander Disk 100']) {
+    assert.equal(parseLooseDiskTag(stem), null, stem);
+  }
+});
+
+test('T18 : « Disk Wars » seul ou avec un voisin « Disk Wars 2 » n\'est pas regroupé', async () => {
+  await withProject({ 'roms/amiga/Disk Wars.adf': 'x', 'roms/amiga/Disk Wars 2.adf': 'x', 'roms/amiga/Disk Wars 3.adf': 'x' }, async (root) => {
+    const games = await gamesOf(root);
+    assert.equal(games.length, 3);
+    assert.ok(games.every((g) => !('disks' in g)));
+  });
+});
+
+test('T18 : un seul fichier Disk1 reste un jeu simple, sans avertissement ni disks', async () => {
+  await withProject({ 'roms/amiga/Foo_Disk1.adf': 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.equal(result.games.length, 1);
+    assert.equal('disks' in result.games[0], false);
+    assert.equal(result.games[0].id, 'amiga/foo_disk1');
+    assert.deepEqual(diskWarnings(result), []);
+  });
+});
+
+test('T18 : un seul fichier Disk2 (ne commence pas à 1) reste un jeu simple', async () => {
+  await withProject({ 'roms/amiga/Foo_Disk2.adf': 'x' }, async (root) => {
+    assert.equal('disks' in (await gamesOf(root))[0], false);
+  });
+});
+
+test('T18 : numéros non consécutifs (Disk1 et Disk3) ou ne commençant pas à 1 : pas de regroupement, avertissement', async () => {
+  for (const numbers of [[1, 3], [2, 3]]) {
+    const files = Object.fromEntries(numbers.map((n) => [`roms/amiga/Foo_Disk${n}.adf`, 'x']));
+    await withProject(files, async (root) => {
+      const result = await generateGames({ root, now: FIXED_DATE });
+      assert.equal(result.games.length, 2, numbers.join());
+      assert.ok(result.games.every((g) => !('disks' in g)));
+      assert.ok(diskWarnings(result).some((w) => /Foo.*non regroup/.test(w)), numbers.join());
+    });
+  }
+});
+
+test('T18 : extensions différentes ou dossiers différents ne sont pas regroupés', async () => {
+  await withProject({
+    'roms/amiga/Foo_Disk1.adf': 'x', 'roms/amiga/Foo_Disk2.ipf': 'x',
+    'roms/amiga/a/Bar_Disk1.adf': 'x', 'roms/amiga/b/Bar_Disk2.adf': 'x',
+  }, async (root) => {
+    const games = await gamesOf(root);
+    assert.equal(games.length, 4);
+    assert.ok(games.every((g) => !('disks' in g)));
+  });
+});
+
+test('T18 : noms de base différents ne sont pas regroupés (Foo_Disk1 + Bar_Disk2)', async () => {
+  await withProject({ 'roms/amiga/Foo_Disk1.adf': 'x', 'roms/amiga/Bar_Disk2.adf': 'x' }, async (root) => {
+    assert.equal((await gamesOf(root)).length, 2);
+  });
+});
+
+test('T18 : toutes les écritures (Disk 1, Disk-1, Disque1, Disc1, D1) regroupent à la racine de la machine, ordre numérique, Disk 10 après Disk 2', async () => {
+  const forms = { 'Foo Disk %n.adf': 'Foo', 'Foo-Disk-%n.adf': 'Foo', 'Foo_Disque%n.adf': 'Foo', 'Foo Disc%n.adf': 'Foo', 'Foo_D%n.adf': 'Foo' };
+  for (const pattern of Object.keys(forms)) {
+    const files = {};
+    for (let n = 1; n <= 10; n++) files[`roms/amiga/${pattern.replace('%n', n)}`] = 'x';
+    await withProject(files, async (root) => {
+      const games = await gamesOf(root);
+      assert.equal(games.length, 1, pattern);
+      assert.equal(games[0].title, 'Foo');
+      assert.equal(games[0].disks.length, 10);
+      assert.equal(games[0].disks[9], `roms/amiga/${pattern.replace('%n', 10)}`);
+    });
+  }
+});
+
+test('T18 : « D1 » seul, collé au nom ou sans suite 1..n, n\'est pas regroupé', async () => {
+  await withProject({ 'roms/amiga/Foo_D1.adf': 'x', 'roms/amiga/FooD2.adf': 'x', 'roms/amiga/Bar D1.adf': 'x', 'roms/amiga/Bar D3.adf': 'x' }, async (root) => {
+    const games = await gamesOf(root);
+    assert.equal(games.length, 4);
+    assert.ok(games.every((g) => !('disks' in g)));
+  });
+});
+
+test('T18 : nom vide après retrait du numéro (Disk1.adf, Disk2.adf dans un dossier) : titre = nom du dossier nettoyé', async () => {
+  await withProject({ 'roms/amiga/Super Jeu (1992)(Editeur)/Disk1.adf': 'x', 'roms/amiga/Super Jeu (1992)(Editeur)/Disk2.adf': 'x' }, async (root) => {
+    const [game] = await gamesOf(root);
+    assert.equal(game.title, 'Super Jeu');
+    assert.equal(game.disks.length, 2);
+  });
+});
+
+test('T18 : Disk1.adf, Disk2.adf directement à la racine de la machine (aucun dossier) : pas de regroupement (aucun titre possible)', async () => {
+  await withProject({ 'roms/amiga/Disk1.adf': 'x', 'roms/amiga/Disk2.adf': 'x' }, async (root) => {
+    const games = await gamesOf(root);
+    assert.equal(games.length, 2);
+    assert.ok(games.every((g) => !('disks' in g)));
+  });
+});
+
+test('T18 : jaquette du groupe cherchée sous le nom de la disquette 1 ou de la base', async () => {
+  await withProject({ 'roms/amiga/Foo_Disk1.adf': 'x', 'roms/amiga/Foo_Disk2.adf': 'x', 'roms/amiga/Foo.png': 'x' }, async (root) => {
+    assert.equal((await gamesOf(root))[0].cover, 'roms/amiga/Foo.png');
+  });
+});
+
+test('T18 : les règles existantes restent vraies : .m3u prioritaire, doublon de numéro avertit, TOSEC inchangé', async () => {
+  await withProject({
+    'roms/amiga/Foo.m3u': 'Foo_Disk1.adf\nFoo_Disk2.adf\n', 'roms/amiga/Foo_Disk1.adf': 'x', 'roms/amiga/Foo_Disk2.adf': 'x',
+    'roms/amiga/Bar_Disk1.adf': 'x', 'roms/amiga/Bar_Disk1 [a].adf': 'x', 'roms/amiga/Bar_Disk2.adf': 'x',
+    [LEANDER(1)]: 'x', [LEANDER(2)]: 'x', [LEANDER(3)]: 'x',
+  }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.deepEqual(result.games.map((g) => g.title), ['Bar', 'Foo', 'Leander']);
+    assert.equal(result.games.find((g) => g.title === 'Bar').disks.length, 2);
+    assert.equal('disks' in result.games.find((g) => g.title === 'Foo'), false);
+    assert.equal(result.games.find((g) => g.title === 'Leander').disks.length, 3);
+    assert.ok(result.warnings.some((w) => /disquette 1/.test(w) && /ignoré/.test(w)));
+  });
+});
+
+test('T18 : un .cue nommé Disk1 / Disk2 n\'est jamais regroupé', async () => {
+  await withProject({ 'roms/megacd/Foo_Disk1.cue': cueText('a.bin'), 'roms/megacd/Foo_Disk2.cue': cueText('b.bin'), 'roms/megacd/a.bin': 'x', 'roms/megacd/b.bin': 'x' }, async (root) => {
+    const games = await gamesOf(root);
+    assert.equal(games.length, 2);
+    assert.ok(games.every((g) => !('disks' in g)));
+  });
+});
+
+test('T18 : un jeu IPF (ou un groupe de disquettes IPF) est listé mais le générateur avertit que le cœur puae ne le lit pas', async () => {
+  await withProject({ [leanderIpf(1)]: 'x', [leanderIpf(2)]: 'x', 'roms/amiga/Autre.ipf': 'x', 'roms/amiga/Bon.adf': 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.equal(result.games.length, 3, 'les IPF restent listés');
+    const ipf = diskWarnings(result).filter((w) => /IPF/.test(w));
+    assert.equal(ipf.length, 2, 'un avertissement par jeu IPF, pas par fichier');
+    assert.ok(ipf.every((w) => /ADF/.test(w)));
+    assert.ok(!ipf.some((w) => /Bon/.test(w)));
+  });
+});
+
+test('T18 diskSets : sur une machine sans diskSets (Master System), Foo_Disk1 / Foo_Disk2 et le format TOSEC ne sont jamais regroupés', async () => {
+  await withProject({
+    'roms/mastersystem/Foo_Disk1.sms': 'x', 'roms/mastersystem/Foo_Disk2.sms': 'x',
+    'roms/mastersystem/Bar (Disk 1 of 2).sms': 'x', 'roms/mastersystem/Bar (Disk 2 of 2).sms': 'x',
+  }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.equal(result.games.length, 4);
+    assert.ok(result.games.every((g) => !('disks' in g)));
+    assert.deepEqual(result.warnings.filter((w) => /incomplet|non regroup/.test(w)), []);
+  });
+});
+
+test('T18 performance : un nom de 5000 caractères est analysé en moins de 200 ms (pas de retour sur trace catastrophique)', () => {
+  const started = Date.now();
+  for (const stem of [`${'a'.repeat(5000)} Disk ${'1'.repeat(3000)}x`, `${'_ '.repeat(2500)}Disk`, `${'a '.repeat(2500)}Disk 1 ${'('.repeat(2000)}`, `${'(a)'.repeat(1700)}_Disk1`, `${'a'.repeat(5000)}`]) {
+    parseLooseDiskTag(stem);
+    parseDiskTag(stem);
+  }
+  assert.ok(Date.now() - started < 200, `trop lent : ${Date.now() - started} ms`);
 });

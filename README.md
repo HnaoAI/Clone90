@@ -54,7 +54,7 @@ EmulatorJS n'accepte que des **noms de fichier précis**. Renommez votre Kicksta
 | `kick39106.A4000`, `kick40068.A4000` | A4000 |
 | `kick40060.CD32` | CD32 |
 
-Les jeux Amiga (`.adf`, `.adz`, `.dms`, `.ipf`, `.hdf`, `.hdz`, `.lha`, `.zip`, `.m3u`) vont dans `roms/amiga/` (la casse du dossier n'a pas d'importance : `roms/Amiga/` est trouvé aussi). Testé avec un vrai Kickstart 3.1 A1200 renommé `kick40068.A1200` et un `.adf` : le jeu démarre, l'émulation est réglée sur le modèle A1200. Le format IPF n'est pas encore validé. Jeux à plusieurs disquettes : voir « Amiga multi-disquettes » plus bas.
+Les jeux Amiga (`.adf`, `.adz`, `.dms`, `.ipf`, `.hdf`, `.hdz`, `.lha`, `.zip`, `.m3u`) vont dans `roms/amiga/` (la casse du dossier n'a pas d'importance : `roms/Amiga/` est trouvé aussi). Testé avec un vrai Kickstart 3.1 A1200 renommé `kick40068.A1200` et un `.adf` : le jeu démarre, l'émulation est réglée sur le modèle A1200. **Le format IPF n'est probablement pas pris en charge** (d'après l'analyse du cœur, non confirmé en navigateur) : le cœur Amiga d'EmulatorJS 4.2.3 ne contient pas la bibliothèque qui le lit (voir « Format IPF » plus bas). Utilisez des ADF. Jeux à plusieurs disquettes : voir « Amiga multi-disquettes » plus bas.
 
 ### BIOS Neo Geo
 
@@ -92,11 +92,15 @@ Le script lit `systems.json`, scanne `roms/<machine>/` (un niveau de sous-dossie
 - `--check` : affiche le diagnostic sans écrire `games.json`.
 - Titre : nom du fichier nettoyé (`Lemmings (Europe).adf` donne `Lemmings`), ou, pour les romsets arcade et Neo Geo, la correspondance de `data/titles.json` (`"mslug": "Metal Slug"`). Ajoutez-y vos romsets.
 - Jaquette (facultative) : une image `.png`, `.jpg`, `.jpeg` ou `.webp` de même nom que le jeu, dans le même dossier.
-- Amiga multi-disquettes (T10) : déposez toutes les disquettes dans le même dossier (`roms/amiga/`) avec des noms qui ne diffèrent que par le numéro, au format TOSEC/No-Intro : `Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf`, `(Disk 2 of 3)`, `(Disk 3 of 3)` (aussi `(Disk 1)` ou `Disk 1 of 3`). Après `node scripts/generate-games.mjs`, elles forment UNE tuile (« Leander ») qui se lance avec toutes les disquettes ; le générateur avertit si une disquette manque. Sinon, un `.m3u` écrit à la main reste possible (seul le `.m3u` apparaît alors comme jeu ; non testé avec de vrais fichiers).
+- Amiga multi-disquettes (T10) : déposez toutes les disquettes dans le même dossier (`roms/amiga/`) avec des noms qui ne diffèrent que par le numéro, au format TOSEC/No-Intro : `Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf`, `(Disk 2 of 3)`, `(Disk 3 of 3)` (aussi `(Disk 1)` ou `Disk 1 of 3`). Les noms simples sont regroupés aussi (T18) : `Jeu_Disk1`, `Jeu Disk 1`, `Jeu-Disk-1`, `Jeu_Disque1`, `Jeu Disc1`, `Jeu_D1` (même dossier, même extension, même nom une fois le numéro retiré, numéros 1, 2, 3... sans trou ; un seul fichier reste un jeu simple, et `Disk Wars` n'est pas une disquette). Le titre est le nom sans le numéro, ou à défaut le nom du dossier (`Leander (1991)(Psygnosis)[0496]/Disk1.adf` donne « Leander »). Après `node scripts/generate-games.mjs`, elles forment UNE tuile (« Leander ») qui se lance avec toutes les disquettes ; le générateur avertit si une disquette manque. Sinon, un `.m3u` écrit à la main reste possible (seul le `.m3u` apparaît alors comme jeu ; non testé avec de vrais fichiers).
 - Changer de disquette en jeu (Amiga) : voir la section « Changer de disquette en jeu » plus bas.
 - Mega-CD (T15) : un `.cue` et les fichiers de ses lignes `FILE` forment UNE tuile ; ces fichiers ne sont pas listés à part (même principe que le `.m3u`).
 - BIOS spécifique à un jeu : un fichier `<nom du jeu>.bios` contenant le nom du BIOS (une ligne).
 - Les fichiers cachés (commençant par `.`) sont ignorés.
+
+## Format IPF (T18)
+
+Le cœur Amiga (puae) d'EmulatorJS 4.2.3 liste `.ipf` comme extension, mais **ne peut vraisemblablement pas lire les IPF** (analyse du binaire et du source, non confirmée en navigateur) : il cherche la bibliothèque `capsimg.so` par chargement dynamique, or son build WebAssembly le désactive (message « dynamic linking not enabled ») et la CDN ne fournit pas ce fichier. Les IPF restent listés par `generate-games.mjs`, qui avertit « au format IPF ... utilisez des ADF ». **Préférez des ADF** (outil de conservation de votre choix, ou téléchargez la version ADF de vos propres jeux). Si le moteur refuse un jeu IPF, l'écran « Ce jeu n'a pas pu démarrer » l'explique ; le cœur peut aussi démarrer sans erreur et laisser un lecteur vide (écran « insérez une disquette »).
 
 ## Changer de disquette en jeu
 
@@ -128,7 +132,7 @@ Le guide de publication sur GitHub Pages est dans [docs/guide.md](docs/guide.md)
 
 - Quitter un jeu ramène à la grille de la machine avec le jeu quitté sélectionné. Le bouton Retour du navigateur, depuis cette grille, peut ramener à l'écran Jouer du même jeu.
 - Sortie du jeu : Select + Start maintenus 1 s (manette), F10 ou Échap maintenu 1 s (clavier), bouton Menu (souris, tactile), geste Retour d'Android. Tous ouvrent une confirmation.
-- Validé avec de vrais fichiers (ticket T0, Chromium) : Neo Geo (Viewpoint) et Amiga (Leander), BIOS trouvés, pause et reprise, F10, Échap maintenu. Multi-disquettes (T10) : chargement des 3 disquettes de Leander et menu de changement vus en navigateur automatisé, mais pas encore vérifiés à la main en jouant. Pas encore validé : format IPF, Échap maintenu en plein écran sur un vrai Chrome (sinon utiliser F10 ou le bouton Menu).
+- Validé avec de vrais fichiers (ticket T0, Chromium) : Neo Geo (Viewpoint) et Amiga (Leander), BIOS trouvés, pause et reprise, F10, Échap maintenu. Multi-disquettes (T10) : chargement des 3 disquettes de Leander et menu de changement vus en navigateur automatisé, mais pas encore vérifiés à la main en jouant. Pas encore validé : Échap maintenu en plein écran sur un vrai Chrome (sinon utiliser F10 ou le bouton Menu).
 
 ## Installation PWA et hors ligne (T8)
 

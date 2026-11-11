@@ -10,7 +10,7 @@ const neogeo = {
   bios: [{ file: 'neogeo.zip', required: true, role: 'default', keepZipped: true }],
 };
 const amiga = {
-  id: 'amiga', name: 'Amiga', emulatorjsCore: 'amiga',
+  id: 'amiga', name: 'Amiga', emulatorjsCore: 'amiga', diskSets: true,
   bios: [{ file: 'kick40068.A1200', required: true, role: 'default' }],
   coreOptions: { puae_model: 'A1200', puae_floppy_multidrive: 'disabled' },
 };
@@ -613,4 +613,11 @@ test('T15 une machine sans biosAtLeastOne (Game Boy) sans BIOS n\'est pas bloquÃ
   const plan = buildLaunchPlan({ system: realSystem('gameboy'), game: { id: 'gameboy/t', system: 'gameboy', title: 'T', file: 'roms/gameboy/t.gb' } });
   assert.equal(plan.atLeastOneBios, null);
   assert.deepEqual((await checkPlanFiles(plan, async (u) => !u.startsWith('bios/'))).missing, []);
+});
+
+test('T18 diskSets : sans diskSets sur la machine, un champ disks est ignorÃ© (jeu simple, EJS_gameUrl, pas de m3u virtuel)', () => {
+  const plan = buildLaunchPlan({ system: nes, game: { id: 'nes/x', system: 'nes', title: 'X', file: 'roms/nes/x1.nes', cover: null, disks: ['roms/nes/x1.nes', 'roms/nes/x2.nes'] } });
+  assert.equal(plan.globals.EJS_gameUrl, 'roms/nes/x1.nes');
+  assert.equal(plan.virtualGame, null);
+  assert.equal(plan.rawFiles.length, 0);
 });

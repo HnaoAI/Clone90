@@ -6,6 +6,7 @@
       "name": "Amiga",
       "order": 10,
       "emulatorjsCore": "amiga",
+      "diskSets": true,
       "extensions": [
         "adf",
         "adz",

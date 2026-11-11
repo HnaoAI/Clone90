@@ -214,3 +214,8 @@ test('T15 config : MAX_VISIBLE_WAVE vaut 2 et couvre la vague la plus haute de s
   assert.equal(MAX_VISIBLE_WAVE, 2);
   assert.ok(systems.every((s) => s.wave <= MAX_VISIBLE_WAVE));
 });
+
+test('T18 diskSets : true sur l\'Amiga seule (jeux à plusieurs disquettes), absent ailleurs', () => {
+  assert.equal(byId('amiga').diskSets, true);
+  for (const s of systems.filter((x) => x.id !== 'amiga')) assert.equal('diskSets' in s, false, s.id);
+});

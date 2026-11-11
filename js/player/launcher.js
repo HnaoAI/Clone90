@@ -74,7 +74,8 @@ export function diskSetFiles(game) {
 }
 
 /** Vrai si le jeu se lance avec plusieurs disquettes. */
-const hasDiskSet = (game) => Array.isArray(game.disks) && game.disks.length > 1;
+/** T18 : seules les machines avec `diskSets: true` (Amiga) lancent un jeu en plusieurs disquettes ; ailleurs `disks` est ignoré. */
+const hasDiskSet = (system, game) => system.diskSets === true && Array.isArray(game.disks) && game.disks.length > 1;
 
 /**
  * Plan de lancement (fonction pure) : variables globales d'EmulatorJS, URL du loader, fichiers à contrôler.
@@ -105,7 +106,7 @@ export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL, debug = fa
     globals.EJS_disableLocalStorage = true;
   }
   const biosUrl = bios && assetUrl(biosPath);
-  const diskSet = hasDiskSet(game) ? diskSetFiles(game) : null;
+  const diskSet = hasDiskSet(system, game) ? diskSetFiles(game) : null;
   const rawFiles = diskSet ? [...diskSet.rawFiles] : [];
   if (!diskSet) globals.EJS_gameUrl = assetUrl(game.file);
   // T15 : fichiers cités par le .cue (Mega-CD), posés à la racine sous le nom écrit dans le .cue (le cœur les cherche à côté du .cue).

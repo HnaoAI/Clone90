@@ -37,6 +37,7 @@ let dialog = null;
 let leaveUrl = HOME_PAGE;
 let menu = null;
 let currentGameTitle = '';
+let currentGameFiles = []; // T18 : fichiers du jeu, pour expliquer un échec IPF
 let diskCount = 1;
 let pendingStartFailure = null; // échec du cœur arrivé pendant la boîte de confirmation (T14)
 let exitHint = null;
@@ -103,7 +104,7 @@ function showStartFailure(info) {
   diskShortcut.stop();
   gameElement.hidden = true;
   document.body.classList.remove('is-playing');
-  const { title, details } = describeStartFailure(info);
+  const { title, details } = describeStartFailure({ ...info, gameFiles: currentGameFiles });
   console.error('Le cœur a refusé le jeu :', info);
   showMessage({ title, details });
 }
@@ -234,6 +235,7 @@ async function main() {
   }
   leaveUrl = buildReturnUrl(systemId, game.id);
   currentGameTitle = game.title;
+  currentGameFiles = game.disks ?? [game.file];
   diskCount = game.disks?.length ?? 1;
   currentSnapshot = { ...currentSnapshot, machine: `${system.name} (${system.id}, cœur ${system.emulatorjsCore})`, game: `${game.title} (${game.id})` };
   logEvent(`Page ouverte : ${currentSnapshot.machine}, ${currentSnapshot.game}`);

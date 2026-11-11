@@ -115,24 +115,80 @@ export function parseDiskTag(stem) {
   return base ? { base, number, total: total ? Number(total) : null } : null;
 }
 
+// T18 : noms de disquette sans la forme TOSEC (`Leander_Disk1`, `Disk-2`, `Disque 3`, `Disc4`, `Nom_D5`). Le mot (ou D) est précédé d'un
+// non-lettre, le numéro (1 ou 2 chiffres, non collé à une lettre) termine le nom, seules des (…) ou […] peuvent suivre. « Disk Wars » n'a
+// pas de numéro : pas d'étiquette. `D5` exige un préfixe et un séparateur (`LeanderD1` n'en est pas un) ; un seul fichier ne forme jamais un groupe.
+const LOOSE_TAIL = String.raw`(?![\dA-Za-z])((?:\s*[(\[][^)\]]*[)\]])*)\s*$`;
+const LOOSE_DISK_WORD = new RegExp(String.raw`^(.*?)[\s_-]*(?<![A-Za-z])(?:Disk|Disc|Disque)[\s_-]*(\d{1,2})${LOOSE_TAIL}`, 'i');
+const LOOSE_DISK_LETTER = new RegExp(String.raw`^(.+?)[\s_-]+D(\d{1,2})${LOOSE_TAIL}`);
+
+/**
+ * Lit une étiquette de disquette libre (T18) dans un nom sans extension. À n'appeler que si `parseDiskTag` n'a rien trouvé.
+ * @returns {{base: string, number: number}|null} `base` = nom sans l'étiquette ni les [drapeaux], peut être vide (`Disk1`) : l'appelant utilise alors le dossier ; null si pas d'étiquette
+ */
+export function parseLooseDiskTag(stem) {
+  const m = LOOSE_DISK_WORD.exec(stem) ?? LOOSE_DISK_LETTER.exec(stem);
+  if (!m) return null;
+  const number = Number(m[2]);
+  if (!(number >= 1)) return null;
+  const base = `${m[1]} ${m[3]}`.replace(/\s*\[[^\]]*\]/g, '').replace(/[\s_-]+/g, ' ').trim();
+  return { base, number };
+}
+
+/** Vrai si les numéros (sans doublon) forment 1, 2, … n avec n >= 2. */
+const isConsecutiveFromOne = (numbers) => {
+  const distinct = [...new Set(numbers)].sort((a, b) => a - b);
+  return distinct.length >= 2 && distinct.every((n, i) => n === i + 1);
+};
+
+/** Titre de base d'un groupe libre : la base du nom, ou à défaut (vide ou sans lettre ni chiffre) le nom du dossier parent. */
+function looseGroupBase(file, tagBase) {
+  if (/[\p{L}\p{N}]{2,}/u.test(cleanTitle(tagBase))) return tagBase;
+  const dir = posix.dirname(file);
+  return dir === '.' ? '' : posix.basename(dir);
+}
+
 /**
  * Sépare les fichiers en jeux simples et en groupes de disquettes (même dossier, même extension, même nom de base).
+ * Deux sortes de groupes : TOSEC (`Disk N of M`, un groupe incomplet reste un groupe, avec avertissement) et libres (T18, `Disk1` ;
+ * ne sont regroupés que des numéros consécutifs à partir de 1, sinon les fichiers restent des jeux simples).
  * @param {string[]} files chemins relatifs au dossier de la machine
+ * @param {string} systemId pour les avertissements
+ * @param {string[]} warnings reçoit les avertissements
  * @returns {{singles: string[], groups: {base: string, total: number|null, disks: {file: string, number: number}[]}[]}}
  */
-function groupDiskSets(files) {
+function groupDiskSets(files, systemId, warnings) {
   const singles = [];
   const byKey = new Map();
+  const looseByKey = new Map();
+  const addTo = (map, key, base, entry, total = null) => {
+    if (!map.has(key)) map.set(key, { base, total: null, disks: [] });
+    const group = map.get(key);
+    group.total = Math.max(group.total ?? 0, total ?? 0) || null;
+    group.disks.push(entry);
+  };
   for (const file of files) {
-    const tag = ['m3u', 'cue'].includes(extOf(file)) ? null : parseDiskTag(stemOf(file));
-    if (!tag) { singles.push(file); continue; }
-    const key = `${posix.dirname(file)}|${extOf(file)}|${tag.base.toLowerCase()}`;
-    if (!byKey.has(key)) byKey.set(key, { base: tag.base, total: null, disks: [] });
-    const group = byKey.get(key);
-    group.total = Math.max(group.total ?? 0, tag.total ?? 0) || null;
-    group.disks.push({ file, number: tag.number });
+    const stem = stemOf(file);
+    const isImageSet = !['m3u', 'cue'].includes(extOf(file));
+    const tag = isImageSet ? parseDiskTag(stem) : null;
+    if (tag) {
+      addTo(byKey, `${posix.dirname(file)}|${extOf(file)}|${tag.base.toLowerCase()}`, tag.base, { file, number: tag.number }, tag.total);
+      continue;
+    }
+    const loose = isImageSet ? parseLooseDiskTag(stem) : null;
+    const base = loose ? looseGroupBase(file, loose.base) : '';
+    if (!base) { singles.push(file); continue; }
+    addTo(looseByKey, `${posix.dirname(file)}|${extOf(file)}|${base.toLowerCase()}`, base, { file, number: loose.number });
   }
-  return { singles, groups: [...byKey.values()] };
+  const groups = [...byKey.values()];
+  for (const group of looseByKey.values()) {
+    if (isConsecutiveFromOne(group.disks.map((d) => d.number))) { groups.push(group); continue; }
+    singles.push(...group.disks.map((d) => d.file));
+    if (group.disks.length > 1) {
+      warnings.push(`${systemId} : disquettes de ${group.base} non regroupées (numéros non consécutifs à partir de 1) : ${group.disks.map((d) => posix.basename(d.file)).join(', ')}`);
+    }
+  }
+  return { singles, groups };
 }
 
 /** Trie par numéro de disquette et garde un seul fichier par numéro (le premier par nom), avec avertissement pour les autres. */
@@ -233,7 +289,8 @@ export function buildSystemGames({ system, files, texts, titles, dirName = syste
     if (ext !== 'm3u' && referenced.has(f.toLowerCase())) continue;
     candidates.push(f);
   }
-  const { singles, groups } = groupDiskSets(candidates);
+  // T18 : seules les machines avec `diskSets: true` (systems.json) regroupent des disquettes ; ailleurs « Disk 1 » est un nom comme un autre.
+  const { singles, groups } = system.diskSets === true ? groupDiskSets(candidates, system.id, warnings) : { singles: candidates, groups: [] };
   for (const f of singles) addGame(makeId(system.id, stemOf(f)), buildGame(f, stemOf(f), [stemOf(f)]), f);
   for (const group of groups) {
     const kept = keepOneFilePerDisk(group, system.id, warnings);
@@ -247,6 +304,10 @@ export function buildSystemGames({ system, files, texts, titles, dirName = syste
     const game = buildGame(first.file, group.base, [stemOf(first.file), group.base]);
     game.disks = kept.map((d) => `roms/${dirName}/${d.file}`);
     addGame(game.id, game, first.file);
+  }
+  // T18 : d'après l'analyse du cœur puae d'EmulatorJS 4.2.3 (non confirmée en navigateur), l'IPF n'est probablement pas lu (capsimg.so absent, chargement dynamique désactivé : voir docs/architecture.md 3.1 et le ticket T18).
+  for (const game of byId.values()) {
+    if (extOf(game.file) === 'ipf') warnings.push(`${system.id} : ${game.title} est au format IPF, que le cœur d'EmulatorJS 4.2.3 ne lit probablement pas (non confirmé en navigateur) : préférez des ADF`);
   }
   const games = [...byId.values()].sort((a, b) =>
     compareTitles(a.title, b.title) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));

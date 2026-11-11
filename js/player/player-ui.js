@@ -47,14 +47,19 @@ export function describeLoadError({ reason, gamesStatus, message }) {
   return { title: 'Impossible de lancer ce jeu.', detail: message ?? 'Erreur inconnue.' };
 }
 
+const IPF_EXPLANATION = "Les fichiers IPF ne sont probablement pas lus par le moteur (il manque le module C.A.P.S.). Utilisez des disquettes au format ADF.";
+const IPF_CORE_MESSAGE = /C\.A\.P\.S|capsimg|CAPS (?:library|plug-?in)/i;
+
 /**
  * Écran d'erreur quand le cœur a refusé le jeu (T14). La raison est devinée d'après les messages du cœur (ex. FBNeo "ROM ... is missing").
- * @param {{coreMessages?: string[]}} [info] messages d'erreur du cœur (ejs-start-watch.js)
+ * T18 : un jeu .ipf ou un message C.A.P.S. de puae donne l'explication IPF (cœur puae d'EmulatorJS 4.2.3 sans capsimg.so).
+ * @param {{coreMessages?: string[], gameFiles?: string[]}} [info] messages d'erreur du cœur (ejs-start-watch.js) et fichiers du jeu
  * @returns {{title: string, details: string[]}}
  */
-export function describeStartFailure({ coreMessages = [] } = {}) {
+export function describeStartFailure({ coreMessages = [], gameFiles = [] } = {}) {
+  const ipf = gameFiles.some((f) => /\.ipf$/i.test(f)) || coreMessages.some((m) => IPF_CORE_MESSAGE.test(m));
   const missing = coreMessages.some((m) => /missing|not found|required|introuvable|manquant/i.test(m));
-  const details = [missing
+  const details = [ipf ? IPF_EXPLANATION : missing
     ? "Un fichier du jeu ou du BIOS est manquant ou incorrect (mauvais nom ou mauvaise version)."
     : "Le moteur a refusé ce fichier : le jeu ou le BIOS est peut-être incorrect ou incompatible.",
   "Vérifiez les dossiers roms/ et bios/ (voir le README)."];
