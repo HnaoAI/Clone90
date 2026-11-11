@@ -26,7 +26,7 @@ test('lanceur Mac : contient les étapes (cd, Node, generate-games, serve, open)
   assert.match(s, /command -v node/);
   assert.match(s, /https:\/\/nodejs\.org/);
   assert.match(s, /node scripts\/generate-games\.mjs/);
-  assert.match(s, /node scripts\/serve\.mjs/);
+  assert.match(s, /node scripts\/serve\.mjs --host 127\.0\.0\.1/);
   assert.match(s, /http:\/\/localhost:8080\//);
   assert.match(s, /open "\$URL"/);
   assert.match(s, /Clone90 tourne\. Pour l'arrêter, fermez cette fenêtre ou appuyez sur Ctrl \+ C\./);

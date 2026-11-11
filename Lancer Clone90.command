@@ -32,19 +32,21 @@ if curl -fs --max-time 2 "$URL" 2>/dev/null | grep -q "Clone90"; then
   exit 0
 fi
 
-node scripts/serve.mjs &
+# --host 127.0.0.1 : jeux et BIOS visibles depuis ce Mac seulement, pas depuis le réseau (Wi-Fi public).
+node scripts/serve.mjs --host 127.0.0.1 &
 SERVEUR=$!
 # Le serveur s'arrête avec la fenêtre (fermeture ou Ctrl + C).
 trap 'kill "$SERVEUR" 2>/dev/null' EXIT HUP INT TERM
 
 # Attend que la page réponde (50 essais espacés d'un dixième de seconde, soit 5 secondes au plus).
 for _ in $(seq 1 50); do
-  curl -fs --max-time 1 -o /dev/null "$URL" 2>/dev/null && break
+  # Ne s'arrête que si la page est bien celle de Clone90 (pas un autre programme sur le port 8080).
+  curl -fs --max-time 1 "$URL" 2>/dev/null | grep -q "Clone90" && break
   kill -0 "$SERVEUR" 2>/dev/null || break
   sleep 0.1
 done
 
-if ! kill -0 "$SERVEUR" 2>/dev/null; then
+if ! kill -0 "$SERVEUR" 2>/dev/null || ! curl -fs --max-time 1 "$URL" 2>/dev/null | grep -q "Clone90"; then
   echo "Le serveur n'a pas pu démarrer (le port 8080 est peut-être utilisé par un autre programme)."
   attendre_touche
   exit 1

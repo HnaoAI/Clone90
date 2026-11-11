@@ -4,7 +4,7 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 
 - `systems.test.mjs` : validité de `systems.json` (schéma, ids uniques, amiga et neogeo complets).
 - `serve.test.mjs` : serveur local (index.html, MIME, 404, Range, refus de `../`, noms de fichiers spéciaux, liens symboliques hors racine, nosniff) (T1, T11).
-- `serve-port.test.mjs` : choix du port (`--port`, `PORT`, défaut 8080).
+- `serve-port.test.mjs` : choix du port (`--port`, `PORT`, défaut 8080) et de l'hôte (`--host`, `HOST`) (T20).
 - `generate-games.test.mjs` : générateur de `games.json` sur de faux fichiers temporaires (titres, .m3u, jaquettes, tri, cas limites).
 - `actions.test.mjs` : clavier et manette vers actions, répétition, réveil de manette, boucle avec environnement factice (T4).
 - `focus-nav.test.mjs` : navigation spatiale avec rectangles et éléments factices (T4).
