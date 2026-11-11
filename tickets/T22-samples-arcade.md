@@ -26,3 +26,9 @@ Hicham n'a pas de son sur Zaxxon (`roms/arcade/zaxxon.zip`). Dans FBNeo (`src/bu
 
 ## Vérification manuelle
 Poser `bios/samples/zaxxon.zip` (pack de samples), lancer Zaxxon : le son doit être audible. Sans le fichier : le jeu se lance comme avant, sans erreur. Journal de diagnostic (`?debug=1`) : la ligne « Setting system dir to ... » du cœur confirme l'hypothèse 1.
+
+## Test existant adapté
+`tests/launcher.test.mjs`, « arcade (systems.json réel) : neogeo.zip présent... » : son HEAD répondait vrai pour tout, donc les samples entraient dans `rawFiles`. Le HEAD ignore maintenant `bios/samples/` ; l'intention du test (neogeo.zip seul) est inchangée, les samples ont leur test (`tests/samples.test.mjs`).
+
+## Notes de revue (tech-lead, OK sans correction)
+Adaptation du test acceptée. Pour plus tard : les clones (ex. `zaxxonb`) demandent le pack de leur parent, prévoir alors un champ facultatif par jeu.
