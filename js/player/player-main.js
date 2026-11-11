@@ -1,5 +1,5 @@
 // Point d'entrée de player.html (T7) : Jouer, lancement d'EmulatorJS, sortie confirmée, retour avec focus.
-// Dépend de data, router, input/*, ui/dialog, ui/input-mode et de player/* (launcher, exit-guard, exit-hint, player-ui).
+// Dépend de data, router, version, input/*, ui/dialog, ui/input-mode et de player/* (launcher, exit-guard, exit-hint, player-ui, diagnostic-panel).
 // Phases : boot -> ready (écran Jouer) -> playing -> dialog (confirmation, jeu en pause) ; error à tout moment avant le jeu.
 // INVARIANT : pendant 'playing', la source d'actions est passive (isActive) : clavier et manette appartiennent au jeu.
 // Seuls exit-guard (lecture seule) et le bouton Menu peuvent demander la sortie.
@@ -15,6 +15,9 @@ import { clear } from '../ui/dom.js';
 import { buildLaunchPlan, checkPlanFiles, headExists, describeMissing, loadEmulator, pauseEmulator, resumeEmulator, getDiskState, switchToDisk } from './launcher.js';
 import { createExitGuard } from './exit-guard.js';
 import { createDiskShortcut, diskToastText, DISK_ERROR_TEXT } from './disk-shortcut.js';
+import { mountDiagnostic } from './diagnostic-panel.js';
+import { describeDiskTrace } from './diagnostic-log.js';
+import { APP_VERSION, APP_DATE } from '../version.js';
 import { shouldShowExitHint, EXIT_HINT_MS } from './exit-hint.js';
 import {
   renderPlayScreen, renderPlayerMessage, renderLoading, renderExitHint, createMenuButton, exitDialogOptions,
@@ -37,6 +40,13 @@ let currentGameTitle = '';
 let diskCount = 1;
 let pendingStartFailure = null; // échec du cœur arrivé pendant la boîte de confirmation (T14)
 let exitHint = null;
+let currentSnapshot = { version: APP_VERSION, date: APP_DATE }; // machine et jeu ajoutés quand ils sont connus
+// Mode diagnostic (T16) : null sans `debug=1` dans l'adresse, donc aucun panneau, aucun journal, journal du cœur inchangé.
+const diagnostic = mountDiagnostic({
+  search: location.search, host: document.body, notify: toast,
+  getSnapshot: () => ({ ...currentSnapshot, disks: getDiskState(window) }),
+});
+const logEvent = (text) => diagnostic?.log.addEvent(text);
 
 /** Quitte la page (location.replace : le jeu n'a pas besoin d'être dans l'historique). Le déchargement coupe moteur et son. */
 function leave(url) {
@@ -48,6 +58,7 @@ const goBack = () => leave(leaveUrl);
 
 function showMessage({ title, details, actionLabel = 'Revenir à la liste' }) {
   phase = 'error';
+  logEvent(`Message affiché : ${title} ${details.join(' ')}`);
   clear(screen);
   screen.append(renderPlayerMessage({ title, details, actionLabel, onAction: goBack }));
   nav.focusById(BACK_NAV_ID);
@@ -113,7 +124,7 @@ const guard = createExitGuard({
 const diskShortcut = createDiskShortcut({
   isEnabled: () => phase === 'playing',
   getDiskState: () => getDiskState(window),
-  changeDisk: (index) => switchToDisk(window, index),
+  changeDisk: (index, source) => switchToDisk(window, index, source),
   onChanged: (index, count) => toast(diskToastText(index, count)),
   onError: (error) => { console.error('Changement de disquette impossible :', error); toast(DISK_ERROR_TEXT); },
 });
@@ -185,7 +196,11 @@ async function play(plan) {
   window.addEventListener('popstate', onPopState);
   exitHint = showExitHint();
   try {
-    await loadEmulator(plan, { onStart: hideLoading, onFailure: showStartFailure });
+    await loadEmulator(plan, {
+      onStart: () => { hideLoading(); logEvent('Jeu démarré (EJS_onGameStart)'); },
+      onFailure: (info) => { logEvent(`Le cœur a refusé le jeu : ${info.line}`); showStartFailure(info); },
+      ...(diagnostic ? { onDiskTrace: (event) => logEvent(describeDiskTrace(event)), onCoreLine: diagnostic.log.addCoreLine } : {}),
+    });
   } catch (e) {
     // INVARIANT (T11/A2) : on reste armé (garde, popstate, bouton Menu) : phase 'error' quitte en un seul appui.
     exitHint?.remove();
@@ -220,9 +235,11 @@ async function main() {
   leaveUrl = buildReturnUrl(systemId, game.id);
   currentGameTitle = game.title;
   diskCount = game.disks?.length ?? 1;
+  currentSnapshot = { ...currentSnapshot, machine: `${system.name} (${system.id}, cœur ${system.emulatorjsCore})`, game: `${game.title} (${game.id})` };
+  logEvent(`Page ouverte : ${currentSnapshot.machine}, ${currentSnapshot.game}`);
   let plan;
   try {
-    plan = buildLaunchPlan({ system, game });
+    plan = buildLaunchPlan({ system, game, debug: diagnostic !== null });
   } catch (e) {
     showMessage({ title: 'Impossible de lancer ce jeu.', details: [e.message] });
     return;

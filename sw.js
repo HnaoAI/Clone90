@@ -5,19 +5,27 @@
 // dans le cache. Le service worker ne répond même pas à ces requêtes : elles vont directement au réseau.
 // Décision (architecture 8.4) : EmulatorJS garde lui-même ses cœurs en cache navigateur ; le CDN n'est pas pris en charge ici.
 // INVARIANT : tout fichier de js/, css/ ou assets/icons/ ou assets/fonts/ doit figurer dans SHELL_FILES (les logos de assets/logos/ viennent de systems.json, voir logoPaths) (vérifié par tests/sw.test.mjs).
-// Relever CACHE_VERSION quand la liste change : l'activation supprime les anciens caches.
+// Nom du cache (T16) : `clone90-shell-v<APP_VERSION>`. La version vient de js/version.js (source unique) par l'adresse d'enregistrement
+// `sw.js?v=<version>` (js/pwa.js) : un script classique ne peut pas importer un module ES. Relever APP_VERSION à chaque livraison suffit donc
+// à renouveler le cache (l'activation supprime les anciens caches) et à faire détecter une nouvelle version du service worker par le navigateur.
 // Chemins relatifs à la portée du service worker (GitHub Pages sous /<dépôt>/).
-const CACHE_VERSION = 'clone90-shell-v3';
 const CACHE_PREFIX = 'clone90-shell-';
+
+/** Version lue dans l'adresse du script (`?v=`). Seuls chiffres, lettres, point et tiret sont admis ; sinon 'dev'. */
+function versionFromScriptSearch(search) {
+  const value = /[?&]v=([^&#]*)/.exec(search ?? '')?.[1];
+  return value && /^[0-9A-Za-z.-]{1,32}$/.test(value) ? value : 'dev';
+}
+const CACHE_VERSION = `${CACHE_PREFIX}v${versionFromScriptSearch(self.location?.search)}`;
 
 const SHELL_FILES = [
   './', 'index.html', 'player.html', 'manifest.webmanifest', 'systems.json',
   'css/base.css', 'css/home.css', 'css/grid.css', 'css/player.css',
-  'js/app.js', 'js/config.js', 'js/data.js', 'js/router.js', 'js/screens.js', 'js/sort.js',
+  'js/app.js', 'js/config.js', 'js/data.js', 'js/router.js', 'js/screens.js', 'js/sort.js', 'js/version.js',
   'js/input/actions.js', 'js/input/focus-nav.js',
   'js/ui/dialog.js', 'js/ui/dom.js', 'js/ui/error-screen.js', 'js/ui/format.js', 'js/ui/game-grid.js',
   'js/ui/input-mode.js', 'js/ui/logo.js', 'js/ui/machine-grid.js', 'js/ui/toast.js',
-  'js/player/disk-shortcut.js', 'js/player/ejs-start-watch.js', 'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js', 'js/player/retroarch-cfg.js',
+  'js/player/diagnostic-log.js', 'js/player/diagnostic-panel.js', 'js/player/disk-shortcut.js', 'js/player/ejs-start-watch.js', 'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js', 'js/player/retroarch-cfg.js',
   'js/pwa.js',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/icon-192-maskable.png', 'assets/icons/icon-512-maskable.png',
   'assets/fonts/PressStart2P-Regular.ttf', 'assets/fonts/OFL.txt',

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { PROJECT_ROOT } from '../scripts/serve.mjs';
 import { canRegisterServiceWorker, registerServiceWorker } from '../js/pwa.js';
 import { SERVICE_WORKER_URL } from '../js/config.js';
+import { APP_VERSION } from '../js/version.js';
 
 const read = (f) => readFileSync(join(PROJECT_ROOT, f));
 const manifest = JSON.parse(read('manifest.webmanifest').toString('utf8'));
@@ -65,7 +66,7 @@ test('registerServiceWorker : enregistre sw.js en relatif et renvoie true', asyn
   const calls = [];
   const nav = { serviceWorker: { register: async (url) => { calls.push(url); } } };
   assert.equal(await registerServiceWorker(nav, true), true);
-  assert.deepEqual(calls, ['sw.js']);
+  assert.deepEqual(calls, [`sw.js?v=${APP_VERSION}`]); // T16 : la version passe par l'adresse (voir tests/version.test.mjs)
 });
 
 test('registerServiceWorker : refus ou erreur = false sans rejet, rien tenté hors contexte sécurisé', async () => {
@@ -75,4 +76,12 @@ test('registerServiceWorker : refus ou erreur = false sans rejet, rien tenté ho
   called = false;
   assert.equal(await registerServiceWorker(failing, false), false);
   assert.equal(called, false);
+});
+
+test('T16 pages : index.html et player.html déclarent une icône existante (pas de requête /favicon.ico)', () => {
+  for (const page of ['index.html', 'player.html']) {
+    const href = /<link rel="icon" type="image\/png" href="([^"]+)">/.exec(read(page).toString('utf8'))?.[1];
+    assert.ok(href && !href.startsWith('/'), page);
+    assert.ok(read(href).length > 0, href);
+  }
 });

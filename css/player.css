@@ -100,3 +100,50 @@ body.is-playing .menu-wrap { opacity: 0.6; }
 
 /* Toast du player (T12, "Disquette 2 / 3") : au-dessus du lecteur (#game z-index 1), sous le bouton Menu en haut ; en bas au centre. */
 .player-body .toast { z-index: 60; }
+
+/* Panneau de diagnostic (T16, player.html?...&debug=1 seulement). Replié : pastille en haut à droite. Ouvert : sous le bouton Menu (haut gauche), jamais dessus. */
+.diag {
+  position: fixed;
+  z-index: 60;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  right: calc(8px + env(safe-area-inset-right, 0px));
+  max-width: calc(100vw - 16px);
+  font: 0.75rem/1.4 var(--font-mono);
+  color: var(--text);
+}
+.diag.is-open {
+  left: calc(8px + env(safe-area-inset-left, 0px));
+  top: calc(64px + env(safe-area-inset-top, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  max-width: 36rem;
+  margin-left: auto;
+}
+.diag-toggle, .diag-button {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  opacity: 0.85;
+  cursor: pointer;
+}
+.diag-body {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: calc(100vh - 120px);
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(15, 17, 23, 0.94);
+  user-select: text;
+}
+.diag-body[hidden] { display: none; }
+.diag pre { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.diag-title { margin: 8px 0 4px; font: 700 0.75rem/1.4 var(--font-mono); color: var(--accent); }

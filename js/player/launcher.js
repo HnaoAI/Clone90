@@ -15,6 +15,12 @@ import { assetUrl, assetPathFromUrl, isRelativePath } from '../data.js';
 /** Délai (ms) après EJS_onGameStart pendant lequel le menu des disques peut encore "sélectionner" le disque courant tout seul (voir guardDiskMenuStartup). */
 export const STARTUP_GRACE_MS = 2000;
 
+/** Délais (ms) auxquels l'état du cœur est relu après un changement, pour le journal de diagnostic (T16). */
+export const DISK_STATE_CHECK_MS = [500, 2000, 5000];
+
+/** Source notée dans le journal quand le changement ne vient pas de nos raccourcis : le menu « Disks » d'EmulatorJS. */
+export const DEFAULT_DISK_SOURCE = 'menu EmulatorJS';
+
 /** Id de l'élément qui reçoit EmulatorJS (EJS_player = '#game'). */
 export const GAME_ELEMENT_ID = 'game';
 
@@ -74,11 +80,11 @@ const hasDiskSet = (game) => Array.isArray(game.disks) && game.disks.length > 1;
  * BIOS "keepZipped" (Neo Geo) : EmulatorJS stable extrait toujours le zip passé à EJS_biosUrl, alors que fbneo veut `neogeo.zip`
  * entier à la racine (constaté en T0 : "ROM sp-s3.sp1 is missing"). Le plan le met donc dans `rawFiles` : loadEmulator le télécharge
  * et le pose tel quel via EJS_externalFiles (seule voie qui écrit sans extraire).
- * @param {{system: object, game: object, cdnUrl?: string}} input `cdnUrl` : surcharge pour les tests (défaut config.js)
+ * @param {{system: object, game: object, cdnUrl?: string, debug?: boolean}} input `cdnUrl` : surcharge pour les tests (défaut config.js) ; `debug` : mode diagnostic (T16), journal du cœur au niveau info
  * @returns {{globals: Object<string, any>, loaderUrl: string, files: {kind: 'game'|'bios', path: string, url: string, required: boolean}[], rawFiles: {url: string, fsPath: string}[], retroarchCfgExtra: string}}
  * @throws {Error} cœur absent, BIOS invalide
  */
-export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL }) {
+export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL, debug = false }) {
   if (!system.emulatorjsCore) throw new Error(`Aucun cœur EmulatorJS déclaré pour ${system.name ?? system.id}`);
   const dataUrl = withTrailingSlash(cdnUrl);
   const bios = resolveBios(system, game);
@@ -107,7 +113,7 @@ export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL }) {
   const files = gamePaths.map((path) => ({ kind: 'game', path, url: assetUrl(path), required: true }));
   if (bios) files.push({ kind: 'bios', path: biosPath, url: biosUrl, required: bios.required });
   // T14 : lignes AJOUTÉES au retroarch.cfg d'EmulatorJS (journal d'erreurs pour détecter un échec ; raccourcis RetroArch à nul si la machine le demande).
-  const retroarchCfgExtra = buildRetroArchCfgExtra({ disableHotkeys: system.disableRetroArchHotkeys === true });
+  const retroarchCfgExtra = buildRetroArchCfgExtra({ disableHotkeys: system.disableRetroArchHotkeys === true, debug });
   return { globals, loaderUrl: `${dataUrl}loader.js`, files, rawFiles, retroarchCfgExtra, virtualGame: diskSet?.virtualGame ?? null };
 }
 
@@ -185,26 +191,45 @@ function onEmulatorCreated(win, hooks) {
  *  3. Un vrai changement de disque (setCurrentDisk) lève "unreachable" au premier appel (le plateau du lecteur s'ouvre mais l'index ne
  *     change pas) et réussit au second : constaté sur 6 changements de suite, avec ou sans puae_floppy_multidrive. On rappelle donc une
  *     fois ; si le second appel échoue aussi, on tente de remettre le disque d'origine (try/catch), puis l'erreur remonte. Le jeu n'est pas fermé.
- * @param {{setTimer?: Function}} [env] minuterie injectable pour les tests
+ * Journal de diagnostic (T16) : si `onTrace` est fourni, chaque changement émet des évènements {type: request|ignored|first-call|second-call|restore|state} (voir diagnostic-log.js),
+ *  dont l'état du cœur 0,5 s, 2 s et 5 s après (DISK_STATE_CHECK_MS). Sans `onTrace`, aucun minuteur supplémentaire.
+ * @param {{setTimer?: Function, onTrace?: Function|null, getState?: Function}} [env] minuterie, journal et lecture d'état injectables pour les tests
  * @returns {{patch: (emulator: object) => void, gameStarted: () => void}} patch : à appliquer à l'instance (onEmulatorCreated) ; gameStarted : à appeler à EJS_onGameStart (la protection de démarrage prend fin STARTUP_GRACE_MS après)
  */
-function createDiskMenuGuard({ setTimer = setTimeout } = {}) {
+function createDiskMenuGuard({ setTimer = setTimeout, onTrace = null, getState = () => null } = {}) {
   let startupOver = false;
+  // Journal de diagnostic (T16) : alimenté ICI seulement, l'unique chemin de tout changement de disquette (menu, F9, Select+RB).
+  const trace = (event) => { if (onTrace) { try { onTrace(event); } catch { /* le diagnostic ne casse jamais le jeu */ } } };
+  const traceStateLater = () => {
+    if (onTrace) for (const delayMs of DISK_STATE_CHECK_MS) setTimer(() => trace({ type: 'state', delayMs, state: getState() }), delayMs);
+  };
   const patch = (emulator) => {
     emulator.allSettings ??= {};
     const handleSpecialOptions = emulator.handleSpecialOptions;
     emulator.handleSpecialOptions = function (option, value) {
-      const originalDisk = option === 'disk' ? this.gameManager?.getCurrentDisk?.() : undefined;
-      if (option === 'disk' && !startupOver && Number(value) === originalDisk) return undefined;
+      if (option !== 'disk') return handleSpecialOptions.call(this, option, value);
+      const source = this.clone90DiskSource ?? DEFAULT_DISK_SOURCE;
+      this.clone90DiskSource = undefined;
+      const originalDisk = this.gameManager?.getCurrentDisk?.();
+      trace({ type: 'request', source, value: String(value), current: originalDisk });
+      if (!startupOver && Number(value) === originalDisk) { trace({ type: 'ignored', value: String(value) }); return undefined; }
+      traceStateLater();
       try {
-        return handleSpecialOptions.call(this, option, value);
+        const result = handleSpecialOptions.call(this, option, value);
+        trace({ type: 'first-call', ok: true });
+        return result;
       } catch (error) {
-        if (option !== 'disk') throw error;
+        trace({ type: 'first-call', ok: false, error });
         try {
-          return handleSpecialOptions.call(this, option, value);
+          const result = handleSpecialOptions.call(this, option, value);
+          trace({ type: 'second-call', ok: true });
+          return result;
         } catch (secondError) {
+          trace({ type: 'second-call', ok: false, error: secondError });
           if (Number.isInteger(originalDisk)) {
-            try { handleSpecialOptions.call(this, option, String(originalDisk)); } catch { /* rétablissement au mieux */ }
+            let restored = false;
+            try { handleSpecialOptions.call(this, option, String(originalDisk)); restored = true; } catch { /* rétablissement au mieux */ }
+            trace({ type: 'restore', value: String(originalDisk), ok: restored });
           }
           throw secondError;
         }
@@ -217,12 +242,12 @@ function createDiskMenuGuard({ setTimer = setTimeout } = {}) {
 /**
  * Pose les variables EJS_* puis charge loader.js depuis le CDN.
  * @param {{globals: object, loaderUrl: string, rawFiles?: {url: string, fsPath: string}[], virtualGame?: {name: string, text: string}|null}} plan
- * @param {{win?: Window, doc?: Document, onStart?: () => void, onFailure?: (info: {line: string, coreMessages: string[]}) => void, getBytes?: (url: string) => Promise<Uint8Array>}} [env]
+ * @param {{win?: Window, doc?: Document, onStart?: () => void, onFailure?: (info: {line: string, coreMessages: string[]}) => void, getBytes?: (url: string) => Promise<Uint8Array>, onDiskTrace?: Function, onCoreLine?: (line: string) => void}} [env]
  *   injectable pour les tests ; onStart : le jeu a démarré ; onFailure : le cœur a refusé le contenu (voir ejs-start-watch.js), au plus une fois
  * @returns {Promise<void>} résolu quand loader.js est chargé (EmulatorJS charge ensuite le cœur et le jeu tout seul)
  * @throws {Error} #game absent, BIOS illisible, ou CDN inaccessible
  */
-export async function loadEmulator(plan, { win = globalThis.window, doc = globalThis.document, onStart = () => {}, onFailure = () => {}, getBytes = fetchBytes, setTimer = setTimeout } = {}) {
+export async function loadEmulator(plan, { win = globalThis.window, doc = globalThis.document, onStart = () => {}, onFailure = () => {}, getBytes = fetchBytes, setTimer = setTimeout, onDiskTrace = null, onCoreLine = null } = {}) {
   if (!doc.getElementById(GAME_ELEMENT_ID)) throw new Error(`Élément #${GAME_ELEMENT_ID} absent de la page`);
   const externalFiles = {};
   for (const { url, fsPath } of plan.rawFiles ?? []) {
@@ -231,11 +256,11 @@ export async function loadEmulator(plan, { win = globalThis.window, doc = global
   return new Promise((resolve, reject) => {
     Object.assign(win, plan.globals);
     if (Object.keys(externalFiles).length) win.EJS_externalFiles = externalFiles;
-    const diskGuard = plan.virtualGame ? createDiskMenuGuard({ setTimer }) : null;
+    const diskGuard = plan.virtualGame ? createDiskMenuGuard({ setTimer, onTrace: onDiskTrace, getState: () => getDiskState(win) }) : null;
     onEmulatorCreated(win, [() => appendRetroArchCfg(win, plan.retroarchCfgExtra), ...(diskGuard ? [diskGuard.patch] : [])]);
     if (plan.virtualGame) win.EJS_gameUrl = new File([plan.virtualGame.text], plan.virtualGame.name, { type: 'audio/x-mpegurl' });
     const watch = createStartFailureWatch({ onFailure, setTimer });
-    hookCoreOutput(win, (line) => watch.feed(line));
+    hookCoreOutput(win, (line) => { watch.feed(line); onCoreLine?.(line); });
     win.EJS_onGameStart = () => { diskGuard?.gameStarted(); watch.started(); onStart(); };
     const script = doc.createElement('script');
     script.src = plan.loaderUrl;
@@ -279,11 +304,12 @@ export function getDiskState(win = globalThis.window) {
  * Insère la disquette `index` (0-based). INVARIANT (T12) : passe par handleSpecialOptions('disk', n), la même fonction que le menu
  * "Disks" d'EmulatorJS, donc par le contournement de guardDiskMenuStartup (rappel unique). Pas de second chemin.
  * Limite : le menu d'EmulatorJS garde sa propre sélection affichée et peut montrer l'ancien disque après un changement par raccourci.
- * @param {Window} win @param {number} index
+ * @param {Window} win @param {number} index @param {string} [source] origine notée dans le journal de diagnostic ('F9', 'Select+RB'), lue puis effacée par le contournement
  * @throws {Error} EmulatorJS pas prêt, ou le changement échoue deux fois
  */
-export function switchToDisk(win, index) {
+export function switchToDisk(win, index, source = DEFAULT_DISK_SOURCE) {
   const emulator = win.EJS_emulator;
   if (typeof emulator?.handleSpecialOptions !== 'function') throw new Error('EmulatorJS n\'est pas prêt');
+  emulator.clone90DiskSource = source;
   emulator.handleSpecialOptions('disk', String(index));
 }

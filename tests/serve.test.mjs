@@ -307,3 +307,8 @@ test('roms lié vers un dossier externe : fichiers servis, mais un lien sortant 
     renameSync(saved, roms);
   }
 });
+
+test('T16 : /favicon.ico absent répond 404 (pas 403), et le reste de la racine non publique reste en 403', async () => {
+  assert.equal((await get('/favicon.ico')).status, 404);
+  assert.equal((await get('/package.json')).status, 403);
+});
