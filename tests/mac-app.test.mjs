@@ -48,7 +48,7 @@ test('application Mac : sortie du serveur dans ~/Library/Logs/Clone90.log, pid m
 
 test('application Mac : on quit arrête le serveur par son pid (et lui seul) puis quitte; on reopen rouvre la page', () => {
   const s = source();
-  assert.match(s, /on quit\s+my stopServer\(\)\s+continue quit\s+end quit/);
+  assert.match(s, /on quit\s+global [^\n]+\s+my stopServer\(\)\s+continue quit\s+end quit/);
   assert.match(s, /kill " & serverPid/);
   assert.match(s, /grep -q serve\.mjs/, 'on vérifie que le pid est encore serve.mjs avant de tuer');
   assert.doesNotMatch(s, /killall|pkill|lsof/);
