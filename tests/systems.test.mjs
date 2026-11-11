@@ -200,8 +200,13 @@ test('T15 preload : seulement les BIOS dont le cœur se sert vraiment (Mega-CD, 
   for (const s of systems) for (const b of s.bios) if ('preload' in b) assert.equal(typeof b.preload, 'boolean');
 });
 
-test('T15 aucun cœur de la vague 2 n\'active le clavier direct (core.json sans useKeyboard) : disableRetroArchHotkeys réservé à l\'Amiga', () => {
-  for (const s of systems.filter((x) => x.id !== 'amiga')) assert.equal('disableRetroArchHotkeys' in s, false, s.id);
+test('T15 disableRetroArchHotkeys : jamais à false dans systems.json (le défaut du lanceur protège toutes les machines)', () => {
+  for (const s of systems) assert.notEqual(s.disableRetroArchHotkeys, false, s.id);
+});
+
+test('T15 Mega-CD : biosAtLeastOne (au moins un des trois BIOS est nécessaire), absent ailleurs', () => {
+  assert.equal(byId('megacd').biosAtLeastOne, true);
+  for (const s of systems.filter((x) => x.id !== 'megacd')) assert.equal('biosAtLeastOne' in s, false, s.id);
 });
 
 test('T15 config : MAX_VISIBLE_WAVE vaut 2 et couvre la vague la plus haute de systems.json', async () => {

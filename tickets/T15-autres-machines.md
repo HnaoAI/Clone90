@@ -16,6 +16,11 @@ Arcade, Master System, Mega Drive, Game Gear, Mega-CD, 32X, NES, Super Nintendo,
 ## Hors périmètre
 - Parent/clone des romsets arcade (`EJS_gameParentUrl`), SGB, Sega CD multi-disque `.m3u`, options de cœur.
 
+## Risques ouverts
+- Mega-CD cue+bin : un `.bin` (300 à 700 Mo) est lu en `Uint8Array` puis recopié dans le système de fichiers du cœur ; peut dépasser la mémoire WebAssembly sans message utile. Chargement séquentiel conservé. Recommandé : `.chd` ou `.iso`. Non testé avec de vrais fichiers.
+- Mega-CD : au moins un des trois BIOS est exigé (`biosAtLeastOne`), message en français sinon.
+- Raccourcis RetroArch à nul pour toutes les machines par défaut (décision tech-lead, revue T15) ; `disableRetroArchHotkeys: false` pour l'ôter. Le test T14 « Neo Geo : aucun raccourci touché » est remplacé en conséquence (changement de spécification, pas un affaiblissement).
+
 ## Critères d'acceptation
 1. Chaque machine a un cœur EmulatorJS connu d'EmulatorJS 4.2.3, des extensions que ce cœur accepte (ou l'archive `zip`), et aucune machine n'est en double.
 2. Les BIOS déclarés sont cohérents (noms exacts de leur cœur, `preload` seulement pour des fichiers dont le cœur se sert).

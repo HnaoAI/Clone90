@@ -139,6 +139,7 @@
         "chd",
         "zip"
       ],
+      "biosAtLeastOne": true,
       "bios": [
         {
           "file": "bios_CD_E.bin",

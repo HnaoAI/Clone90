@@ -124,8 +124,13 @@ export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL, debug = fa
     files.push({ kind: 'bios', path: `${BIOS_DIR}/${entry.file}`, url, required: entry.required === true });
   }
   // T14 : lignes AJOUTÉES au retroarch.cfg d'EmulatorJS (journal d'erreurs pour détecter un échec ; raccourcis RetroArch à nul si la machine le demande).
-  const retroarchCfgExtra = buildRetroArchCfgExtra({ disableHotkeys: system.disableRetroArchHotkeys === true, debug });
-  return { globals, loaderUrl: `${dataUrl}loader.js`, files, rawFiles, retroarchCfgExtra, virtualGame: diskSet?.virtualGame ?? null };
+  const retroarchCfgExtra = buildRetroArchCfgExtra({ disableHotkeys: system.disableRetroArchHotkeys !== false, debug }); // T15 : actif pour toute machine, `false` dans systems.json pour l'ôter
+  // T15 : machine dont les BIOS `preload` sont facultatifs un par un mais dont il faut au moins un (Mega-CD : celui de la région du disque).
+  const preloadFiles = files.filter((f) => f.kind === 'bios' && f !== files.find((x) => x.url === biosUrl));
+  const atLeastOneBios = system.biosAtLeastOne === true && preloadFiles.length
+    ? { urls: preloadFiles.map((f) => f.url), message: `Placez au moins un BIOS ${system.name ?? system.id} (${preloadFiles.map((f) => f.path.slice(BIOS_DIR.length + 1)).join(', ')}) dans le dossier ${BIOS_DIR}/ (nom exact, voir le README).` }
+    : null;
+  return { globals, loaderUrl: `${dataUrl}loader.js`, files, rawFiles, retroarchCfgExtra, atLeastOneBios, virtualGame: diskSet?.virtualGame ?? null };
 }
 
 /**
@@ -144,6 +149,9 @@ export async function checkPlanFiles(plan, head) {
   if (absentOptional.some((f) => f.kind === 'bios' && f.url === globals.EJS_biosUrl)) delete globals.EJS_biosUrl; // seulement le BIOS passé à EJS_biosUrl (T15 : un BIOS preload absent n'y touche pas)
   const absentUrls = absentOptional.map((f) => f.url);
   const rawFiles = (plan.rawFiles ?? []).filter((r) => !absentUrls.includes(r.url));
+  if (plan.atLeastOneBios && results.filter((r) => plan.atLeastOneBios.urls.includes(r.file.url)).every((r) => !r.ok)) {
+    missing.push({ kind: 'bios', path: plan.atLeastOneBios.urls[0], url: plan.atLeastOneBios.urls[0], required: true, message: plan.atLeastOneBios.message });
+  }
   return { missing, plan: { ...plan, globals, rawFiles, files: plan.files.filter((f) => !absentOptional.includes(f)) } };
 }
 
@@ -158,7 +166,9 @@ export const headExists = async (url) => (await fetch(url, { method: 'HEAD', cac
  * @param {{kind: string, path: string}[]} missing
  * @returns {{title: string, detail: string}[]}
  */
-export const describeMissing = (missing) => missing.map((f) => (f.kind === 'bios'
+export const describeMissing = (missing) => missing.map((f) => (f.message
+  ? { title: 'BIOS manquant', detail: f.message }
+  : f.kind === 'bios'
   ? { title: 'BIOS manquant', detail: `Placez ${f.path.slice(BIOS_DIR.length + 1)} dans le dossier ${BIOS_DIR}/ (nom exact, voir le README).` }
   : { title: 'Jeu introuvable', detail: `Le fichier ${f.path} n'existe plus. Relancez node scripts/generate-games.mjs puis rechargez la liste.` }));
 

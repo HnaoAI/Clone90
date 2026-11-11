@@ -76,7 +76,7 @@ Dans chaque dossier, un jeu peut aussi être un `.zip` contenant le fichier du j
 | `gameboy` | `.gb` | Gambatte | `gb_bios.bin` (facultatif, posé) |
 | `gameboycolor` | `.gbc` | Gambatte | `gbc_bios.bin` (facultatif, posé) |
 
-Mega-CD : mettez le `.cue` et ses `.bin` (et pistes audio) dans le même dossier, **sans les renommer** (le `.cue` contient leurs noms). Le générateur n'en fait qu'UNE tuile (le `.cue`). Un `.bin` sans `.cue` est ignoré avec un avertissement. Les images CD sont lourdes (300 à 700 Mo) et sont chargées entièrement en mémoire par le navigateur : préférez le format `.chd` (compressé, un seul fichier). Les `.m3u` (multi-disques) ne sont pas pris en charge.
+Mega-CD : mettez le `.cue` et ses `.bin` (et pistes audio) dans le même dossier, **sans les renommer** (le `.cue` contient leurs noms). Le générateur n'en fait qu'UNE tuile (le `.cue`). Un `.bin` sans `.cue` est ignoré avec un avertissement. Les images CD sont lourdes (300 à 700 Mo) et sont chargées entièrement en mémoire par le navigateur : préférez le format `.chd` ou `.iso` (un seul fichier). **`cue+bin` n'est pas testé avec de vrais fichiers** et peut échouer sans message utile si le disque dépasse la mémoire du navigateur. Les `.m3u` (multi-disques) ne sont pas pris en charge.
 
 ## Générer la liste des jeux
 

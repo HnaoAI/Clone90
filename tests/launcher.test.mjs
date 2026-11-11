@@ -450,12 +450,14 @@ test('T14 disquette : une autre option que disk ne déclenche ni filtre, ni rapp
 // --- T14 : lignes ajoutées au retroarch.cfg par surcharge de getRetroArchCfg, détection d'échec branchée ---
 const amigaWithHotkeys = { ...amiga, disableRetroArchHotkeys: true };
 
-test('T14 buildLaunchPlan : lignes de cfg à ajouter pour toute machine, raccourcis à nul pour l\'Amiga seulement', () => {
+test('T14/T15 buildLaunchPlan : lignes de cfg à ajouter pour toute machine, raccourcis à nul pour TOUTES par défaut, `disableRetroArchHotkeys: false` les laisse', () => {
   const a = buildLaunchPlan({ system: amigaWithHotkeys, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } });
   const n = buildLaunchPlan({ system: neogeo, game: mslug });
+  const off = buildLaunchPlan({ system: { ...neogeo, disableRetroArchHotkeys: false }, game: mslug });
   assert.match(a.retroarchCfgExtra, /^input_menu_toggle = "nul"$/m);
   assert.match(a.retroarchCfgExtra, /^input_audio_mute = "nul"$/m);
-  assert.ok(!n.retroarchCfgExtra.includes('input_'), 'Neo Geo : aucun raccourci touché');
+  assert.match(n.retroarchCfgExtra, /^input_menu_toggle = "nul"$/m, 'T15 : par défaut pour toute machine (protège si la personne active le clavier direct)');
+  assert.ok(!off.retroarchCfgExtra.includes('input_'), 'false : aucun raccourci touché');
   assert.match(n.retroarchCfgExtra, /^log_verbosity = true$/m);
   assert.ok(!/autosave_interval/.test(n.retroarchCfgExtra), 'aucune ligne d\'EmulatorJS recopiée');
 });
@@ -591,4 +593,24 @@ test('T15 loadEmulator : les fichiers du .cue sont lus en octets sous leur nom e
   await loadEmulator(filtered, { win, doc, getBytes: async (url) => new Uint8Array([url.length]) });
   assert.deepEqual(Object.keys(win.EJS_externalFiles), ['/Sonic CD (USA).bin', '/Sonic CD (USA) (Track 2).wav']);
   assert.ok(win.EJS_externalFiles['/Sonic CD (USA).bin'] instanceof Uint8Array);
+});
+
+test('T15 Mega-CD : aucun des trois BIOS présent = fichier manquant bloquant avec un message clair', async () => {
+  const plan = buildLaunchPlan({ system: realSystem('megacd'), game: sonic });
+  const { missing } = await checkPlanFiles(plan, async (url) => !url.startsWith('bios/'));
+  assert.equal(missing.length, 1);
+  assert.deepEqual(describeMissing(missing), [{ title: 'BIOS manquant', detail: 'Placez au moins un BIOS Mega-CD (bios_CD_E.bin, bios_CD_U.bin, bios_CD_J.bin) dans le dossier bios/ (nom exact, voir le README).' }]);
+});
+
+test('T15 Mega-CD : un seul BIOS présent suffit (pas d\'erreur), les deux autres sont retirés', async () => {
+  const plan = buildLaunchPlan({ system: realSystem('megacd'), game: sonic });
+  const { missing, plan: cleaned } = await checkPlanFiles(plan, async (url) => url !== 'bios/bios_CD_E.bin' && url !== 'bios/bios_CD_J.bin');
+  assert.deepEqual(missing, []);
+  assert.deepEqual(cleaned.rawFiles.filter((r) => r.fsPath.startsWith('/bios_')).map((r) => r.fsPath), ['/bios_CD_U.bin']);
+});
+
+test('T15 une machine sans biosAtLeastOne (Game Boy) sans BIOS n\'est pas bloquée', async () => {
+  const plan = buildLaunchPlan({ system: realSystem('gameboy'), game: { id: 'gameboy/t', system: 'gameboy', title: 'T', file: 'roms/gameboy/t.gb' } });
+  assert.equal(plan.atLeastOneBios, null);
+  assert.deepEqual((await checkPlanFiles(plan, async (u) => !u.startsWith('bios/'))).missing, []);
 });
