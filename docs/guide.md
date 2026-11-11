@@ -31,6 +31,15 @@ Ce guide est écrit pour Hicham (Mac, navigateur Opera ou Chrome, et un téléph
 
 Le port 8080 est déjà pris ? Ajoutez `--port 9000` à la commande (et ouvrez `http://localhost:9000`).
 
+### Lancer sans Terminal (Mac)
+
+Double-cliquez sur **`Lancer Clone90.command`** (à la racine du dossier). Il met à jour la liste des jeux, démarre Clone90 et ouvre la page dans votre navigateur. Pour arrêter, fermez la fenêtre (ou `Ctrl + C`).
+
+- **La première fois**, macOS peut bloquer un script téléchargé : clic droit (ou `Ctrl` + clic) sur le fichier, **Ouvrir**, puis **Ouvrir** dans la fenêtre qui s'affiche. Ensuite le double-clic suffit.
+- Vous pouvez glisser le fichier dans le Dock, ou en faire un alias sur le Bureau.
+- Il faut Node.js (<https://nodejs.org>) ; sinon le lanceur vous le dit.
+- Cela ne concerne que le Mac. Sous Windows et Linux, utilisez les commandes ci-dessus.
+
 ### Jouer depuis votre téléphone Android
 
 1. Le Mac et le téléphone doivent être sur **le même Wi-Fi**.

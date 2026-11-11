@@ -25,6 +25,15 @@ Le site est alors sur <http://localhost:8080>. Le serveur affiche aussi l'adress
 - Liens symboliques : `roms/` et `bios/` peuvent être des liens vers un autre disque (ex. `roms` vers `/Volumes/Disque/roms`). Un lien placé DANS ces dossiers (fichier ou sous-dossier) qui pointe hors de leur emplacement réel est refusé (403), comme tout lien du reste du projet qui sort de la racine du projet.
 - Sur Android en réseau local (HTTP), le jeu fonctionne mais le site ne peut pas être installé comme application (limite du navigateur hors HTTPS).
 
+## Lancer sans Terminal (Mac)
+
+Double-cliquez sur **`Lancer Clone90.command`** (à la racine du dossier). Il met à jour la liste des jeux, démarre Clone90 et ouvre la page dans votre navigateur. Pour arrêter, fermez la fenêtre (ou `Ctrl + C`).
+
+- **La première fois**, macOS peut bloquer un script téléchargé : clic droit (ou `Ctrl` + clic) sur le fichier, **Ouvrir**, puis **Ouvrir** dans la fenêtre qui s'affiche. Ensuite le double-clic suffit.
+- Vous pouvez glisser le fichier dans le Dock, ou en faire un alias sur le Bureau.
+- Il faut Node.js (<https://nodejs.org>) ; sinon le lanceur vous le dit.
+- Cela ne concerne que le Mac. Sous Windows et Linux, utilisez les commandes de la section « Lancer en local ».
+
 ## Où mettre les ROMs et les BIOS
 
 Ces dossiers sont ignorés par git : rien de ce que vous y mettez n'est publié. Créez-les s'ils n'existent pas.
