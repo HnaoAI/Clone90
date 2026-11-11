@@ -9,6 +9,8 @@ import { pathToFileURL } from 'node:url';
 import { PROJECT_ROOT } from './project-root.mjs';
 
 export const DEFAULT_PORT = 8080;
+/** Écoute sur toutes les interfaces par défaut (téléphone Android du même Wi-Fi). Le lanceur Mac (T20) passe --host 127.0.0.1. */
+export const DEFAULT_HOST = '0.0.0.0';
 
 // Ré-exportée pour les tests ; définie dans project-root.mjs (partagée avec generate-games.mjs).
 export { PROJECT_ROOT };
@@ -71,6 +73,30 @@ export function resolvePort(argv, env) {
     throw new Error(`Port invalide : "${value}" (entier entre 1 et 65535 attendu)`);
   }
   return port;
+}
+
+/**
+ * Détermine l'adresse d'écoute : option --host (ou --host=H), sinon variable HOST, sinon 0.0.0.0.
+ * @param {string[]} argv arguments sans "node" ni le script
+ * @param {Record<string, string|undefined>} env variables d'environnement
+ * @returns {string} adresse non vide
+ * @throws {Error} si la valeur est vide
+ */
+export function resolveHost(argv, env) {
+  let value;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--host') value = argv[i + 1] ?? '';
+    else if (argv[i].startsWith('--host=')) value = argv[i].slice('--host='.length);
+  }
+  value ??= env.HOST;
+  if (value === undefined) return DEFAULT_HOST;
+  if (value.trim() === '') throw new Error('Adresse invalide : --host attend une adresse (ex. 127.0.0.1)');
+  return value.trim();
+}
+
+/** Vrai si l'adresse d'écoute n'est joignable que depuis ce Mac (T20) : on n'affiche alors pas d'adresse réseau. */
+export function isLocalOnlyHost(host) {
+  return host === 'localhost' || host === '::1' || /^127\./.test(host);
 }
 
 // INVARIANT : envoyé sur TOUTES les réponses (T11/A7) : le navigateur ne devine jamais un type différent du Content-Type annoncé.
@@ -204,8 +230,10 @@ function networkUrls(port) {
 
 function main() {
   let port;
+  let host;
   try {
     port = resolvePort(process.argv.slice(2), process.env);
+    host = resolveHost(process.argv.slice(2), process.env);
   } catch (err) {
     console.error(err.message);
     process.exit(1);
@@ -217,10 +245,10 @@ function main() {
       : err.message);
     process.exit(1);
   });
-  // Écoute sur toutes les interfaces : accès depuis un téléphone du réseau local.
-  server.listen(port, '0.0.0.0', () => {
+  // Par défaut toutes les interfaces (téléphone du réseau local) ; --host 127.0.0.1 : ce Mac seulement.
+  server.listen(port, host, () => {
     console.log(`Clone90 : http://localhost:${port}`);
-    for (const url of networkUrls(port)) console.log(`Réseau local : ${url}`);
+    if (!isLocalOnlyHost(host)) for (const url of networkUrls(port)) console.log(`Réseau local : ${url}`);
     console.log('Ctrl+C pour arrêter.');
   });
 }

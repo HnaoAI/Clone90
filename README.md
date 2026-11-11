@@ -19,6 +19,7 @@ node scripts/serve.mjs
 
 Le site est alors sur <http://localhost:8080>. Le serveur affiche aussi l'adresse réseau (`http://192.168.x.x:8080`) pour jouer depuis un téléphone du même réseau.
 
+- Adresse d'écoute : toutes les interfaces par défaut ; `--host 127.0.0.1` (ou `HOST=127.0.0.1`) pour ce Mac seulement.
 - Autre port : `node scripts/serve.mjs --port 9000` ou `PORT=9000 node scripts/serve.mjs`.
 - Sans Node : `python3 -m http.server 8080` fonctionne aussi (sans requêtes Range).
 - Le serveur sert la racine du projet quel que soit le dossier d'où vous le lancez, et uniquement les fichiers publics du site (pas `.git`, `docs/`, `tickets/`, etc.).
@@ -32,6 +33,7 @@ Double-cliquez sur **`Lancer Clone90.command`** (à la racine du dossier). Il me
 - **La première fois**, macOS peut bloquer un script téléchargé : clic droit (ou `Ctrl` + clic) sur le fichier, **Ouvrir**, puis **Ouvrir** dans la fenêtre qui s'affiche. Ensuite le double-clic suffit.
 - Vous pouvez glisser le fichier dans le Dock, ou en faire un alias sur le Bureau.
 - Il faut Node.js (<https://nodejs.org>) ; sinon le lanceur vous le dit.
+- Le lanceur n'écoute que sur ce Mac (`--host 127.0.0.1`) : vos jeux ne sont pas visibles depuis le réseau. Pour jouer depuis le téléphone, lancez à la main `node scripts/serve.mjs` (sans `--host`), sur un réseau de confiance.
 - Cela ne concerne que le Mac. Sous Windows et Linux, utilisez les commandes de la section « Lancer en local ».
 
 ## Où mettre les ROMs et les BIOS
