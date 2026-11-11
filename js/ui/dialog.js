@@ -1,6 +1,7 @@
 // Boîte de confirmation réutilisable (T6) : accueil, grille et player (T7, "Quitter ce jeu ?"). Dépend de ui/dom.js.
 // INVARIANT : la boîte ne lit JAMAIS clavier ni manette (CLAUDE.md règle 3). L'écran hôte lui transmet les actions
 // de js/input/actions.js via handleAction tant qu'elle est ouverte ; elle les capte toutes (retourne true).
+// Design (T24) : barre de titre rayée (css/base.css), corps dans .dialog-body. Le curseur ▶ du bouton focalisé est du CSS.
 // Choix UX (docs/ux.md 3.4) : 2 boutons [Continuer, Quitter], focus par défaut sur Continuer, back = Continuer.
 import { el } from './dom.js';
 
@@ -60,8 +61,10 @@ export function createConfirmDialog({ title, message, cancelLabel, confirmLabel 
     on: { click: (e) => { if (e.target === element) close(false); } },
   }, [el('div', { class: 'dialog-box' }, [
     titleNode,
-    el('p', { class: 'dialog-message', text: message }, [], doc),
-    el('div', { class: 'dialog-actions' }, buttons, doc),
+    el('div', { class: 'dialog-body' }, [
+      el('p', { class: 'dialog-message', text: message }, [], doc),
+      el('div', { class: 'dialog-actions' }, buttons, doc),
+    ], doc),
   ], doc)], doc);
 
   const focusButton = (i) => { focusIndex = i; buttons[i].focus(); };

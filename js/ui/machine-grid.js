@@ -28,6 +28,23 @@ export function buildMachineTiles(systems, gamesBySystem) {
   return [...tiles.filter((t) => !t.empty), ...tiles.filter((t) => t.empty)];
 }
 
+/** Nombre de segments de la jauge d'une tuile. */
+export const GAUGE_SEGMENTS = 6;
+
+/**
+ * Segments allumés de la jauge décorative d'une machine (T24) : un segment pour 2 jeux, de 0 à GAUGE_SEGMENTS.
+ * @param {number} count nombre de jeux (valeur invalide ou négative : 0)
+ * @returns {boolean[]} GAUGE_SEGMENTS booléens, du bas vers le haut
+ */
+export function gaugeSegments(count) {
+  const lit = Number.isFinite(count) && count > 0 ? Math.min(GAUGE_SEGMENTS, Math.ceil(count / 2)) : 0;
+  return Array.from({ length: GAUGE_SEGMENTS }, (_, i) => i < lit);
+}
+
+/** Jauge décorative (aria-hidden) : le texte « N jeux » reste l'information. */
+const renderGauge = (count, doc) => el('span', { class: 'gauge', attrs: { 'aria-hidden': 'true' } },
+  gaugeSegments(count).map((on) => el('i', { class: on ? 'is-on' : '' }, [], doc)), doc);
+
 /**
  * Message à afficher selon l'état de games.json (architecture 8.1 : message dédié, jamais bloquant).
  * @param {string} status 'ok' | 'empty' | 'absent' | 'offline' | 'invalid' (voir loadData)
@@ -58,6 +75,8 @@ export function describeGamesStatus(status, skipped = 0) {
   }
 }
 
+const withGauge = (logo, count, doc) => { logo.append(renderGauge(count, doc)); return logo; };
+
 /**
  * Construit la liste des cartes machines.
  * @param {ReturnType<typeof buildMachineTiles>} tiles
@@ -71,7 +90,7 @@ export function renderMachineGrid(tiles, doc = globalThis.document) {
       attrs: { href: t.href },
       dataset: { nav: '', navId: t.id },
     }, [
-      createLogo(t, doc),
+      withGauge(createLogo(t, doc), t.count, doc),
       el('span', { class: 'machine-name', text: t.name }, [], doc),
       el('span', { class: 'machine-count', text: t.countLabel }, [], doc),
     ], doc),

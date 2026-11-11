@@ -1,7 +1,7 @@
 // Logo d'une machine et sa couleur d'accent (T5, extrait en T6) : partagés par l'accueil et la grille de jeux. Dépend de ui/dom.js.
 import { el } from './dom.js';
 
-const NEUTRAL_ACCENT = 'var(--surface-2)';
+const NEUTRAL_ACCENT = 'var(--panel-2)';
 
 /**
  * Couleur d'accent d'une machine sous forme de valeur CSS. Seule une variable `--m-xxx` est acceptée
