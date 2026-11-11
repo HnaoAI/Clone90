@@ -10,6 +10,9 @@
 import { EJS_CDN_URL, BIOS_DIR } from '../config.js';
 import { assetUrl, assetPathFromUrl, isRelativePath } from '../data.js';
 
+/** Délai (ms) après EJS_onGameStart pendant lequel le menu des disques peut encore "sélectionner" le disque courant tout seul (voir guardDiskMenuStartup). */
+export const STARTUP_GRACE_MS = 2000;
+
 /** Id de l'élément qui reçoit EmulatorJS (EJS_player = '#game'). */
 export const GAME_ELEMENT_ID = 'game';
 
@@ -151,24 +154,38 @@ export const fetchBytes = async (url) => {
  *  1. menuOptionChanged écrit dans `allSettings`, que seul le menu des réglages crée : "Cannot set properties of undefined (setting 'disk')",
  *     puis "Failed to start game". On donne donc `allSettings = {}` à l'instance dès qu'EmulatorJS la crée (son constructeur ne démarre que
  *     des téléchargements, bien avant startGame) ; setupSettingsMenu remplace ensuite cet objet par le sien.
- *  2. Cette sélection appelle setCurrentDisk(disque déjà inséré) avant la première image : le cœur plante ("unreachable"). Choisir le
- *     disque déjà en place est un non-événement : on l'ignore.
+ *  2. Cette sélection appelle setCurrentDisk(disque déjà inséré) avant la première image : le cœur plante ("unreachable"). Pendant le
+ *     démarrage seulement (jusqu'à STARTUP_GRACE_MS après EJS_onGameStart), choisir le disque déjà en place est un non-événement : on
+ *     l'ignore. Ensuite on ne filtre plus (T14) : setCurrentDisk éjecte puis réinsère, donc re-choisir le disque courant sert à
+ *     "réinsérer" ; le filtre laissait le lecteur vide après deux échecs de suite (index = disque 2 mais lecteur éjecté).
  *  3. Un vrai changement de disque (setCurrentDisk) lève "unreachable" au premier appel (le plateau du lecteur s'ouvre mais l'index ne
  *     change pas) et réussit au second : constaté sur 6 changements de suite, avec ou sans puae_floppy_multidrive. On rappelle donc une
- *     fois ; si le second appel échoue aussi, l'erreur remonte.
+ *     fois ; si le second appel échoue aussi, on tente de remettre le disque d'origine (try/catch), puis l'erreur remonte. Le jeu n'est pas fermé.
+ * @param {Window} win
+ * @param {{setTimer?: Function}} [env] minuterie injectable pour les tests
+ * @returns {{gameStarted: () => void}} gameStarted : à appeler à EJS_onGameStart (la protection de démarrage prend fin STARTUP_GRACE_MS après)
  */
-function guardDiskMenuStartup(win) {
+function guardDiskMenuStartup(win, { setTimer = setTimeout } = {}) {
   let instance = win.EJS_emulator;
+  let startupOver = false;
   const patch = (emulator) => {
     emulator.allSettings ??= {};
     const handleSpecialOptions = emulator.handleSpecialOptions;
     emulator.handleSpecialOptions = function (option, value) {
-      if (option === 'disk' && Number(value) === this.gameManager?.getCurrentDisk?.()) return undefined;
+      const originalDisk = option === 'disk' ? this.gameManager?.getCurrentDisk?.() : undefined;
+      if (option === 'disk' && !startupOver && Number(value) === originalDisk) return undefined;
       try {
         return handleSpecialOptions.call(this, option, value);
       } catch (error) {
         if (option !== 'disk') throw error;
-        return handleSpecialOptions.call(this, option, value);
+        try {
+          return handleSpecialOptions.call(this, option, value);
+        } catch (secondError) {
+          if (Number.isInteger(originalDisk)) {
+            try { handleSpecialOptions.call(this, option, String(originalDisk)); } catch { /* rétablissement au mieux */ }
+          }
+          throw secondError;
+        }
       }
     };
   };
@@ -180,6 +197,7 @@ function guardDiskMenuStartup(win) {
       instance = value;
     },
   });
+  return { gameStarted: () => { setTimer(() => { startupOver = true; }, STARTUP_GRACE_MS); } };
 }
 
 /**
@@ -190,7 +208,7 @@ function guardDiskMenuStartup(win) {
  * @returns {Promise<void>} résolu quand loader.js est chargé (EmulatorJS charge ensuite le cœur et le jeu tout seul)
  * @throws {Error} #game absent, BIOS illisible, ou CDN inaccessible
  */
-export async function loadEmulator(plan, { win = globalThis.window, doc = globalThis.document, onStart = () => {}, getBytes = fetchBytes } = {}) {
+export async function loadEmulator(plan, { win = globalThis.window, doc = globalThis.document, onStart = () => {}, getBytes = fetchBytes, setTimer = setTimeout } = {}) {
   if (!doc.getElementById(GAME_ELEMENT_ID)) throw new Error(`Élément #${GAME_ELEMENT_ID} absent de la page`);
   const externalFiles = {};
   for (const { url, fsPath } of plan.rawFiles ?? []) {
@@ -199,9 +217,9 @@ export async function loadEmulator(plan, { win = globalThis.window, doc = global
   return new Promise((resolve, reject) => {
     Object.assign(win, plan.globals);
     if (Object.keys(externalFiles).length) win.EJS_externalFiles = externalFiles;
-    if (plan.virtualGame) guardDiskMenuStartup(win);
+    const diskGuard = plan.virtualGame ? guardDiskMenuStartup(win, { setTimer }) : null;
     if (plan.virtualGame) win.EJS_gameUrl = new File([plan.virtualGame.text], plan.virtualGame.name, { type: 'audio/x-mpegurl' });
-    win.EJS_onGameStart = onStart;
+    win.EJS_onGameStart = () => { diskGuard?.gameStarted(); onStart(); };
     const script = doc.createElement('script');
     script.src = plan.loaderUrl;
     script.onload = () => resolve();

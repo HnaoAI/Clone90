@@ -26,7 +26,8 @@
         }
       ],
       "coreOptions": {
-        "puae_model": "A1200"
+        "puae_model": "A1200",
+        "puae_floppy_multidrive": "disabled"
       },
       "logo": "assets/logos/amiga.svg",
       "accent": "--m-amiga",
