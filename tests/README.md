@@ -27,3 +27,4 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `diagnostic-log.test.mjs`, `diagnostic-panel.test.mjs` : journal et panneau du mode `debug=1`, absent sans `debug=1` (T16).
 - `disk-trace.test.mjs` : journal des changements de disquette (ok, unreachable puis ok, double échec et rétablissement, état 0,5/2/5 s), lignes du cœur, niveau de log selon debug (T16).
 - `pages.test.mjs` : publication GitHub Pages, `.nojekyll` présent, jamais servi ni mis en cache, pas de nom en `_` (T17).
+- `launcher-mac.test.mjs` : lanceur Mac `Lancer Clone90.command` (contenu, `bash -n`, jamais servi ni mis en cache) (T20).
