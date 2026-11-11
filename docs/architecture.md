@@ -103,6 +103,14 @@ Statut : tout est **[VÉRIFIÉ]** dans le code (EmulatorJS 4.2.3, `core.json` de
 - **Arcade** : même cœur que Neo Geo. Les romsets doivent correspondre à la version de FBNeo du CDN ; un romset « clone » dont le parent est un autre zip (ou qui demande un BIOS comme `pgm.zip`, `neogeo.zip`) échoue sans ce parent : le support parent (`EJS_gameParentUrl`) n'est pas fait (hors T15). `data/titles.json` contient déjà les titres usuels.
 - **Résolution de l'extension de `.bin` de Mega Drive / 32X** : toute extension de ces machines est une ROM de cartouche (pas de `.cue`).
 
+### 3.4 Samples fbneo (T22)
+
+- **Pourquoi** : des pilotes FBNeo (Zaxxon : `zaxxonSampleInfo`/`zaxxonSampleName` dans `d_zaxxon.cpp`) jouent tout leur son par `BurnSamplePlay`. Les samples sont un zip séparé de la ROM ; sans lui, jeu muet. Le cœur libretro les lit dans `<system_dir>/fbneo/samples/<romset>.zip` (`libretro.cpp` : `szAppSamplesPath`, l.2143 ; `path_mkdir` l.2173).
+- **Dossier système** : EmulatorJS 4.2.3 n'écrit aucun `system_directory` dans le retroarch.cfg (`GameManager.js` `getRetroArchCfg`, l.139-156) ; le jeu arcade est écrit à la racine (`emulator.js` l.790) et T0 a vu `neogeo.zip` trouvé dans `/`. Le dossier système effectif est donc `/` [HYPOTHÈSE à confirmer en jeu : journal du cœur « Setting system dir to ... »].
+- **Pose** : `EJS_externalFiles['/fbneo/samples/<romset>.zip']` (octets bruts, jamais extrait). `GameManager.writeFile` crée les dossiers parents (l.122-132), pas besoin de les créer.
+- **Déclaratif** : champ `samples: {dir, fsDir}` des machines `neogeo` et `arcade` dans `systems.json` (6.1). `dir` est sous `bios/` (`bios/samples/`), `fsDir` est le dossier dans le cœur. `launcher.js` (`resolveSamples`) en tire le plan ; fichier facultatif (HEAD, absent = retiré du plan sans erreur).
+- **Règle 6** : `bios/` n'est jamais mis en cache (`sw.js`), le serveur local sert `bios/` en entier, le générateur ne scanne que `roms/`.
+
 ## 4. SharedArrayBuffer, COOP/COEP, GitHub Pages
 
 - `EJS_threads` ne sert qu'aux cœurs listés dans `requiresThreads`. Dans le bundle stable : `["ppsspp","dosbox_pure"]` ; dans la branche main : `+ azahar`. **puae et fbneo n'en font pas partie.** Aucun de nos cœurs (puae, fbneo, smsplus, genesis_plus_gx, picodrive, fceumm, snes9x, gambatte) n'a besoin de threads. [VÉRIFIÉ dans consts.js et emulator.min.js stable]
@@ -168,6 +176,8 @@ Chaque entrée `bios` : `file` (chemin sous `bios/`), `required` (booléen), `ro
 Champ optionnel de machine `disableRetroArchHotkeys` (booléen ; T15 : vrai par défaut pour toute machine, `false` pour l'ôter ; Amiga le déclare encore explicitement) : met à `"nul"` tous les raccourcis de RetroArch (T14, `js/player/retroarch-cfg.js`) ; des lignes sont AJOUTÉES au `retroarch.cfg` d'EmulatorJS pour TOUTES les machines (surcharge de `EJS_GameManager.prototype.getRetroArchCfg`, journal d'erreurs pour détecter un échec de démarrage, `js/player/ejs-start-watch.js`) ; rien d'EmulatorJS n'est recopié.
 
 Champ optionnel de machine `ejsVersion` (chaîne `x.y.z` ; T21, Amiga seule : `"4.2.1"`) : version d'EmulatorJS de la machine, sinon `EJS_CDN_VERSION` de `js/config.js` (voir section 4). Validé par `validateSystems` (`js/data.js`) et par `ejsDataUrl`.
+
+Champ optionnel de machine `samples` (objet `{dir, fsDir}` ; T22, `neogeo` et `arcade` : `{"dir": "samples", "fsDir": "/fbneo/samples"}`) : dossier des packs de samples sous `bios/` et dossier d'arrivée dans le système de fichiers du cœur (section 3.4). Validé par `validateSystems`.
 
 Champ optionnel de machine `diskSets` (booléen ; T18, Amiga seule) : le générateur ne regroupe en un jeu à plusieurs disquettes (`disks`, voir 6.2) que les machines qui le déclarent, et le lanceur ignore `disks` sur les autres.
 

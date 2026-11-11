@@ -28,3 +28,4 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `disk-trace.test.mjs` : journal des changements de disquette (ok, unreachable puis ok, double échec et rétablissement, état 0,5/2/5 s), lignes du cœur, niveau de log selon debug (T16).
 - `pages.test.mjs` : publication GitHub Pages, `.nojekyll` présent, jamais servi ni mis en cache, pas de nom en `_` (T17).
 - `launcher-mac.test.mjs` : lanceur Mac `Lancer Clone90.command` (contenu, `bash -n`, jamais servi ni mis en cache) (T20).
+- `samples.test.mjs` : samples fbneo (plan de lancement Zaxxon avec et sans pack, Neo Geo, Amiga, validation de `samples`, liste blanche du serveur, service worker, générateur) (T22).
