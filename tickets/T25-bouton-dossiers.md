@@ -1,7 +1,7 @@
 # T25 : bouton « Dossiers des jeux »
 
 **Dépend de** : T23, T24
-**Branche** : `ticket/T25-bouton-dossiers` - **Version** : 0.25.0
+**Branche** : `ticket/T25-bouton-dossiers` - **Version** : 0.26.1 (rebase sur T26 ; le test de version impose 0.26.x)
 
 ## Demande
 Hicham : « est-ce que je peux avoir un bouton dans l'interface pour choisir les dossiers bios et roms ? »
