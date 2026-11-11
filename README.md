@@ -111,7 +111,7 @@ Le script lit `systems.json`, scanne `roms/<machine>/` (un niveau de sous-dossie
 
 ## Format IPF (T18)
 
-Le cœur Amiga (puae) d'EmulatorJS 4.2.3 liste `.ipf` comme extension, mais **ne peut vraisemblablement pas lire les IPF** (analyse du binaire et du source, non confirmée en navigateur) : il cherche la bibliothèque `capsimg.so` par chargement dynamique, or son build WebAssembly le désactive (message « dynamic linking not enabled ») et la CDN ne fournit pas ce fichier. Les IPF restent listés par `generate-games.mjs`, qui avertit « au format IPF ... utilisez des ADF ». **Préférez des ADF** (outil de conservation de votre choix, ou téléchargez la version ADF de vos propres jeux). Si le moteur refuse un jeu IPF, l'écran « Ce jeu n'a pas pu démarrer » l'explique ; le cœur peut aussi démarrer sans erreur et laisser un lecteur vide (écran « insérez une disquette »).
+Le cœur Amiga (puae) d'EmulatorJS 4.2.3 (l'Amiga tourne depuis T21 sur 4.2.1, où cette analyse n'a pas été refaite) liste `.ipf` comme extension, mais **ne peut vraisemblablement pas lire les IPF** (analyse du binaire et du source, non confirmée en navigateur) : il cherche la bibliothèque `capsimg.so` par chargement dynamique, or son build WebAssembly le désactive (message « dynamic linking not enabled ») et la CDN ne fournit pas ce fichier. Les IPF restent listés par `generate-games.mjs`, qui avertit « au format IPF ... utilisez des ADF ». **Préférez des ADF** (outil de conservation de votre choix, ou téléchargez la version ADF de vos propres jeux). Si le moteur refuse un jeu IPF, l'écran « Ce jeu n'a pas pu démarrer » l'explique ; le cœur peut aussi démarrer sans erreur et laisser un lecteur vide (écran « insérez une disquette »).
 
 ## Changer de disquette en jeu
 
@@ -160,10 +160,21 @@ Le guide de publication sur GitHub Pages est dans [docs/guide.md](docs/guide.md)
 - Police **Press Start 2P** (Copyright 2012 The Press Start 2P Project Authors, licence SIL Open Font License 1.1) : fichiers `PressStart2P-Regular.ttf` et `OFL.txt` pris dans le dépôt google/fonts (https://github.com/google/fonts/tree/main/ofl/pressstart2p), copiés dans `assets/fonts/`. Téléchargement accepté par Hicham le 2026-11-09.
 - Logos des machines : dessins maison générés par `scripts/generate-logos.mjs`, sans reprise des logos officiels.
 
+## Versions d'EmulatorJS (une par machine)
+
+Deux versions sont utilisées, toutes deux épinglées (jamais `stable`, `latest` ni `nightly`) :
+- **4.2.3**, la version par défaut : constante `EJS_CDN_VERSION` de `js/config.js` (depuis T10). Toutes les machines, Neo Geo comprise.
+- **4.2.1 pour l'Amiga seule** (T21) : champ facultatif `ejsVersion` de `systems.json`. Une seule fonction, `ejsDataUrl` de `js/config.js`, construit l'URL du CDN ; le lanceur (`js/player/launcher.js`) s'en sert pour `EJS_pathtodata` et `loader.js`.
+
+**Pourquoi l'Amiga est sur 4.2.1.** Avec EmulatorJS 4.2.3, le cœur puae lève « RuntimeError: unreachable » à chaque éjection de disquette (pile : `set_current_disk`, `disk_control_set_eject_state` de RetroArch, `retro_disk_set_eject_state` du cœur, puis une fonction du cœur qui trappe). L'éjection n'est jamais terminée : Gods reste sur « PLEASE INSERT DISK 2 » alors que le journal annonce « Disk (2) inserted in drive DF0 ». Avec 4.2.1 (même code Clone90), plus aucune erreur et Gods passe la demande de disquette 2. `nightly` est exclu (API différente, 0 disquette détectée). Détail et preuves : `tickets/T21-amiga-ejs-421.md`.
+
+**Revenir à une seule version plus tard.** Retirer `ejsVersion` de l'Amiga dans `systems.json` quand une version d'EmulatorJS corrige l'éjection de puae, puis retester le changement de disquette avec un jeu à plusieurs disquettes comme Gods (F9, Select+RB et menu « Disks » : aucune erreur « unreachable » dans le journal, le jeu passe la demande de disquette).
+
 ## Relever la version d'EmulatorJS
 
-La version est épinglée dans une seule constante, `EJS_CDN_VERSION` de `js/config.js` (4.2.3 depuis T10). Pour la relever :
-1. Changer la constante, puis lancer un jeu Amiga multi-disquettes (ex. Leander) et un jeu Neo Geo en vrai.
-2. Retester les trois contournements de `guardDiskMenuStartup` dans `js/player/launcher.js` : (a) le jeu démarre sans « Failed to start game », (b) pas de plantage au démarrage, (c) un changement de disquette par le menu « Disks » fonctionne du premier coup.
-3. Retirer un contournement devenu inutile (et son test dans `tests/launcher.test.mjs`) ; ne garder que ceux dont le défaut existe encore.
-4. Mettre à jour `docs/architecture.md` (3.1 et section 4).
+1. Changer `EJS_CDN_VERSION` (toutes les machines sans `ejsVersion`) ou l'`ejsVersion` d'une machine. Format `x.y.z` obligatoire. Lancer ensuite un jeu Amiga multi-disquettes (ex. Gods, Leander) et un jeu Neo Geo en vrai.
+2. Relire dans le source de la nouvelle version (`https://cdn.emulatorjs.org/<version>/data/` : `loader.js`, `src/emulator.js`, `src/GameManager.js`) les points dont dépendent nos contournements : `getRetroArchCfg`, `allSettings`, `handleSpecialOptions`, `getCurrentDisk` / `getDiskCount` / `setCurrentDisk`, `EJS_externalFiles`, `EJS_defaultOptions`, `EJS_disableLocalStorage`, `EJS_onGameStart`, `EJS_Runtime` (print / printErr). La liste vérifiée pour 4.2.1 est dans `tickets/T21-amiga-ejs-421.md`.
+3. Retester les contournements de `guardDiskMenuStartup` dans `js/player/launcher.js` : (a) le jeu démarre sans « Failed to start game », (b) pas de plantage au démarrage, (c) un changement de disquette par le menu « Disks » fonctionne du premier coup, sans « unreachable ».
+4. Retirer un contournement devenu inutile (et son test dans `tests/launcher.test.mjs`) ; ne garder que ceux dont le défaut existe encore.
+5. Mettre à jour `docs/architecture.md` (3.1, 6.1 et section 4).
+
