@@ -1,6 +1,6 @@
 // Chargement et validation de systems.json et games.json (T3). Aucune dépendance DOM : fetch est injectable.
 // INVARIANT : systems.json est la seule source de vérité des machines (CLAUDE.md règle 2) ; rien ici n'en liste.
-import { SYSTEMS_URL, GAMES_URL } from './config.js';
+import { SYSTEMS_URL, GAMES_URL, EJS_VERSION_FORMAT } from './config.js';
 import { compareTitles } from './sort.js';
 
 const SYSTEM_ID = /^[a-z0-9]+$/;
@@ -30,6 +30,7 @@ export function validateSystems(raw) {
     seen.add(s.id);
     if (!isNonEmptyString(s.name)) throw new Error(`systems.json : ${s.id} : name manquant`);
     if (!Number.isInteger(s.order)) throw new Error(`systems.json : ${s.id} : order entier attendu`);
+    if (s.ejsVersion !== undefined && !(typeof s.ejsVersion === 'string' && EJS_VERSION_FORMAT.test(s.ejsVersion))) throw new Error(`systems.json : ${s.id} : ejsVersion invalide (x.y.z attendu)`); // T21
     if (!Array.isArray(s.extensions)) throw new Error(`systems.json : ${s.id} : extensions (liste) manquant`);
   }
   return [...raw.systems].sort((a, b) => a.order - b.order);
