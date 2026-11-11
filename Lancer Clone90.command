@@ -47,7 +47,8 @@ for _ in $(seq 1 50); do
 done
 
 if ! kill -0 "$SERVEUR" 2>/dev/null || ! curl -fs --max-time 1 "$URL" 2>/dev/null | grep -q "Clone90"; then
-  echo "Le serveur n'a pas pu démarrer (le port 8080 est peut-être utilisé par un autre programme)."
+  echo "Clone90 n'a pas pu démarrer : le port 8080 est utilisé par un autre programme."
+  echo "Fermez ce programme, puis double-cliquez de nouveau sur ce fichier."
   attendre_touche
   exit 1
 fi
