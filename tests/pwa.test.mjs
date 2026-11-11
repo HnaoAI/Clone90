@@ -17,8 +17,8 @@ test('manifest : nom, démarrage et portée relatifs (GitHub Pages sous /<dépô
   assert.equal(manifest.scope, './');
   assert.equal(manifest.display, 'fullscreen');
   assert.deepEqual(manifest.display_override, ['fullscreen', 'standalone']);
-  assert.equal(manifest.theme_color, '#0f1117');
-  assert.equal(manifest.background_color, '#0f1117');
+  assert.equal(manifest.theme_color, '#0a1233');
+  assert.equal(manifest.background_color, '#0a1233');
   assert.equal(manifest.lang, 'fr');
 });
 

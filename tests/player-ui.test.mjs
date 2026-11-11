@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { exitHintText, shouldShowExitHint, EXIT_HINT_MAX_LAUNCHES, EXIT_HINT_STORAGE_KEY } from '../js/player/exit-hint.js';
-import { exitDialogOptions, ringDashOffset, describeLoadError, playScreenModel } from '../js/player/player-ui.js';
+import { exitDialogOptions, ringDashOffset, describeLoadError, playScreenModel, renderPlayScreen, READY_LABEL } from '../js/player/player-ui.js';
 import { setGamepadMode, watchPointer } from '../js/ui/input-mode.js';
 
 const memoryStorage = (initial = {}) => {
@@ -146,4 +146,18 @@ test('T18 describeStartFailure : un message du cœur sur le plugin C.A.P.S. / ca
 test('T18 describeStartFailure : un jeu ADF qui échoue ne parle pas d\'IPF', () => {
   const { details } = describeStartFailure({ coreMessages: [], gameFiles: ['roms/amiga/a.adf'] });
   assert.ok(!details.some((d) => /IPF/.test(d)));
+});
+
+// --- T24 : mention « PRÊT ? » de l'écran Jouer ---
+test('T24 écran Jouer : « PRÊT ? » décoratif (aria-hidden) avant le bouton Jouer, titre et bouton inchangés', () => {
+  const doc = { createElement: (tag) => ({ tag, children: [], attrs: {}, dataset: {}, textContent: '', append(...c) { this.children.push(...c); }, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener() {} }), createTextNode: (t) => ({ text: t }) };
+  const screen = renderPlayScreen({ machine: { id: 'neogeo', name: 'Neo Geo', accent: '--m-neogeo' }, game: { id: 'neogeo/x', title: 'Star Courier' }, onPlay() {} }, doc);
+  const kids = screen.children;
+  const ready = kids.find((c) => c.attrs.class === 'ready');
+  assert.equal(READY_LABEL, 'PRÊT ?');
+  assert.equal(ready.textContent, READY_LABEL);
+  assert.equal(ready.attrs['aria-hidden'], 'true');
+  assert.equal(kids.at(-1).textContent, 'Jouer', 'le bouton Jouer reste le dernier élément (focus initial inchangé)');
+  assert.ok(kids.indexOf(ready) < kids.length - 1);
+  assert.equal(kids.find((c) => c.tag === 'h1').textContent, 'Star Courier');
 });

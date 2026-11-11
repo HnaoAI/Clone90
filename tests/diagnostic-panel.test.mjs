@@ -110,11 +110,11 @@ test('focus du jeu : un clic sur le panneau ne prend pas le focus (mousedown ann
 test('mise en page : replié en haut à droite, ouvert sous le bouton Menu (haut gauche), 360 px sans débordement', () => {
   const css = readFileSync(join(PROJECT_ROOT, 'css/player.css'), 'utf8');
   const closed = /\.diag \{[^}]*\}/.exec(css)[0];
-  assert.match(closed, /right: calc\(8px/);
-  assert.match(closed, /max-width: calc\(100vw - 16px\)/);
+  assert.match(closed, /right: calc\(16px/);
+  assert.match(closed, /max-width: calc\(100vw - 32px\)/);
   const open = /\.diag\.is-open \{[^}]*\}/.exec(css)[0];
-  assert.match(open, /top: calc\(64px/); // le bouton Menu occupe 8 à 56 px en haut à gauche
-  assert.match(open, /left: calc\(8px/);
+  assert.match(open, /top: calc\(88px/); // le bouton Menu (T24) occupe 16 à 64 px en haut à gauche, anneau et cadre compris jusqu'à 80 px
+  assert.match(open, /left: calc\(16px/);
   assert.match(css, /\.diag-body \{[^}]*overflow-y: auto/);
 });
 
