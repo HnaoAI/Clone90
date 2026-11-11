@@ -6,6 +6,7 @@ Site web pour jouer aux jeux rétro des années 90 avec [EmulatorJS](https://emu
 
 - Architecture : [docs/architecture.md](docs/architecture.md)
 - Interface : [docs/ux.md](docs/ux.md)
+- Guide pas à pas (lancer en local, jouer sur Android, publier sur GitHub Pages) : [docs/guide.md](docs/guide.md)
 - Tickets : [tickets/](tickets/)
 
 ## Lancer en local
@@ -121,7 +122,7 @@ Pour un jeu Amiga à plusieurs disquettes (ex. Leander), passez à la disquette 
 node --test "tests/*.test.mjs"
 ```
 
-Le guide de publication sur GitHub Pages arrivera avec le ticket T8.
+Le guide de publication sur GitHub Pages est dans [docs/guide.md](docs/guide.md).
 
 ## Jouer : limites connues (T7)
 
