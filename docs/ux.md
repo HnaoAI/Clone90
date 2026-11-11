@@ -8,7 +8,7 @@ Points marqués **[à aligner tech-lead]** dépendent de docs/architecture.md.
 - **Une seule logique de navigation** pour souris, tactile, clavier et manette : une liste d'éléments focusables, un focus visible unique, une action "valider" et une action "retour".
 - **Écran de télévision d'abord, téléphone ensuite** : grandes cibles, peu de texte, rien qui dépend du survol.
 - **Le jeu a la priorité** : pendant une partie, le site ne capte aucune touche du jeu, sauf une combinaison de sortie dédiée.
-- **Sobre** : ambiance rétro par la typo et les couleurs, pas par des effets (pas de scanlines animées, pas de clignotements).
+- **Sobre malgré l'ambiance console** (design « Cartouche bleue », T24, validé par Hicham le 2026-11-11) : l'ambiance rétro vient de la typo, des couleurs et des cadres pixel. Aucun effet de fond (pas de scanlines, pas de défilement de fond). **Le seul clignotement autorisé** est celui du curseur ▶ de l'élément focalisé et de la mention « PRÊT ? » de l'écran Jouer : 1 Hz (sous le seuil de 3 flashs par seconde de WCAG 2.3.1), coupé par `prefers-reduced-motion` (curseur et mention fixes). Cet assouplissement remplace l'ancien « pas de clignotements ».
 
 ## 2. Parcours
 
@@ -155,7 +155,7 @@ Même en-tête que la grille. Message centré, ton direct, avec le chemin exact 
 
 EmulatorJS occupe tout l'écran. Le site ajoute seulement :
 
-- **Bouton "Menu"** (icône maison + texte "Menu"), coin haut gauche, 48 x 48 px min, semi-transparent (opacité 0.6). Sur desktop il se masque après 3 s sans mouvement de souris et réapparaît au mouvement. Sur tactile il reste visible en permanence (opacité 0.4) car les contrôles virtuels d'EmulatorJS sont en bas : le haut gauche est libre. (confirmé : les contrôles virtuels EmulatorJS occupent le bas de l'écran)
+- **Bouton "Menu"** (flèche ◀ + texte "Menu"), coin haut gauche, 48 x 48 px min, semi-transparent (opacité 0.6). Sur desktop il se masque après 3 s sans mouvement de souris et réapparaît au mouvement. Sur tactile il reste visible en permanence (opacité 0.4) car les contrôles virtuels d'EmulatorJS sont en bas : le haut gauche est libre. (confirmé : les contrôles virtuels EmulatorJS occupent le bas de l'écran)
 - **Chargement** : pendant le chargement de la ROM, écran sombre avec titre du jeu + "Chargement..." et le bouton Menu déjà actif. En cas d'échec : "Impossible de lancer ce jeu." + raison si connue + bouton "Revenir à la liste" (focus).
 
 ```
@@ -224,7 +224,7 @@ Téléphone en portrait : on laisse EmulatorJS gérer son affichage (jeu en haut
 ### 4.3 Focus visible et modes d'entrée
 
 - Le style de focus apparaît dès qu'on utilise clavier ou manette (`:focus-visible` + classe `input-gamepad` posée par le JS). Avec souris ou tactile, pas d'anneau persistant, seulement l'effet de survol (souris) ou d'appui (tactile).
-- Style de focus : contour 4 px couleur `--focus`, décalé de 3 px (`outline-offset`), + légère mise à l'échelle 1.05 (supprimée en reduced-motion), + titre de la tuile en gras couleur `--text`. Le focus ne repose jamais sur la couleur seule (contour épais).
+- Style de focus (T24) : contour 4 px couleur `--focus`, décalé de 8 px (4 px sur téléphone, variable `--focus-offset`), + curseur ▶ jaune clignotant au coin (pseudo-élément, forme), + cadre jaune et plaque de nom jaune à texte noir, + mise à l'échelle 1.05 (supprimée en reduced-motion). Le focus ne repose jamais sur la couleur seule : forme du curseur, épaisseur du contour, plaque inversée et agrandissement sont quatre indices indépendants.
 
 ### 4.4 Sortie du jeu (point critique)
 
@@ -259,25 +259,32 @@ Pendant le jeu, **toutes les touches et boutons vont à EmulatorJS**. Le site n'
 
 ### 5.1 Ambiance
 
-"Salle d'arcade la nuit" sobre : fond très sombre légèrement bleuté, une couleur d'accent chaude, titres en police pixel, texte courant en police lisible. Pas de dégradés criards, pas de néons animés. Thème sombre uniquement en v1 (usage TV / soirée, et les jaquettes ressortent mieux).
+« Cartouche bleue » (T24) : une console de jeu des années 90 en bleu profond. Cadres pixel à contour noir et biseau, fond rayé de deux bleus très proches, curseur ▶ jaune qui clignote, jauges à segments, titres en police pixel, texte courant en police lisible. Tout est dessiné pour Clone90 : aucun nom, personnage, sprite, logo, police, son ni écran d'un jeu existant. Thème sombre uniquement (usage TV / soirée, les jaquettes ressortent mieux).
 
 ### 5.2 Palette (variables CSS)
 
+Source unique : le bloc `:root` de `css/base.css` (aucune couleur littérale ailleurs, `tests/design.test.mjs`). Les logos et les icônes PWA la lisent.
+
 ```css
 :root {
-  --bg:          #0f1117; /* fond page */
-  --surface:     #1a1d27; /* cartes, tuiles */
-  --surface-2:   #252a38; /* survol, en-tête */
-  --border:      #2f3547; /* bordures neutres */
-  --text:        #f2f0e9; /* texte principal (contraste ~16:1 sur --bg) */
-  --text-muted:  #a9adbb; /* texte secondaire (~8:1 sur --bg, ~7:1 sur --surface) */
-  --accent:      #ffb000; /* ambre arcade : titres, boutons primaires */
-  --on-accent:   #1a1200; /* texte sur fond accent (~10:1) */
-  --focus:       #3ee0ff; /* anneau de focus, cyan (~11:1 sur --bg) */
-  --danger:      #ff6b6b; /* erreurs */
-  --disabled:    #5c6275; /* machines à 0 jeu : uniquement pour le décor, le texte reste en --text-muted */
+  --bg: #0a1233;  --band: #0e1b52;          /* fond : rayures horizontales de 32 px */
+  --bg-deep: #05091f; --band-deep: #070d2c; /* même fond, plus sombre, derrière le jeu (player.html) */
+  --panel: #16296e;   /* cartes, en-tête, boîte de dialogue, toast */
+  --panel-2: #1f3a9c; /* boutons secondaires, barre de titre de la boîte */
+  --panel-3: #2646b0; /* seconde rayure de la barre de titre */
+  --line: #000000;    /* contour noir des cadres (4 px) */
+  --bevel-hi: #6fa8ff; --bevel-lo: #0a1a66; /* biseaux du cadre pixel */
+  --text: #ffffff;    --text-muted: #b9c8ff;
+  --accent: #ffd23f;  /* jaune : titres, bouton principal, focus (cadre, plaque, curseur) */
+  --accent-hi: #fff3a8; --accent-lo: #b88a00; --on-accent: #1a1200;
+  --focus: #3ee0ff;   /* anneau de focus, cyan */
+  --danger: #b3202a; --danger-hi: #ff6b73; --danger-lo: #6e0f16; /* bouton Quitter */
+  --danger-text: #ff8a8a;                   /* texte d'erreur (titre des écrans d'échec) */
+  --disabled-bg: #1b2147; --disabled-hi: #4a5486; --disabled-lo: #11163a; /* machine à 0 jeu */
+  --stripe-a: #2a3162; --stripe-b: #222850; /* hachures du logo d'une machine à 0 jeu */
+  --scrim: rgba(5, 9, 31, 0.82); --scrim-strong: rgba(5, 9, 31, 0.94); /* voiles : boîte de dialogue, diagnostic */
 
-  /* couleur d'accent par machine (visuel de repli des tuiles) */
+  /* couleur d'accent par machine (visuel de repli des tuiles et logos) : inchangées par T24 */
   --m-arcade: #c0392b;  --m-neogeo: #7a5a06; --m-amiga: #a84300;
   --m-nes: #b03a2e;     --m-snes: #6c3fa0;   --m-gameboy: #4a6a2e;
   --m-gameboycolor: #7d3c98; --m-mastersystem: #1f5fa8; --m-gamegear: #2c3e50;
@@ -285,11 +292,16 @@ Pendant le jeu, **toutes les touches et boutons vont à EmulatorJS**. Le site n'
 }
 ```
 
-Le texte des tuiles de repli est toujours `--text` sur la couleur machine ; toutes ces couleurs sont assez foncées pour un contraste >= 4.5:1 avec `#f2f0e9` (valeurs recalculées : les versions initiales de neogeo, amiga et gameboy étaient sous 4.5:1 ; à re-vérifier par le testeur, voir CA-V2).
+Contrastes (calcul WCAG 2.x, vérifié par `tests/design.test.mjs`) : `--text` sur `--bg` 18.3, sur `--panel` 13.3, sur `--panel-2` 9.8, sur `--panel-3` 8.1 ; `--text-muted` sur `--panel-2` 6.0 (le plus bas) ; `--accent` sur `--bg` 12.7 ; `--on-accent` sur `--accent` 12.9 ; `--text` sur `--danger` 6.7 ; `--danger-text` sur `--panel` 5.9 ; `--text` sur chaque couleur machine de 5.4 (arcade) à 14.2 (megadrive) ; `--focus` sur `--bg` 11.6 et `--bevel-hi` sur `--bg` 7.6 (seuil 3:1 pour le non textuel). Le contour noir seul est presque invisible sur le fond (environ 1.1:1) : c'est le biseau clair `--bevel-hi` qui porte la limite visible des composants.
+
+Le texte des logos et des tuiles de repli est toujours `--text` sur la couleur machine (>= 4.5:1, contrôlé à la génération des logos).
+
+**Composants** : cadre pixel = `--frame` (contour noir 4 px en ombre externe + biseaux en ombres internes), coins carrés, pas de `border-radius` ni de `clip-path` (il couperait l'anneau de focus). Boutons : principal jaune, secondaire bleu, danger rouge, capitales à `letter-spacing: .04em`, appui = décalage de 2 px. Tuile de jeu : jaquette 3:4 cadrée, plaque de titre sombre bordée de `--bevel-hi`. Tuile machine : logo sur la couleur machine, jauge verticale décorative de 6 segments (un segment pour 2 jeux, `aria-hidden`), nom et nombre de jeux en texte. Boîte de confirmation : barre de titre rayée `--panel-2` / `--panel-3`, focus par défaut « Continuer » (jaune), « Quitter » rouge. Écran Jouer : jaquette cadrée, titre, « PRÊT ? » clignotant (décoratif, `aria-hidden`), bouton Jouer jaune.
 
 ### 5.3 Typographie
 
-- Titres (nom du site, nom de machine, initiales des tuiles de repli) : **"Press Start 2P"** (police pixel libre, à auto-héberger dans le dossier du site pour le hors-ligne PWA), utilisée en grand uniquement (>= 16 px), jamais pour du texte long.
+- Titres (nom du site, nom de machine dans le logo, initiales des tuiles de repli, « Jouer », « PRÊT ? ») : **"Press Start 2P"** (police pixel libre, auto-hébergée dans `assets/fonts/` pour le hors-ligne PWA, repli monospace), utilisée en grand uniquement (>= 16 px), jamais pour du texte long. Ombre de texte pixel `2px 2px 0 var(--line)` (3 px pour le nom du site) : elle ne porte aucune information et ne réduit pas le contraste.
+- Libellés de boutons : pile système en gras, capitales, `letter-spacing: .04em`.
 - Texte courant et titres de jeux : pile système `system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`, 16 px min (titres de tuiles 16 px desktop, 15 px téléphone, poids 600).
 - Chemins de fichiers : `ui-monospace, "SF Mono", Consolas, monospace`.
 - Tailles en `rem`, le site respecte le zoom navigateur jusqu'à 200 % sans perte de contenu.
@@ -300,15 +312,15 @@ Le texte des tuiles de repli est toujours `--text` sur la couleur machine ; tout
 |---|---|---|
 | Carte machine | 220-280 px de large, 4 colonnes | ~50 % largeur, 2 colonnes |
 | Tuile de jeu | 180-240 px de large, ratio 3:4 | ~160 px, 2 colonnes |
-| Espacement grille | 24 px | 12 px |
+| Espacement grille | 24 px | 16 px |
 | Marges latérales | 48 px | 16 px |
 | Cible tactile min | - | 48 x 48 px (boutons en-tête, Menu, boîte de dialogue) |
-| Rayon des coins | 8 px | 8 px |
+| Coins | carrés (cadre pixel de 4 px) | carrés |
 
 ### 5.5 Mouvement et accessibilité
 
-- Transitions courtes (150 ms) sur focus/survol uniquement. Pas d'animation de page.
-- `@media (prefers-reduced-motion: reduce)` : aucune mise à l'échelle, aucune transition, défilement instantané.
+- Transitions courtes (150 ms) sur focus/survol/appui. Pas d'animation de page. Seules animations : le clignotement 1 Hz du curseur ▶ et de « PRÊT ? » (voir principe 1).
+- `@media (prefers-reduced-motion: reduce)` : aucune mise à l'échelle, aucune transition, aucune animation (curseur et « PRÊT ? » fixes), défilement instantané. Une seule règle globale dans `css/base.css` (`*, *::before, *::after`), qui couvre toute animation ajoutée ; `tests/design.test.mjs` le vérifie.
 - Contraste texte >= 4.5:1 (normal) et >= 3:1 (anneau de focus et contours d'éléments interactifs).
 - Langue `lang="fr"`. Cartes et tuiles sont des `<button>` ou `<a>` avec nom accessible (nom de machine + nombre de jeux ; titre du jeu). Les logos et jaquettes ont `alt=""` puisque le nom est déjà en texte.
 - Boîte de confirmation : `role="dialog"`, `aria-modal="true"`, focus piégé dedans, rendu au déclencheur à la fermeture si "Continuer".
@@ -341,13 +353,13 @@ Contenu et états
 - **CA-C4** Avec 12 machines simulées, l'accueil reste lisible sans défilement horizontal, en desktop (1280 x 720) et téléphone (360 x 740).
 
 Visuel et accessibilité
-- **CA-V1** Le focus est visible (contour >= 3 px, contraste >= 3:1) sur toutes les cartes, tuiles et boutons.
+- **CA-V1** Le focus est visible (contour >= 3 px, contraste >= 3:1) sur toutes les cartes, tuiles et boutons ; il ne repose pas sur la couleur seule (curseur ▶, plaque jaune, agrandissement). Le contour noir des cadres étant peu visible sur le fond, la limite des composants est portée par le biseau clair (>= 3:1) (T24).
 - **CA-V2** Contraste texte >= 4.5:1 partout, y compris le texte des tuiles de repli sur chaque couleur machine (outil : vérificateur de contraste ou Lighthouse).
 - **CA-V3** Toutes les cibles tactiles mesurent au moins 48 x 48 px sur téléphone.
-- **CA-V4** Avec prefers-reduced-motion activé, aucune animation ni mise à l'échelle n'est visible.
+- **CA-V4** Avec prefers-reduced-motion activé, aucune animation ni mise à l'échelle n'est visible : le curseur ▶ du focus et « PRÊT ? » restent affichés, fixes. Sans la préférence, ils clignotent à 1 Hz et rien d'autre ne clignote (T24).
 - **CA-V5** Zoom navigateur à 200 % sur desktop : aucun contenu coupé ni chevauchement.
 - **CA-V6** Lighthouse accessibilité >= 95 sur l'accueil et sur une grille.
-- **CA-V7** Aucun défilement horizontal à 360 px de large.
+- **CA-V7** Aucun défilement horizontal à 360 px de large, y compris avec l'anneau de focus, le cadre pixel et l'agrandissement 1.05 sur la tuile de la 1re ou de la dernière colonne (T24).
 
 ## 7. Questions ouvertes
 
