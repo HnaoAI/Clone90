@@ -67,9 +67,9 @@ body.is-playing .menu-wrap { opacity: 0.6; }
 /* Anneau de progression du maintien (Select+Start ou Échap) autour du bouton : trait de 4 px, jamais la couleur seule (texte Menu reste). */
 .menu-ring {
   position: absolute;
-  inset: -8px; /* hors du contour noir de 4 px du bouton */
-  width: calc(100% + 16px);
-  height: calc(100% + 16px);
+  inset: -6px; /* entre le contour noir (4 px) et l'anneau de focus (8 à 12 px) */
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
   overflow: visible;
   pointer-events: none;
   opacity: 0;
