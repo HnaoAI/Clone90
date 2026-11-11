@@ -127,3 +127,23 @@ test('T14 écran d\'échec : message en role=alert avec un bouton, et la phase e
   assert.doesNotThrow(() => renderPlayerMessage({ title, details, actionLabel: 'Revenir à la liste', onAction: () => {} }, doc));
   assert.equal(exitDecision('error'), 'leave');
 });
+
+// --- T18 : IPF non pris en charge par le cœur puae d'EmulatorJS 4.2.3 (capsimg.so introuvable, dlopen désactivé) ---
+test('T18 describeStartFailure : un échec sur un jeu .ipf explique le format et propose ADF', () => {
+  const { details } = describeStartFailure({ coreMessages: [], gameFiles: ['roms/Amiga/Leander/Leander_Disk1.ipf'] });
+  assert.match(details[0], /IPF/);
+  assert.match(details[0], /ADF/);
+});
+
+test('T18 describeStartFailure : un message du cœur sur le plugin C.A.P.S. / capsimg est expliqué même sans fichier .ipf connu', () => {
+  for (const msg of ['CAPS library capsimg.so not found!', 'This disk image needs the C.A.P.S. plugin which is available from http://www.softpres.org/download']) {
+    const { details } = describeStartFailure({ coreMessages: [msg] });
+    assert.match(details[0], /IPF/, msg);
+    assert.match(details.at(-1), /Détail technique/);
+  }
+});
+
+test('T18 describeStartFailure : un jeu ADF qui échoue ne parle pas d\'IPF', () => {
+  const { details } = describeStartFailure({ coreMessages: [], gameFiles: ['roms/amiga/a.adf'] });
+  assert.ok(!details.some((d) => /IPF/.test(d)));
+});
