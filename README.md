@@ -71,6 +71,15 @@ Les jeux Amiga (`.adf`, `.adz`, `.dms`, `.ipf`, `.hdf`, `.hdz`, `.lha`, `.zip`, 
 
 Placez `neogeo.zip` dans `bios/`, **sans le décompresser** (testé avec un vrai `neogeo.zip` et le romset `viewpoin.zip`). Les jeux sont des romsets FBNeo au format `.zip` dans `roms/neogeo/`, et **le nom du fichier doit être celui du romset** (`mslug.zip`, pas `Metal Slug.zip`). Les romsets doivent correspondre à la version de FBNeo utilisée par EmulatorJS.
 
+### Sons « samples » : Zaxxon et autres jeux arcade (T22)
+
+Certains jeux arcade (Zaxxon par exemple) n'ont pas leur son dans la ROM : FBNeo joue des **samples**, de petits fichiers audio fournis à part dans un second zip, **différent de la ROM**. Sans ce pack, le jeu tourne mais reste muet. Cela concerne les machines `arcade` et `neogeo`.
+
+- Placez le pack dans `bios/samples/`, **avec le nom du romset du jeu** et **sans le décompresser**. Exemple pour Zaxxon : `roms/arcade/zaxxon.zip` (la ROM) et `bios/samples/zaxxon.zip` (le pack de samples).
+- Au lancement, Clone90 cherche `bios/samples/<nom du romset>.zip` ; s'il existe, il est donné à FBNeo (dossier `fbneo/samples/` du cœur). S'il n'existe pas, rien ne change et aucun message d'erreur n'apparaît.
+- Comme les BIOS, ces fichiers ne sont jamais dans le dépôt ni mis en cache (dossier `bios/`).
+- Pas encore confirmé en jeu (T22) : voir le ticket.
+
 ### Autres machines (T15 : pas encore essayées avec de vrais jeux)
 
 Dans chaque dossier, un jeu peut aussi être un `.zip` contenant le fichier du jeu. Les BIOS vont dans `bios/`, **avec le nom exact** indiqué. Les BIOS marqués « posé » sont fournis au cœur s'ils existent, sinon ignorés sans erreur.

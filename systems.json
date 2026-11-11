@@ -53,6 +53,10 @@
           "note": "Laisser zippé"
         }
       ],
+      "samples": {
+        "dir": "samples",
+        "fsDir": "/fbneo/samples"
+      },
       "logo": "assets/logos/neogeo.svg",
       "accent": "--m-neogeo",
       "wave": 1
@@ -74,6 +78,10 @@
           "note": "Utile pour les jeux de la famille Neo Geo, laisser zippé"
         }
       ],
+      "samples": {
+        "dir": "samples",
+        "fsDir": "/fbneo/samples"
+      },
       "logo": "assets/logos/arcade.svg",
       "accent": "--m-arcade",
       "wave": 2

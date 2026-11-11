@@ -13,6 +13,14 @@ export const isRelativePath = (p) => isNonEmptyString(p)
   && !/^[a-z][a-z0-9+.-]*:/i.test(p) && !p.startsWith('/') && !p.split('/').includes('..');
 
 /**
+ * `samples` (optionnel, T22) : packs de sons des cœurs fbneo. `dir` = dossier sous bios/ (chemin relatif sûr), `fsDir` = dossier du système de
+ * fichiers du cœur où le pack est posé (absolu, sans `..`, pas la racine seule).
+ */
+const hasValidSamples = (s) => s.samples === undefined
+  || (isObject(s.samples) && isRelativePath(s.samples.dir) && isNonEmptyString(s.samples.fsDir)
+    && /^\/[^/]/.test(s.samples.fsDir) && !s.samples.fsDir.split('/').includes('..'));
+
+/**
  * Valide le contenu de systems.json et renvoie les machines triées par `order`.
  * @param {unknown} raw JSON déjà parsé
  * @returns {object[]} machines
@@ -31,6 +39,7 @@ export function validateSystems(raw) {
     if (!isNonEmptyString(s.name)) throw new Error(`systems.json : ${s.id} : name manquant`);
     if (!Number.isInteger(s.order)) throw new Error(`systems.json : ${s.id} : order entier attendu`);
     if (s.ejsVersion !== undefined && !(typeof s.ejsVersion === 'string' && EJS_VERSION_FORMAT.test(s.ejsVersion))) throw new Error(`systems.json : ${s.id} : ejsVersion invalide (x.y.z attendu)`); // T21
+    if (!hasValidSamples(s)) throw new Error(`systems.json : ${s.id} : samples invalide ({dir, fsDir} attendu)`); // T22
     if (!Array.isArray(s.extensions)) throw new Error(`systems.json : ${s.id} : extensions (liste) manquant`);
   }
   return [...raw.systems].sort((a, b) => a.order - b.order);
