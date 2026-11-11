@@ -10,7 +10,6 @@ Un double-clic dans le Finder suffit pour jouer.
 ## Réalisation
 - `Lancer Clone90.command` (racine, exécutable) : va dans son dossier, vérifie Node.js (sinon message et lien https://nodejs.org), lance `generate-games.mjs`, ouvre la page si Clone90 tourne déjà sur le port 8080, sinon démarre `serve.mjs`, attend la réponse (5 s au plus), ouvre http://localhost:8080/ et reste au premier plan : fermer la fenêtre arrête le serveur.
 - Aucun mot de passe, aucun réglage du Mac, rien d'envoyé sur le réseau, aucune dépendance.
-- Revue : le lanceur écoute sur 127.0.0.1 seulement (`serve.mjs --host`, nouvelle option, défaut 0.0.0.0 conservé pour le téléphone) et n'ouvre la page que si elle contient "Clone90" (autre programme sur le port 8080).
 - Le serveur local ne le sert pas (liste blanche, 403) ; il n'est pas dans le service worker.
 - `docs/guide.md` et `README.md` : section « Lancer sans Terminal » (première ouverture : clic droit, Ouvrir).
 - `tests/launcher-mac.test.mjs`. `js/version.js` : 0.20.0.

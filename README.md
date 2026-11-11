@@ -33,7 +33,7 @@ Double-cliquez sur **`Lancer Clone90.command`** (à la racine du dossier). Il me
 - **La première fois**, macOS peut bloquer un script téléchargé : clic droit (ou `Ctrl` + clic) sur le fichier, **Ouvrir**, puis **Ouvrir** dans la fenêtre qui s'affiche. Ensuite le double-clic suffit.
 - Vous pouvez glisser le fichier dans le Dock, ou en faire un alias sur le Bureau.
 - Il faut Node.js (<https://nodejs.org>) ; sinon le lanceur vous le dit.
-- Le lanceur n'écoute que sur ce Mac (`--host 127.0.0.1`) : vos jeux ne sont pas visibles depuis le réseau. Pour jouer depuis le téléphone, lancez à la main `node scripts/serve.mjs` (sans `--host`), sur un réseau de confiance.
+- Le lanceur n'écoute que sur ce Mac (`--host 127.0.0.1`) : vos jeux ne sont pas visibles depuis le réseau. Pour jouer depuis le téléphone, lancez à la main `node scripts/serve.mjs` (sans `--host`), sur un réseau de confiance seulement (chez vous), jamais sur un Wi-Fi public.
 - Cela ne concerne que le Mac. Sous Windows et Linux, utilisez les commandes de la section « Lancer en local ».
 
 ## Où mettre les ROMs et les BIOS
