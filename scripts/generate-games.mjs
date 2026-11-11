@@ -50,6 +50,20 @@ export function parseM3u(text) {
 }
 
 /**
+ * Fichiers cités par un .cue (lignes FILE, entre guillemets ou non), avec `/` comme séparateur, dans l'ordre du .cue (T15, Mega-CD).
+ * @param {string} text contenu du .cue
+ * @returns {string[]}
+ */
+export function parseCue(text) {
+  const names = [];
+  for (const line of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+    const match = /^\s*FILE\s+(?:"([^"]+)"|(\S+))/i.exec(line);
+    if (match) names.push((match[1] ?? match[2]).replace(/\\/g, '/'));
+  }
+  return names;
+}
+
+/**
  * Lit et valide systems.json.
  * @returns {Promise<object[]>} la liste des machines
  * @throws {Error} si le fichier est absent, n'est pas du JSON ou n'a pas la forme attendue
@@ -110,7 +124,7 @@ function groupDiskSets(files) {
   const singles = [];
   const byKey = new Map();
   for (const file of files) {
-    const tag = extOf(file) === 'm3u' ? null : parseDiskTag(stemOf(file));
+    const tag = ['m3u', 'cue'].includes(extOf(file)) ? null : parseDiskTag(stemOf(file));
     if (!tag) { singles.push(file); continue; }
     const key = `${posix.dirname(file)}|${extOf(file)}|${tag.base.toLowerCase()}`;
     if (!byKey.has(key)) byKey.set(key, { base: tag.base, total: null, disks: [] });
@@ -165,6 +179,25 @@ export function buildSystemGames({ system, files, texts, titles, dirName = syste
     }
   }
 
+  // T15 : un .cue (Mega-CD) possède les fichiers de ses lignes FILE : ils ne sont pas des jeux. `cueFiles` : .cue -> {file (vrai chemin), as (nom écrit dans le .cue)}.
+  const visibleByLowerPath = new Map(visible.map((f) => [f.toLowerCase(), f]));
+  const cueFiles = new Map();
+  for (const cue of visible.filter((x) => extOf(x) === 'cue' && accepted.has('cue'))) {
+    const owned = [];
+    for (const name of parseCue(texts[cue] ?? '')) {
+      const path = posix.normalize(posix.join(posix.dirname(cue), name));
+      if (name.startsWith('/') || path.startsWith('..') || posix.isAbsolute(path)) {
+        warnings.push(`${system.id} : ${cue} cite un chemin non autorisé, ignoré : ${name}`);
+        continue;
+      }
+      const real = visibleByLowerPath.get(path.toLowerCase());
+      if (!real) warnings.push(`${system.id} : fichier introuvable cité par ${cue} : ${name}`);
+      owned.push({ file: real ?? path, as: name });
+      referenced.add(path.toLowerCase());
+    }
+    cueFiles.set(cue, owned);
+  }
+
   const byId = new Map();
   const addGame = (id, game, file) => {
     if (byId.has(id)) {
@@ -182,6 +215,7 @@ export function buildSystemGames({ system, files, texts, titles, dirName = syste
       file: `roms/${dirName}/${f}`,
       cover: cover ? `roms/${dirName}/${cover}` : null,
     };
+    if (cueFiles.get(f)?.length) game.extraFiles = cueFiles.get(f).map((o) => ({ file: `roms/${dirName}/${o.file}`, as: o.as }));
     const bios = lookupStems.map((s) => (texts[posix.join(dir, `${s}.bios`)] ?? '').split(/\r?\n/)[0].trim()).find(Boolean);
     if (bios) game.bios = bios;
     return game;
@@ -191,7 +225,7 @@ export function buildSystemGames({ system, files, texts, titles, dirName = syste
   for (const f of visible) {
     const ext = extOf(f);
     if (!accepted.has(ext)) {
-      if (!IMAGE_EXTENSIONS.includes(ext) && ext !== 'bios') {
+      if (!IMAGE_EXTENSIONS.includes(ext) && ext !== 'bios' && !referenced.has(f.toLowerCase())) {
         warnings.push(`${system.id} : extension non prise en charge, fichier ignoré : ${f}`);
       }
       continue;
@@ -266,7 +300,7 @@ export async function generateGames({ root = PROJECT_ROOT, now = new Date() } = 
     const dir = join(root, 'roms', dirName);
     const files = await listFiles(dir);
     const texts = {};
-    for (const f of files.filter((x) => ['m3u', 'bios'].includes(extOf(x)))) {
+    for (const f of files.filter((x) => ['m3u', 'cue', 'bios'].includes(extOf(x)))) {
       texts[f] = await readFile(join(dir, f), 'utf8').catch(() => '');
     }
     const result = buildSystemGames({ system, files, texts, titles, dirName });

@@ -6,6 +6,7 @@
 // Validé en T0 avec de vrais fichiers sur le CDN (stable, 4.2.3 aujourd'hui) (Neo Geo, romset viewpoin) : EJS_onGameStart, EJS_emulator.pause()/play(),
 // chemin de jeu encodé, et BIOS Neo Geo gardé zippé (voir "keepZipped" ci-dessous). Reste ouvert (pas de Kickstart ni de jeu Amiga
 // réels) : 'bios/kick40068.A1200' retrouvé par puae, IPF, multi-disques.
+// Jeu à .cue (Mega-CD, T15) : `extraFiles` du jeu posés à côté du .cue ; BIOS `preload` posés en plus (voir buildLaunchPlan).
 // Multi-disquettes (T10) : voir diskSetFiles ci-dessous (m3u virtuel + disquettes posées par EJS_externalFiles).
 import { EJS_CDN_URL, BIOS_DIR } from '../config.js';
 import { buildRetroArchCfgExtra, appendRetroArchCfg } from './retroarch-cfg.js';
@@ -107,11 +108,21 @@ export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL, debug = fa
   const diskSet = hasDiskSet(game) ? diskSetFiles(game) : null;
   const rawFiles = diskSet ? [...diskSet.rawFiles] : [];
   if (!diskSet) globals.EJS_gameUrl = assetUrl(game.file);
+  // T15 : fichiers cités par le .cue (Mega-CD), posés à la racine sous le nom écrit dans le .cue (le cœur les cherche à côté du .cue).
+  const extraFiles = game.extraFiles ?? [];
+  for (const { file, as } of extraFiles) rawFiles.push({ url: assetUrl(file), fsPath: `/${as}` });
   if (bios?.keepZipped) rawFiles.push({ url: biosUrl, fsPath: `/${baseName(bios.file)}` });
   else if (bios) globals.EJS_biosUrl = biosUrl;
-  const gamePaths = diskSet ? game.disks : [game.file];
+  const gamePaths = [...(diskSet ? game.disks : [game.file]), ...extraFiles.map((e) => e.file)];
   const files = gamePaths.map((path) => ({ kind: 'game', path, url: assetUrl(path), required: true }));
   if (bios) files.push({ kind: 'bios', path: biosPath, url: biosUrl, required: bios.required });
+  // T15 : BIOS `preload` (Mega-CD : les trois régions, le cœur prend celui de la région du disque ; Game Boy ; disksys.rom) : tous posés tels quels
+  // à la racine sous leur nom exact, ceux qui existent seulement (checkPlanFiles retire les absents). EJS_biosUrl n'accepte qu'un fichier.
+  for (const entry of (system.bios ?? []).filter((b) => b.preload === true && b.file !== bios?.file)) {
+    const url = assetUrl(`${BIOS_DIR}/${entry.file}`);
+    rawFiles.push({ url, fsPath: `/${baseName(entry.file)}` });
+    files.push({ kind: 'bios', path: `${BIOS_DIR}/${entry.file}`, url, required: entry.required === true });
+  }
   // T14 : lignes AJOUTÉES au retroarch.cfg d'EmulatorJS (journal d'erreurs pour détecter un échec ; raccourcis RetroArch à nul si la machine le demande).
   const retroarchCfgExtra = buildRetroArchCfgExtra({ disableHotkeys: system.disableRetroArchHotkeys === true, debug });
   return { globals, loaderUrl: `${dataUrl}loader.js`, files, rawFiles, retroarchCfgExtra, virtualGame: diskSet?.virtualGame ?? null };
@@ -130,7 +141,7 @@ export async function checkPlanFiles(plan, head) {
   const missing = results.filter((r) => !r.ok && r.file.required).map((r) => r.file);
   const absentOptional = results.filter((r) => !r.ok && !r.file.required).map((r) => r.file);
   const globals = { ...plan.globals };
-  if (absentOptional.some((f) => f.kind === 'bios')) delete globals.EJS_biosUrl;
+  if (absentOptional.some((f) => f.kind === 'bios' && f.url === globals.EJS_biosUrl)) delete globals.EJS_biosUrl; // seulement le BIOS passé à EJS_biosUrl (T15 : un BIOS preload absent n'y touche pas)
   const absentUrls = absentOptional.map((f) => f.url);
   const rawFiles = (plan.rawFiles ?? []).filter((r) => !absentUrls.includes(r.url));
   return { missing, plan: { ...plan, globals, rawFiles, files: plan.files.filter((f) => !absentOptional.includes(f)) } };

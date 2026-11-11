@@ -221,3 +221,19 @@ test('loadData A6 : 404 = absent, JSON corrompu / mauvaise version / HTTP 500 = 
   assert.equal(await status({ 'games.json': { version: 9, games: [] } }), 'invalid');
   assert.equal(await status({ 'games.json': Object.assign(new Error('HTTP 500'), { status: 500 }) }), 'invalid');
 });
+
+test('T15 validateGames : extraFiles accepté s\'il liste des {file chemin sûr, as nom sûr}, sinon le jeu est écarté', () => {
+  const base = { id: 'megacd/a', title: 'A', system: 'megacd', file: 'roms/megacd/a.cue', cover: null };
+  const ok = [{ file: 'roms/megacd/a.bin', as: 'a.bin' }];
+  const raw = { version: 1, games: [
+    { ...base, extraFiles: ok },
+    { ...base, id: 'megacd/b', extraFiles: [{ file: '../x.bin', as: 'x.bin' }] },
+    { ...base, id: 'megacd/c', extraFiles: [{ file: 'roms/megacd/c.bin', as: '../c.bin' }] },
+    { ...base, id: 'megacd/d', extraFiles: [{ file: 'roms/megacd/d.bin', as: '/d.bin' }] },
+    { ...base, id: 'megacd/e', extraFiles: 'roms/megacd/e.bin' },
+    { ...base, id: 'megacd/f', extraFiles: [] },
+  ] };
+  const { games, skipped } = validateGames(raw, ['megacd']);
+  assert.deepEqual(games.map((g) => g.id), ['megacd/a', 'megacd/f']);
+  assert.equal(skipped, 4);
+});

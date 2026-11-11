@@ -35,7 +35,7 @@ bios/<fichier BIOS>
 
 `<machine>` est l'identifiant de `systems.json` : `amiga`, `neogeo`, `arcade`, `mastersystem`, `megadrive`, `gamegear`, `megacd`, `32x`, `nes`, `snes`, `gameboy`, `gameboycolor`. Les extensions acceptées par machine sont dans `systems.json`.
 
-Pour l'instant, seules l'Amiga et la Neo Geo sont prévues (première étape).
+Toutes les machines ci-dessous sont affichées sur l'accueil ; celles sans jeu sont grisées. L'Amiga et la Neo Geo sont testées avec de vrais fichiers ; les 10 autres (T15) sont vérifiées dans le code d'EmulatorJS 4.2.3 mais **pas encore essayées avec de vrais jeux** (section « Autres machines »).
 
 ### BIOS Amiga
 
@@ -59,9 +59,24 @@ Les jeux Amiga (`.adf`, `.adz`, `.dms`, `.ipf`, `.hdf`, `.hdz`, `.lha`, `.zip`, 
 
 Placez `neogeo.zip` dans `bios/`, **sans le décompresser** (testé avec un vrai `neogeo.zip` et le romset `viewpoin.zip`). Les jeux sont des romsets FBNeo au format `.zip` dans `roms/neogeo/`, et **le nom du fichier doit être celui du romset** (`mslug.zip`, pas `Metal Slug.zip`). Les romsets doivent correspondre à la version de FBNeo utilisée par EmulatorJS.
 
-### Autres machines
+### Autres machines (T15 : pas encore essayées avec de vrais jeux)
 
-Aucun BIOS requis. Optionnels : `bios_MD.bin` (Mega Drive), `bios_CD_E.bin`, `bios_CD_U.bin`, `bios_CD_J.bin` (Mega-CD), `gb_bios.bin` (Game Boy), `gbc_bios.bin` (Game Boy Color), `neogeo.zip` (Arcade).
+Dans chaque dossier, un jeu peut aussi être un `.zip` contenant le fichier du jeu. Les BIOS vont dans `bios/`, **avec le nom exact** indiqué. Les BIOS marqués « posé » sont fournis au cœur s'ils existent, sinon ignorés sans erreur.
+
+| Dossier `roms/` | Extensions | Cœur | BIOS dans `bios/` |
+|---|---|---|---|
+| `arcade` | `.zip` (romset FBNeo, nom du romset conservé) | FBNeo | `neogeo.zip` (facultatif, zippé, posé : jeux de la famille Neo Geo) |
+| `mastersystem` | `.sms` | SMS Plus | aucun |
+| `megadrive` | `.md`, `.bin`, `.gen`, `.smd` | Genesis Plus GX | `bios_MD.bin` : inutilisé par défaut |
+| `gamegear` | `.gg` | Genesis Plus GX | aucun |
+| `megacd` | `.cue` + ses `.bin`, `.iso`, `.chd` | Genesis Plus GX | `bios_CD_E.bin` (Europe), `bios_CD_U.bin` (USA), `bios_CD_J.bin` (Japon), posés : **il en faut au moins un, celui de la région du disque** |
+| `32x` | `.32x`, `.bin` | PicoDrive | aucun |
+| `nes` | `.nes`, `.unf`, `.unif`, `.fds` | FCEUmm | `disksys.rom` (posé) : seulement pour les `.fds` |
+| `snes` | `.sfc`, `.smc`, `.swc`, `.fig` | Snes9x | aucun |
+| `gameboy` | `.gb` | Gambatte | `gb_bios.bin` (facultatif, posé) |
+| `gameboycolor` | `.gbc` | Gambatte | `gbc_bios.bin` (facultatif, posé) |
+
+Mega-CD : mettez le `.cue` et ses `.bin` (et pistes audio) dans le même dossier, **sans les renommer** (le `.cue` contient leurs noms). Le générateur n'en fait qu'UNE tuile (le `.cue`). Un `.bin` sans `.cue` est ignoré avec un avertissement. Les images CD sont lourdes (300 à 700 Mo) et sont chargées entièrement en mémoire par le navigateur : préférez le format `.chd` (compressé, un seul fichier). Les `.m3u` (multi-disques) ne sont pas pris en charge.
 
 ## Générer la liste des jeux
 
@@ -78,6 +93,7 @@ Le script lit `systems.json`, scanne `roms/<machine>/` (un niveau de sous-dossie
 - Jaquette (facultative) : une image `.png`, `.jpg`, `.jpeg` ou `.webp` de même nom que le jeu, dans le même dossier.
 - Amiga multi-disquettes (T10) : déposez toutes les disquettes dans le même dossier (`roms/amiga/`) avec des noms qui ne diffèrent que par le numéro, au format TOSEC/No-Intro : `Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf`, `(Disk 2 of 3)`, `(Disk 3 of 3)` (aussi `(Disk 1)` ou `Disk 1 of 3`). Après `node scripts/generate-games.mjs`, elles forment UNE tuile (« Leander ») qui se lance avec toutes les disquettes ; le générateur avertit si une disquette manque. Sinon, un `.m3u` écrit à la main reste possible (seul le `.m3u` apparaît alors comme jeu ; non testé avec de vrais fichiers).
 - Changer de disquette en jeu (Amiga) : voir la section « Changer de disquette en jeu » plus bas.
+- Mega-CD (T15) : un `.cue` et les fichiers de ses lignes `FILE` forment UNE tuile ; ces fichiers ne sont pas listés à part (même principe que le `.m3u`).
 - BIOS spécifique à un jeu : un fichier `<nom du jeu>.bios` contenant le nom du BIOS (une ligne).
 - Les fichiers cachés (commençant par `.`) sont ignorés.
 

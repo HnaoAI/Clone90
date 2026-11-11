@@ -23,16 +23,16 @@ Légende de fiabilité utilisée dans tout le document :
 |---|---|---|---|---|---|---|
 | amiga | Amiga | `amiga` | puae (seul cœur) | adf, adz, dms, ipf, hdf, hdz, lha, zip, m3u [À VALIDER, la doc EmulatorJS ne liste aucune extension ; multi-disquettes TOSEC regroupées par le générateur, voir 3.1] | Kickstart, noms imposés par EmulatorJS (table section 3.1) [VÉRIFIÉ] | [1] [2] [3] |
 | neogeo | Neo Geo | `arcade` (alias de `fbneo`) | fbneo | zip uniquement (romset FBNeo) [VÉRIFIÉ T0 : viewpoin.zip] | `neogeo.zip` (fichier laissé zippé, posé à la racine par `EJS_externalFiles`, voir 3.2) [VÉRIFIÉ T0] | [4] [3] [5] |
-| arcade | Arcade | `arcade` | fbneo (autres possibles : fbalpha2012_cps1, fbalpha2012_cps2) | zip (romset FBNeo) | `neogeo.zip` utile pour les jeux de la famille Neo Geo, sinon rien | [4] [3] |
-| mastersystem | Master System | `segaMS` | smsplus (défaut), alternatives genesis_plus_gx, picodrive | sms, zip [À VALIDER] | aucun | [3] [6] |
-| megadrive | Mega Drive | `segaMD` | genesis_plus_gx (défaut) ; picodrive signalé cassé par la doc | md, bin, gen, smd, zip [À VALIDER] | `bios_MD.bin` (TMSS), optionnel [VÉRIFIÉ] | [7] [3] |
-| gamegear | Game Gear | `segaGG` | genesis_plus_gx | gg, zip [À VALIDER] | aucun | [3] |
-| megacd | Mega-CD / Sega CD | `segaCD` | genesis_plus_gx (picodrive cassé selon la doc) | cue+bin, iso, chd, m3u [À VALIDER] | `bios_CD_E.bin` (EU), `bios_CD_U.bin` (US), `bios_CD_J.bin` (JP) [VÉRIFIÉ] | [8] [3] |
-| 32x | 32X | `sega32x` | picodrive (seul cœur) | 32x, bin, zip [À VALIDER] | aucun mentionné | [9] [3] |
-| nes | NES | `nes` | fceumm (défaut) ; nestopia en option | nes, fds, unf, zip [À VALIDER] | aucun requis | [3] |
-| snes | Super Nintendo | `snes` | snes9x (défaut) ; bsnes en option | sfc, smc, zip [À VALIDER] | aucun requis | [3] |
-| gameboy | Game Boy | `gb` | gambatte (défaut) ; mgba en option | gb, zip [À VALIDER] | `gb_bios.bin` optionnel [VÉRIFIÉ] | [10] [3] |
-| gameboycolor | Game Boy Color | `gb` (il n'existe pas d'alias `gbc` dans la table) | gambatte | gbc, zip [À VALIDER] | `gbc_bios.bin` optionnel [VÉRIFIÉ] | [10] [3] |
+| arcade | Arcade | `arcade` | fbneo (1er de `arcade` dans `getCores()` 4.2.3 ; fbalpha2012_cps1/cps2 en option) | zip (romset FBNeo, nom du romset conservé) [VÉRIFIÉ : core.json fbneo `zip`,`7z`] | `neogeo.zip` facultatif, gardé zippé, `preload` non utilisé (c'est le BIOS `default`) [VÉRIFIÉ T0] | [4] [3] [11] |
+| mastersystem | Master System | `segaMS` | smsplus (1er de la liste) | sms, zip [VÉRIFIÉ : core.json smsplus, `valid_extensions` du source `sms\|bin\|rom\|col\|gg\|sg`] | aucun requis ; `bios.sms` lu seulement si l'option `smsplus_sms_bios` est active (non fournie par nous) [VÉRIFIÉ source] | [3] [6] [11] |
+| megadrive | Mega Drive | `segaMD` | genesis_plus_gx (1er) | md, bin, gen, smd, zip [VÉRIFIÉ : core.json] | `bios_MD.bin` (TMSS 2 Ko), lu SEULEMENT si l'option `genesis_plus_gx_bios` est activée (défaut `disabled`) : déclaré mais non posé [VÉRIFIÉ source] | [7] [3] [11] |
+| gamegear | Game Gear | `segaGG` | genesis_plus_gx (seul) | gg, zip [VÉRIFIÉ : core.json] | aucun (`bios.gg` facultatif de GPGX, non déclaré) [VÉRIFIÉ source] | [3] [11] |
+| megacd | Mega-CD / Sega CD | `segaCD` | genesis_plus_gx (1er ; picodrive en 2e) | cue (+ ses bin/audio, voir 3.3), iso, chd, zip [VÉRIFIÉ : core.json ; zip de cue+bin : chemin du code EmulatorJS, À CONFIRMER] | `bios_CD_E.bin`, `bios_CD_U.bin`, `bios_CD_J.bin` à la racine du système de fichiers du cœur, le cœur prend celui de la région du disque ; erreur « Unable to open CD BIOS » sinon [VÉRIFIÉ source GPGX] | [8] [3] [11] |
+| 32x | 32X | `sega32x` | picodrive (seul) | 32x, bin, zip [VÉRIFIÉ : core.json picodrive] | aucun posé (le source picodrive ne cherche de BIOS que pour le CD) [VÉRIFIÉ source, À CONFIRMER à l'usage] | [9] [3] [11] |
+| nes | NES | `nes` | fceumm (1er ; nestopia en option) | nes, fds, unf, unif, zip [VÉRIFIÉ : core.json] | `disksys.rom` (Famicom Disk System) requis SEULEMENT pour `.fds` (« FDS BIOS image (disksys.rom) missing ») [VÉRIFIÉ source fceumm] | [3] [11] |
+| snes | Super Nintendo | `snes` | snes9x (seul) | sfc, smc, swc, fig, zip [VÉRIFIÉ : core.json] | aucun (STBIOS.bin et BS-X.bin seulement pour Sufami Turbo et BS-X, hors périmètre) [VÉRIFIÉ source] | [3] [11] |
+| gameboy | Game Boy | `gb` | gambatte (seul) | gb, zip [VÉRIFIÉ : core.json `gb,gbc,dmg`] | `gb_bios.bin` (256 octets) facultatif, lu si `gambatte_gb_bootloader` (défaut `enabled`) : posé s'il existe (`preload`) [VÉRIFIÉ source] | [10] [3] [11] |
+| gameboycolor | Game Boy Color | `gb` (pas d'alias `gbc`) | gambatte | gbc, zip [VÉRIFIÉ : core.json] | `gbc_bios.bin` (2304 octets) facultatif, posé s'il existe (`preload`) [VÉRIFIÉ source] | [10] [3] [11] |
 
 Notes importantes :
 1. **Neo Geo vs Arcade** : EmulatorJS n'a pas d'alias `neogeo`. Les deux dossiers passent par fbneo. La différence est uniquement dans notre menu (deux tuiles) et dans les BIOS déclarés. Source : table `cores` de consts.js, clé `arcade`. [VÉRIFIÉ]
@@ -53,6 +53,7 @@ Notes importantes :
 - [8] https://emulatorjs.org/docs/systems/sega-cd
 - [9] https://emulatorjs.org/docs/systems/sega-32x
 - [10] https://emulatorjs.org/docs/systems/nintendo-game-boy
+- [11] T15 : `core.json` de chaque cœur, lu dans `https://cdn.emulatorjs.org/4.2.3/data/cores/<cœur>-wasm.data` (archive 7z) ; sources des cœurs sur github.com/EmulatorJS/{Genesis-Plus-GX, smsplus-gx, picodrive, libretro-fceumm, snes9x, gambatte-libretro} (branche master) ; `getCores()` et `downloadRom()` de `data/src/emulator.js` 4.2.3.
 - Options : https://emulatorjs.org/docs/options
 - CDN : https://emulatorjs.org/docs/cdn (base `https://cdn.emulatorjs.org/<stable|latest|nightly>/data/`)
 - Loader : https://github.com/EmulatorJS/EmulatorJS/blob/main/data/loader.js
@@ -90,10 +91,17 @@ Notes importantes :
 - Titre affiché : le nom de fichier d'un romset arcade n'est pas lisible (`mslug`, `kof98`). Prévoir un fichier de surcharge de titres `data/titles.json` (clé = nom de fichier sans extension) lu par le générateur, avec nettoyage automatique pour les autres machines. Sans cela, l'écran Neo Geo affichera des codes.
 - Neo Geo CD n'est pas supporté ici (hors périmètre).
 
-### 3.3 Autres BIOS (étape suivante)
+### 3.3 Les 10 autres machines (T15)
 
-- Mega-CD : `bios_CD_E.bin`, `bios_CD_U.bin`, `bios_CD_J.bin`. EmulatorJS ne documente pas comment en fournir trois à la fois ; piste : un BIOS par jeu selon sa région (surcharge `bios` par jeu) ou `EJS_externalFiles`. À trancher à l'étape du Mega-CD.
-- Mega Drive `bios_MD.bin` (TMSS), Game Boy `gb_bios.bin`, Game Boy Color `gbc_bios.bin` : tous optionnels.
+Statut : tout est **[VÉRIFIÉ]** dans le code (EmulatorJS 4.2.3, `core.json` des cœurs, sources des cœurs), **rien n'a été joué** avec de vrais jeux : à confirmer par Hicham (**[À CONFIRMER par Hicham]**) machine par machine.
+
+- **Cœurs et threads** : les alias de la table section 2 sont ceux de `getCores()` (emulator.js 4.2.3 l.2-44). `requiresThreads` ne contient que `ppsspp` et `dosbox_pure` (l.46-48) : aucun de nos cœurs ne demande de threads ni de SharedArrayBuffer, GitHub Pages reste possible. Les fichiers `core.json` de smsplus, genesis_plus_gx, picodrive, fceumm, snes9x, gambatte et fbneo ont tous `"options": {}` : **ni `useKeyboard` ni `retroarchOpts`**. Donc « Direct Keyboard Input » reste `disabled` par défaut (emulator.js l.4986), RetroArch ignore le clavier du document (`keyboard_enabled != 1`) et `disableRetroArchHotkeys` est **inutile pour ces 10 machines** (et pour fbneo). Remarque : le `core.json` de puae (Amiga) n'a lui non plus que `{"supportsMouse": true}`, donc sans `useKeyboard` : l'hypothèse « clavier direct actif sur Amiga » de T14 / `docs/diagnostic-neogeo-lent.md` est probablement fausse (le réglage peut toutefois être mis à `enabled` par la personne, dans le menu ou le localStorage). À examiner par le tech-lead, hors périmètre T15.
+- **Archives zip** : `downloadRom()` extrait le zip, choisit le fichier dont l'extension est dans `core.json`, puis (cue/ccd/m3u présents) le `.cue`. Pour `arcade`/`mame` le zip est écrit tel quel (T0). D'où `zip` accepté partout.
+- **Mega-CD (genesis_plus_gx)** : EmulatorJS ne télécharge QU'UN fichier de jeu (`EJS_gameUrl`) ; un `.cue` seul ne suffit pas, il faut ses `.bin`. Solution T15 : une tuile par `.cue`, `games.json` porte `extraFiles: [{file, as}]` (fichiers cités par les lignes `FILE`, dans l'ordre), le lanceur passe le `.cue` en `EJS_gameUrl` et pose chaque fichier à la racine sous le nom écrit dans le `.cue` (`EJS_externalFiles`, octets, comme les disquettes de T10 : `loadExternalFiles` s'exécute avant le jeu et le `.cue` est écrit à la racine, donc les chemins relatifs du `.cue` sont résolus). Le générateur résout les noms sans tenir compte de la casse et dans le sous-dossier du `.cue` ; `..` et chemins absolus refusés. `bin` et `m3u` sont retirés des extensions : un `.bin` seul est une ROM de cartouche pour GPGX (il ne démarre pas comme CD) et un `.m3u` de `.cue` n'amènerait pas les `.cue`/`.bin` qu'il cite. `iso` et `chd` (un seul fichier) passent par `EJS_gameUrl` normalement (`isoFile`). **Risque** : un `.bin` fait 300 à 700 Mo, il est lu en entier dans un `Uint8Array` puis recopié dans le système de fichiers du cœur (mémoire doublée) : possible échec sur de gros disques ; le `.chd` (compressé) est le format conseillé. [À CONFIRMER par Hicham]
+- **BIOS Mega-CD** : `genesis_plus_gx` cherche `bios_CD_E.bin`, `bios_CD_U.bin`, `bios_CD_J.bin` dans le répertoire système (repli : dossier du jeu = `/`) selon la région du disque, et signale une erreur s'il manque (« Unable to open CD BIOS »). `EJS_biosUrl` n'accepte qu'un fichier : les trois sont `preload` (champ ajouté à `bios` de `systems.json`, voir 6.1), posés tels quels à la racine par `EJS_externalFiles` s'ils existent (HEAD) ; aucun n'est « requis » individuellement (il faut celui de la région).
+- **Autres BIOS** : Game Boy / Color (`gb_bios.bin`, `gbc_bios.bin`) lus par gambatte si `gambatte_gb_bootloader` est `enabled` (défaut) : `preload`. NES `disksys.rom` : requis par fceumm pour les `.fds` seulement : `preload` facultatif. Mega Drive `bios_MD.bin` et Master System `bios.sms` ne servent qu'avec une option de cœur désactivée par défaut : non posés (déclaré seulement pour `bios_MD.bin`, à titre de documentation).
+- **Arcade** : même cœur que Neo Geo. Les romsets doivent correspondre à la version de FBNeo du CDN ; un romset « clone » dont le parent est un autre zip (ou qui demande un BIOS comme `pgm.zip`, `neogeo.zip`) échoue sans ce parent : le support parent (`EJS_gameParentUrl`) n'est pas fait (hors T15). `data/titles.json` contient déjà les titres usuels.
+- **Résolution de l'extension de `.bin` de Mega Drive / 32X** : toute extension de ces machines est une ROM de cartouche (pas de `.cue`).
 
 ## 4. SharedArrayBuffer, COOP/COEP, GitHub Pages
 
@@ -155,7 +163,7 @@ Règle de découpage : un module = une responsabilité. Les écrans n'importent 
 
 Champs : `id` (= nom du sous-dossier de `roms/`, casse ignorée à la lecture : `roms/Amiga/` est trouvé pour `amiga`, le chemin écrit dans `games.json` est le chemin réel), `name`, `order`, `emulatorjsCore`, `extensions` (minuscules, sans point), `bios` (liste), `logo`, `accent` (variable CSS de fallback), `wave` (1 = livré à l'étape 1, 2 = plus tard ; l'accueil n'affiche en actif que les machines avec au moins un jeu, donc `wave` sert surtout de documentation).
 
-Chaque entrée `bios` : `file` (chemin sous `bios/`), `required` (booléen), `role` (`default` = passé à `EJS_biosUrl` si présent, `optional`), `note`, `keepZipped` (optionnel, booléen : BIOS à poser tel quel, non extrait, à la racine du système de fichiers du cœur ; Neo Geo).
+Chaque entrée `bios` : `file` (chemin sous `bios/`), `required` (booléen), `role` (`default` = passé à `EJS_biosUrl` si présent, `optional`), `note`, `keepZipped` (optionnel, booléen : BIOS à poser tel quel, non extrait, à la racine du système de fichiers du cœur ; Neo Geo), `preload` (optionnel, booléen, T15 : fichier posé tel quel à la racine sous son nom exact s'il existe, EN PLUS de `EJS_biosUrl` ; sert aux cœurs qui lisent plusieurs BIOS : Mega-CD x3, Game Boy, NES `disksys.rom`).
 
 Champ optionnel de machine `disableRetroArchHotkeys` (booléen, Amiga) : met à `"nul"` tous les raccourcis de RetroArch (T14, `js/player/retroarch-cfg.js`) ; des lignes sont AJOUTÉES au `retroarch.cfg` d'EmulatorJS pour TOUTES les machines (surcharge de `EJS_GameManager.prototype.getRetroArchCfg`, journal d'erreurs pour détecter un échec de démarrage, `js/player/ejs-start-watch.js`) ; rien d'EmulatorJS n'est recopié.
 
@@ -197,7 +205,7 @@ Champ optionnel de machine `coreOptions` (objet nom d'option du cœur vers valeu
 }
 ```
 
-Les 11 autres entrées (arcade, mastersystem, megadrive, gamegear, megacd, 32x, nes, snes, gameboy, gameboycolor) suivent le tableau section 2, avec `wave: 2`. Les BIOS Mega-CD sont trois entrées `optional` tant que la règle de choix par région n'est pas tranchée.
+Les 10 autres entrées (arcade, mastersystem, megadrive, gamegear, megacd, 32x, nes, snes, gameboy, gameboycolor) suivent le tableau section 2, avec `wave: 2`. Les BIOS Mega-CD sont trois entrées `optional` + `preload` (T15, voir 3.3) : le cœur choisit celui de la région du disque.
 
 ### 6.2 games.json (généré, jamais édité à la main)
 
@@ -226,6 +234,7 @@ Les 11 autres entrées (arcade, mastersystem, megadrive, gamegear, megacd, 32x, 
 ```
 
 - `id` = `<machine>/<nom de fichier sans extension, en minuscules, espaces remplacés par _>`. Stable, utilisé dans l'URL du player et pour le focus de retour.
+- `extraFiles` (optionnel, T15, Mega-CD) : liste de `{file, as}` : fichiers cités par les lignes `FILE` du `.cue` (`file` = chemin réel sous roms/, `as` = nom écrit dans le `.cue`, utilisé comme nom dans le système de fichiers du cœur). Absent pour un jeu sans `.cue`. Validé par `validateGames`.
 - `disks` (optionnel, ajouté en T10, `version` reste 1 car le champ est facultatif et un front ancien ignore ce champ et lance `file`) : liste ordonnée (au moins 2) des chemins relatifs des disquettes d'un jeu multi-disquettes ; `disks[0]` = `file` (disquette 1, ou la première présente). Absent pour un jeu simple. Exemple : `"id": "amiga/leander_(1991)(psygnosis)", "title": "Leander", "file": "roms/Amiga/Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf", "disks": [".../(Disk 1 of 3)...adf", ".../(Disk 2 of 3)...adf", ".../(Disk 3 of 3)...adf"]`. Validé côté front par `validateGames` (data.js) : un jeu dont `disks` est invalide est écarté.
 - `cover` : image de même nom (png, jpg, jpeg, webp) dans le même dossier, sinon `null`.
 - `bios` (optionnel) : surcharge du BIOS par défaut de la machine, présente seulement si un fichier `<nom>.bios` existe à côté du jeu (une ligne : le nom du BIOS). Évite de compliquer le format pour tous.
@@ -240,6 +249,7 @@ Node.js 18+ sans dépendance (`node:fs/promises`, `node:path`, `node:url`).
 2. Pour chaque machine, lister `roms/<id>/` (récursif d'un niveau de sous-dossier toléré), le nom du dossier étant retrouvé sans tenir compte de la casse (`pickSystemDir` ; casse exacte préférée ; le dossier n'est jamais renommé). Dossier absent = machine ignorée sans erreur.
 3. Retenir les fichiers dont l'extension (minuscule) est dans `extensions` de la machine.
 4. Règle `.m3u` Amiga : les fichiers cités dans un `.m3u` sont exclus de la liste, le `.m3u` devient le jeu.
+4c. Règle `.cue` (T15) : si `cue` fait partie des extensions de la machine, les noms des lignes `FILE` de chaque `.cue` (`parseCue`) sont les fichiers du jeu : ils ne sont pas listés à part (ni d'avertissement « extension non prise en charge » pour eux), `extraFiles` les liste dans l'ordre du `.cue`. Fichier cité introuvable : jeu gardé + avertissement (le lanceur répond « Jeu introuvable » au lancement). Un `.cue` n'est jamais regroupé comme disquette (`Disk N`).
 4b. Règle multi-disquettes (T10) : les fichiers (même dossier, même extension) dont le nom contient `(Disk N of M)`, `(Disk N)` ou `Disk N of M` (insensible à la casse) forment UN jeu. Nom de base = nom sans cette étiquette ni les `[drapeaux]` ; l'id est `<machine>/<nom de base>` (ex. `amiga/leander_(1991)(psygnosis)`, stable quelle que soit la disquette manquante ou présente), le titre est tiré du nom de base (surcharge titles.json par ce nom de base), `file` = disquette 1 (ou la plus petite présente), `disks` = liste triée par numéro (10 après 2). Jaquette et `.bios` : ceux de la disquette 1 d'abord, sinon ceux du nom de base. Groupe incomplet (numéro manquant entre 1 et le total annoncé, ou au plus grand numéro présent) : avertissement `jeu X incomplet, disquette(s) manquante(s) : 2 sur 3`, jeu gardé avec les disquettes présentes ; une seule disquette présente = jeu simple (sans `disks`) + avertissement. Deux fichiers du même numéro : le premier par nom est gardé, avertissement. Un `.m3u` prime : ses disques sont exclus avant tout regroupement. `(Disk 1)` seule sans total : jeu simple, pas d'avertissement.
 5. Titre : surcharge `data/titles.json` si présente, sinon nom du fichier nettoyé (suppression de l'extension, des étiquettes entre parenthèses ou crochets comme `(Europe)` `[!]`, `_` en espace ; les noms TOSEC/No-Intro donnent le titre seul : `Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf` donne `Leander`). Tri par titre (`localeCompare`, fr, numérique).
 6. Jaquette : même nom + `.png|.jpg|.jpeg|.webp`.
