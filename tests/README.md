@@ -21,3 +21,5 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `sw.test.mjs` : logique pure de `sw.js` (liste de la coquille complète, filtre : jamais roms/, bios/, games.json ni le CDN, nettoyage des caches) (T8).
 - `pwa.test.mjs` : manifest, icônes PNG, liens dans les pages, enregistrement du service worker (T8).
 - `generate-logos.test.mjs` : logos SVG (un par machine, valides, sans doublon, couleurs et contraste, fichiers à jour) (T5b).
+- `retroarch-cfg.test.mjs` : lignes ajoutées au retroarch.cfg, raccourcis à nul, surcharge de `getRetroArchCfg` (T14).
+- `ejs-start-watch.test.mjs` : détection d'un contenu refusé par le cœur, sans faux positif, hook de `EJS_Runtime` (T14).

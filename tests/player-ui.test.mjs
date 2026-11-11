@@ -95,3 +95,35 @@ test('describeLoadError A6 : liste des jeux injoignable (hors ligne) n\'accuse p
   assert.match(e.title + e.detail, /hors ligne|connexion|serveur/i);
   assert.doesNotMatch(e.title, /introuvable/i);
 });
+
+// --- T14 : écran d'échec de démarrage ---
+import { describeStartFailure, renderPlayerMessage } from '../js/player/player-ui.js';
+
+test('T14 describeStartFailure : titre en français et raison "manquant ou incorrect" quand le cœur le dit', () => {
+  const { title, details } = describeStartFailure({ coreMessages: ['[FBNeo] ROM sp-s3.sp1 is missing'] });
+  assert.equal(title, "Ce jeu n'a pas pu démarrer");
+  assert.match(details[0], /manquant ou incorrect/);
+  assert.match(details.at(-1), /Détail technique : \[FBNeo\] ROM sp-s3\.sp1 is missing/);
+});
+
+test('T14 describeStartFailure : raison inconnue, message générique sans détail technique ; sans argument ne plante pas', () => {
+  for (const info of [{ coreMessages: [] }, {}, undefined]) {
+    const { title, details } = describeStartFailure(info);
+    assert.equal(title, "Ce jeu n'a pas pu démarrer");
+    assert.match(details[0], /refusé/);
+    assert.ok(!details.some((d) => d.startsWith('Détail technique')));
+  }
+});
+
+test('T14 describeStartFailure : texte hostile du cœur laissé tel quel (affiché en texte, jamais en HTML)', () => {
+  const { details } = describeStartFailure({ coreMessages: ['<img src=x onerror=alert(1)> is missing'] });
+  assert.ok(details.at(-1).includes('<img'));
+});
+
+test('T14 écran d\'échec : message en role=alert avec un bouton, et la phase error quitte en un appui', () => {
+  const made = [];
+  const doc = { createElement: (tag) => { const e = { tag, children: [], attrs: {}, dataset: {}, classList: { add() {} }, append(...c) { this.children.push(...c); }, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener() {} }; made.push(e); return e; }, createTextNode: (t) => ({ text: t }) };
+  const { title, details } = describeStartFailure({ coreMessages: [] });
+  assert.doesNotThrow(() => renderPlayerMessage({ title, details, actionLabel: 'Revenir à la liste', onAction: () => {} }, doc));
+  assert.equal(exitDecision('error'), 'leave');
+});

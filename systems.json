@@ -29,6 +29,7 @@
         "puae_model": "A1200",
         "puae_floppy_multidrive": "disabled"
       },
+      "disableRetroArchHotkeys": true,
       "logo": "assets/logos/amiga.svg",
       "accent": "--m-amiga",
       "wave": 1
