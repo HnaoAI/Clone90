@@ -3,12 +3,13 @@
 // INVARIANT : c'est le SEUL module qui connaît EmulatorJS (CLAUDE.md règle 4). Les autres ne voient que pauseEmulator/resumeEmulator.
 // INVARIANT : les variables EJS_* sont posées AVANT l'injection de loader.js (le loader les lit une seule fois à son chargement).
 //
+// Version d'EmulatorJS (T21) : par machine (`ejsVersion` de systems.json), sinon EJS_CDN_VERSION ; l'URL vient de ejsDataUrl (config.js).
 // Validé en T0 avec de vrais fichiers sur le CDN (stable, 4.2.3 aujourd'hui) (Neo Geo, romset viewpoin) : EJS_onGameStart, EJS_emulator.pause()/play(),
 // chemin de jeu encodé, et BIOS Neo Geo gardé zippé (voir "keepZipped" ci-dessous). Reste ouvert (pas de Kickstart ni de jeu Amiga
 // réels) : 'bios/kick40068.A1200' retrouvé par puae, IPF, multi-disques.
 // Jeu à .cue (Mega-CD, T15) : `extraFiles` du jeu posés à côté du .cue ; BIOS `preload` posés en plus (voir buildLaunchPlan).
 // Multi-disquettes (T10) : voir diskSetFiles ci-dessous (m3u virtuel + disquettes posées par EJS_externalFiles).
-import { EJS_CDN_URL, BIOS_DIR } from '../config.js';
+import { ejsDataUrl, BIOS_DIR } from '../config.js';
 import { buildRetroArchCfgExtra, appendRetroArchCfg } from './retroarch-cfg.js';
 import { createStartFailureWatch, hookCoreOutput } from './ejs-start-watch.js';
 import { assetUrl, assetPathFromUrl, isRelativePath } from '../data.js';
@@ -82,13 +83,13 @@ const hasDiskSet = (system, game) => system.diskSets === true && Array.isArray(g
  * BIOS "keepZipped" (Neo Geo) : EmulatorJS stable extrait toujours le zip passé à EJS_biosUrl, alors que fbneo veut `neogeo.zip`
  * entier à la racine (constaté en T0 : "ROM sp-s3.sp1 is missing"). Le plan le met donc dans `rawFiles` : loadEmulator le télécharge
  * et le pose tel quel via EJS_externalFiles (seule voie qui écrit sans extraire).
- * @param {{system: object, game: object, cdnUrl?: string, debug?: boolean}} input `cdnUrl` : surcharge pour les tests (défaut config.js) ; `debug` : mode diagnostic (T16), journal du cœur au niveau info
+ * @param {{system: object, game: object, cdnUrl?: string, debug?: boolean}} input `cdnUrl` : surcharge pour les tests (défaut : ejsDataUrl(system.ejsVersion), T21) ; `debug` : mode diagnostic (T16), journal du cœur au niveau info
  * @returns {{globals: Object<string, any>, loaderUrl: string, files: {kind: 'game'|'bios', path: string, url: string, required: boolean}[], rawFiles: {url: string, fsPath: string}[], retroarchCfgExtra: string}}
- * @throws {Error} cœur absent, BIOS invalide
+ * @throws {Error} cœur absent, BIOS invalide, ejsVersion invalide
  */
-export function buildLaunchPlan({ system, game, cdnUrl = EJS_CDN_URL, debug = false }) {
+export function buildLaunchPlan({ system, game, cdnUrl, debug = false }) {
   if (!system.emulatorjsCore) throw new Error(`Aucun cœur EmulatorJS déclaré pour ${system.name ?? system.id}`);
-  const dataUrl = withTrailingSlash(cdnUrl);
+  const dataUrl = withTrailingSlash(cdnUrl ?? ejsDataUrl(system.ejsVersion)); // T21 : version propre à la machine, sinon celle de config.js
   const bios = resolveBios(system, game);
   const biosPath = bios && `${BIOS_DIR}/${bios.file}`;
   const globals = {
@@ -201,7 +202,9 @@ function onEmulatorCreated(win, hooks) {
 }
 
 /**
- * Contournements de défauts d'EmulatorJS 4.2.3 (version épinglée dans config.js, à retester avant tout changement ; constatés en T10 avec puae et un jeu à plusieurs disques). startGame() construit le
+ * Contournements de défauts d'EmulatorJS 4.2.3 (version par défaut de config.js, à retester avant tout changement ; constatés en T10 avec puae et un jeu à plusieurs disques).
+ * T21 : l'Amiga tourne sur 4.2.1 (systems.json `ejsVersion`), où le point 3 ("unreachable" à l'éjection) n'existe pas ; le point 1 est sans objet (pas de
+ *  `allSettings` en 4.2.1) et le point 2 inoffensif. Le rappel unique (3) reste utile en 4.2.3 et ne se déclenche jamais en 4.2.1. Détail vérifié : tickets/T21-amiga-ejs-421.md. startGame() construit le
  * menu des disques AVANT le menu des réglages, et ce menu "sélectionne" le disque courant au passage :
  *  1. menuOptionChanged écrit dans `allSettings`, que seul le menu des réglages crée : "Cannot set properties of undefined (setting 'disk')",
  *     puis "Failed to start game". On donne donc `allSettings = {}` à l'instance dès qu'EmulatorJS la crée (son constructeur ne démarre que

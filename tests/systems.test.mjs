@@ -219,3 +219,18 @@ test('T18 diskSets : true sur l\'Amiga seule (jeux à plusieurs disquettes), abs
   assert.equal(byId('amiga').diskSets, true);
   for (const s of systems.filter((x) => x.id !== 'amiga')) assert.equal('diskSets' in s, false, s.id);
 });
+
+test('T21 ejsVersion : facultatif, format x.y.z, uniquement sur l\'Amiga (4.2.1), jamais stable ni nightly', () => {
+  for (const s of systems) {
+    if ('ejsVersion' in s) assert.match(s.ejsVersion, /^\d+\.\d+\.\d+$/, s.id);
+  }
+  assert.equal(byId('amiga').ejsVersion, '4.2.1');
+  for (const s of systems.filter((x) => x.id !== 'amiga')) assert.equal('ejsVersion' in s, false, s.id);
+});
+
+test('T21 ejsVersion : l\'URL du CDN de chaque machine du vrai systems.json (Amiga 4.2.1, Neo Geo et le reste 4.2.3)', async () => {
+  const { ejsDataUrl, EJS_CDN_VERSION } = await import('../js/config.js');
+  assert.equal(EJS_CDN_VERSION, '4.2.3');
+  assert.equal(ejsDataUrl(byId('amiga').ejsVersion), 'https://cdn.emulatorjs.org/4.2.1/data/');
+  assert.equal(ejsDataUrl(byId('neogeo').ejsVersion), 'https://cdn.emulatorjs.org/4.2.3/data/');
+});

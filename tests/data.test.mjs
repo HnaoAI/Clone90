@@ -237,3 +237,10 @@ test('T15 validateGames : extraFiles accepté s\'il liste des {file chemin sûr,
   assert.deepEqual(games.map((g) => g.id), ['megacd/a', 'megacd/f']);
   assert.equal(skipped, 4);
 });
+
+test('T21 validateSystems : ejsVersion facultative, au format x.y.z, sinon erreur claire', () => {
+  assert.doesNotThrow(() => validateSystems({ version: 1, systems: [sys('amiga', 10, { ejsVersion: '4.2.1' }), sys('neogeo', 20)] }));
+  for (const bad of ['stable', 'nightly', '', '4.2', 421, null, '4.2.1 ']) {
+    assert.throws(() => validateSystems({ version: 1, systems: [sys('amiga', 10, { ejsVersion: bad })] }), /amiga.*ejsVersion/, String(bad));
+  }
+});

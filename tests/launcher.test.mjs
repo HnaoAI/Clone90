@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveBios, diskSetFiles, buildLaunchPlan, findMissingFiles, checkPlanFiles, describeMissing, loadEmulator, pauseEmulator, resumeEmulator, GAME_ELEMENT_ID, STARTUP_GRACE_MS } from '../js/player/launcher.js';
-import { EJS_CDN_URL } from '../js/config.js';
+import { EJS_CDN_URL, EJS_CDN_VERSION, ejsDataUrl } from '../js/config.js';
 
 const neogeo = {
   id: 'neogeo', name: 'Neo Geo', emulatorjsCore: 'arcade',
@@ -620,4 +620,46 @@ test('T18 diskSets : sans diskSets sur la machine, un champ disks est ignoré (j
   assert.equal(plan.globals.EJS_gameUrl, 'roms/nes/x1.nes');
   assert.equal(plan.virtualGame, null);
   assert.equal(plan.rawFiles.length, 0);
+});
+
+// T21 : une version d'EmulatorJS par machine (champ facultatif `ejsVersion`, défaut = EJS_CDN_VERSION).
+const amiga421 = { ...amiga, ejsVersion: '4.2.1' };
+const viewpoint = { id: 'neogeo/viewpoin', system: 'neogeo', title: 'Viewpoint', file: 'roms/neogeo/viewpoin.zip', cover: null };
+const gods = { id: 'amiga/gods', system: 'amiga', title: 'Gods', file: 'roms/amiga/Gods (disk 1).adf', disks: ['roms/amiga/Gods (disk 1).adf', 'roms/amiga/Gods (disk 2).adf'] };
+
+test('T21 ejsDataUrl : sans version, l\'URL du CDN par défaut (EJS_CDN_VERSION) ; avec version, celle demandée', () => {
+  assert.equal(ejsDataUrl(), EJS_CDN_URL);
+  assert.equal(ejsDataUrl(undefined), EJS_CDN_URL);
+  assert.equal(ejsDataUrl('4.2.1'), 'https://cdn.emulatorjs.org/4.2.1/data/');
+  assert.equal(EJS_CDN_URL, `https://cdn.emulatorjs.org/${EJS_CDN_VERSION}/data/`);
+});
+
+test('T21 ejsDataUrl : une version mal formée est refusée (stable, nightly, vide, chemin, espace)', () => {
+  for (const bad of ['stable', 'nightly', '', '4.2', '4.2.1/../x', ' 4.2.1', '4.2.1\n', 'v4.2.1', 42, null]) {
+    assert.throws(() => ejsDataUrl(bad), /version/i, String(bad));
+  }
+});
+
+test('T21 plan de lancement : l\'Amiga (ejsVersion 4.2.1) charge EmulatorJS 4.2.1', () => {
+  const plan = buildLaunchPlan({ system: amiga421, game: gods });
+  assert.equal(plan.globals.EJS_pathtodata, 'https://cdn.emulatorjs.org/4.2.1/data/');
+  assert.equal(plan.loaderUrl, 'https://cdn.emulatorjs.org/4.2.1/data/loader.js');
+  assert.equal(plan.globals.EJS_core, 'amiga');
+  assert.equal(plan.virtualGame.name, 'amiga_gods.m3u');
+});
+
+test('T21 plan de lancement : Neo Geo (Viewpoint, sans ejsVersion) reste sur la version par défaut', () => {
+  const plan = buildLaunchPlan({ system: neogeo, game: viewpoint });
+  assert.equal(plan.globals.EJS_pathtodata, EJS_CDN_URL);
+  assert.equal(plan.loaderUrl, `${EJS_CDN_URL}loader.js`);
+  assert.ok(!plan.loaderUrl.includes('/4.2.1/'));
+});
+
+test('T21 plan de lancement : le `cdnUrl` explicite (tests) l\'emporte sur la version de la machine', () => {
+  const plan = buildLaunchPlan({ system: amiga421, game: gods, cdnUrl: 'https://exemple.test/x/data' });
+  assert.equal(plan.loaderUrl, 'https://exemple.test/x/data/loader.js');
+});
+
+test('T21 plan de lancement : une ejsVersion invalide lève une erreur claire', () => {
+  assert.throws(() => buildLaunchPlan({ system: { ...amiga, ejsVersion: 'nightly' }, game: gods }), /version/i);
 });

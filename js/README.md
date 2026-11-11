@@ -3,7 +3,7 @@
 Modules ES sans framework ni build. Chemins relatifs uniquement.
 
 - `version.js` : `APP_VERSION`, `APP_DATE`, `formatVersionLabel` (source unique du numéro de version, T16).
-- `config.js` : constantes (version du CDN EmulatorJS, noms de fichiers de données, dossiers roms/bios).
+- `config.js` : constantes (version par défaut du CDN EmulatorJS et `ejsDataUrl`, seule fonction qui en construit l'URL, T21 ; noms de fichiers de données, dossiers roms/bios).
 - `data.js` : charge et valide `systems.json` et `games.json` (`games.json` absent = statut `absent`, pas d'erreur), regroupement par machine, encodage des chemins (par segment) et des ids pour les URL, messages d'erreur français de systems.json, statuts de games.json (`ok`, `empty`, `absent`, `offline`, `invalid`).
 - `router.js` : routes hash `#/` et `#/<machine>?focus=<id>` (`parseHash`, `buildHash`, `createRouter`) et `buildPlayerUrl`. Aucune logique d'écran.
 - `sort.js` : `compareTitles`, règle de tri des titres partagée avec `scripts/generate-games.mjs`.
