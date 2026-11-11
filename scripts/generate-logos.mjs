@@ -7,8 +7,11 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { PROJECT_ROOT } from './project-root.mjs';
 import { GLYPHS, GLYPH_WIDTH, GLYPH_HEIGHT } from './pixel-font.mjs';
+import { readCssColors, contrastRatio } from './css-colors.mjs';
 
-export const LOGO_TEXT_COLOR = '#f2f0e9'; // --text de docs/ux.md 5.2
+export { contrastRatio };
+/** Couleur du texte des logos : doit rester égale à --text de css/base.css (tests/design.test.mjs le vérifie). */
+export const LOGO_TEXT_COLOR = '#ffffff';
 const MIN_CONTRAST = 4.5;
 const VIEW = { width: 160, height: 100 };
 const MARGIN = 12; // marge intérieure du texte (le cadre est à 3 px du bord)
@@ -25,19 +28,7 @@ const SHAPES = [
 
 /** Variables d'accent de machine déclarées dans le CSS : { '--m-amiga': '#a84300', ... }. */
 export function readAccentColors(css) {
-  return Object.fromEntries([...css.matchAll(/(--m-[a-z0-9]+):\s*(#[0-9a-f]{6})\b/gi)].map((m) => [m[1], m[2].toLowerCase()]));
-}
-
-const luminance = (hex) => {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
-    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-};
-
-/** Rapport de contraste WCAG entre deux couleurs #rrggbb. */
-export function contrastRatio(a, b) {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
+  return Object.fromEntries(Object.entries(readCssColors(css)).filter(([name]) => name.startsWith('--m-')));
 }
 
 const columnsOf = (line) => line.length * (GLYPH_WIDTH + 1) - 1;
