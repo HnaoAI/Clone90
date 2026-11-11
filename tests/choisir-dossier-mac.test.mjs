@@ -27,8 +27,14 @@ test('choisir le dossier : boîte « choisir un dossier », choix des BIOS ou ga
   assert.match(s, /local-settings\.mjs set romsDir/);
   assert.match(s, /local-settings\.mjs set biosDir/);
   assert.match(s, /\|\| annuler/);
+  assert.match(s, /local-settings\.mjs check/);
+  assert.match(s, /choisir_dossier_valide "Choisissez le dossier qui contient vos ROMs"/);
   assert.ok(s.indexOf('|| annuler') < s.indexOf('local-settings.mjs set'), 'rien n\'est écrit avant les deux choix');
   assert.match(s, /read -n 1 -s -r -p/);
+});
+
+test('choisir le dossier : rappelle de relancer Clone90 s\'il est déjà ouvert', () => {
+  assert.match(read(NAMES[0]), /Si Clone90 est déjà ouvert, fermez sa fenêtre Terminal puis relancez Lancer Clone90\./);
 });
 
 test('lanceur : affiche le dossier des jeux via le générateur, sans autre changement de démarrage', () => {

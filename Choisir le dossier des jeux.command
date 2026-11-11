@@ -18,6 +18,16 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
+# Redemande tant que le dossier est refusé (trop large : /, dossier personnel, /Users, /Volumes, dossiers système...). Annuler : code 1.
+choisir_dossier_valide() {
+  local chemin
+  while true; do
+    chemin=$(choisir_dossier "$1") || return 1
+    node scripts/local-settings.mjs check "$chemin" >&2 && { printf '%s' "$chemin"; return 0; }
+    osascript -e 'display dialog "Ce dossier est trop large ou introuvable. Choisissez le dossier qui contient directement vos jeux." buttons {"OK"} default button "OK"' >/dev/null 2>&1 || return 1
+  done
+}
+
 # Affiche la boîte « choisir un dossier » ; imprime le chemin sans « / » final, ou rien si l'on annule.
 choisir_dossier() {
   local chemin
@@ -33,12 +43,12 @@ annuler() {
 }
 
 echo "Choisissez le dossier qui contient vos ROMs (une fenêtre s'ouvre)..."
-ROMS=$(choisir_dossier "Choisissez le dossier qui contient vos ROMs") || annuler
+ROMS=$(choisir_dossier_valide "Choisissez le dossier qui contient vos ROMs") || annuler
 
 # Même dossier que les ROMs ? Non : on propose de garder le dossier bios/ du projet ou d'en choisir un autre.
 REPONSE=$(osascript -e 'button returned of (display dialog "Où sont vos BIOS (Amiga, Neo Geo...) ?" buttons {"Garder bios/ du projet", "Choisir un dossier"} default button "Garder bios/ du projet")' 2>/dev/null) || annuler
 if [ "$REPONSE" = "Choisir un dossier" ]; then
-  BIOS=$(choisir_dossier "Choisissez le dossier qui contient vos BIOS") || annuler
+  BIOS=$(choisir_dossier_valide "Choisissez le dossier qui contient vos BIOS") || annuler
 else
   BIOS="-"
 fi
@@ -53,5 +63,6 @@ echo "Réglages enregistrés dans clone90.local.json :"
 node scripts/local-settings.mjs show
 echo ""
 echo "Double-cliquez sur « Lancer Clone90 » pour utiliser ces dossiers."
+echo "Si Clone90 est déjà ouvert, fermez sa fenêtre Terminal puis relancez Lancer Clone90."
 echo "Pour revenir au dossier roms/ du projet, supprimez le fichier clone90.local.json."
 attendre_touche

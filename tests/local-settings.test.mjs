@@ -2,9 +2,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, copyFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { readLocalSettings, updateLocalSettings, describeFolders, LOCAL_SETTINGS_FILE } from '../scripts/local-settings.mjs';
+import { tmpdir, homedir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { PROJECT_ROOT } from '../scripts/project-root.mjs';
+import { folderProblem, readLocalSettings, updateLocalSettings, describeFolders, LOCAL_SETTINGS_FILE } from '../scripts/local-settings.mjs';
 import { generateGames } from '../scripts/generate-games.mjs';
 
 const tmp = (prefix) => mkdtemp(join(tmpdir(), `clone90-${prefix}-`));
@@ -42,6 +44,37 @@ test('réglages : chemin relatif, inexistant, fichier ou non texte : message cla
     assert.match(s.warnings.join('\n'), attendu);
     assert.match(s.warnings[0], /Dossier roms\/ du projet utilisé\.$/);
   }
+});
+
+test('réglages : dossier trop large (racine, dossier personnel, ses parents, /Volumes) refusé, retour au défaut', async () => {
+  const root = await tmp('set');
+  for (const valeur of ['/', `${homedir()}/`, homedir(), dirname(homedir()), '/Volumes', '/System', '/Applications', '/Library', '/private', '/tmp']) {
+    await writeSettings(root, { romsDir: valeur, biosDir: valeur });
+    const s = await readLocalSettings(root);
+    assert.equal(s.romsDir, join(root, 'roms'), valeur);
+    assert.equal(s.biosDir, join(root, 'bios'), valeur);
+    assert.equal(s.warnings.length, 2);
+    assert.match(s.warnings[0], /dossier trop large : choisissez le dossier qui contient directement vos jeux/);
+  }
+});
+
+test('réglages : check refuse un dossier trop large et accepte un dossier correct (utilisé par le script de choix)', async () => {
+  assert.match(await folderProblem('dossier', '/'), /trop large/);
+  assert.match(await folderProblem('dossier', homedir()), /trop large/);
+  assert.equal(await folderProblem('dossier', await tmp('ok')), null);
+  const cli = (chemin) => spawnSync(process.execPath, ['scripts/local-settings.mjs', 'check', chemin], { cwd: PROJECT_ROOT, encoding: 'utf8' });
+  assert.equal(cli('/').status, 1);
+  assert.match(cli('/').stderr, /Dossier refusé : .*trop large/);
+  assert.equal(cli(await tmp('ok')).status, 0);
+});
+
+test('réglages : un sous-dossier du dossier personnel reste accepté', async () => {
+  const root = await tmp('set');
+  const sous = await mkdtemp(join(homedir(), '.clone90-test-'));
+  try {
+    await writeSettings(root, { romsDir: sous });
+    assert.equal((await readLocalSettings(root)).romsDir, sous);
+  } finally { await rm(sous, { recursive: true }); }
 });
 
 test('réglages : JSON invalide ou non objet : avertissement et défauts, sans exception', async () => {

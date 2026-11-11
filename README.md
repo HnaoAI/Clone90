@@ -45,6 +45,7 @@ Vos ROMs (et vos BIOS) peuvent rester sur un autre disque ou dans un autre dossi
 - Le choix est écrit dans `clone90.local.json` (fichier personnel, ignoré par git, jamais servi par le site). Exemple : `{ "romsDir": "/Volumes/Disque/ROMs", "biosDir": "/Volumes/Disque/BIOS" }`. Chaque clé est facultative ; sans elle, c'est `roms/` ou `bios/` du projet. Un chemin faux est signalé en français et Clone90 revient au dossier du projet.
 - Pour revenir au dossier du projet : supprimez `clone90.local.json`. On peut aussi simplement garder `roms/` dans le projet.
 - Après le choix, `Lancer Clone90.command` (ou `node scripts/generate-games.mjs`) affiche le dossier des jeux utilisé. Rien ne change dans le navigateur ni sur GitHub Pages.
+- Si Clone90 est déjà ouvert, fermez sa fenêtre Terminal puis relancez Lancer Clone90.
 
 ## Où mettre les ROMs et les BIOS
 

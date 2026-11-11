@@ -1,7 +1,8 @@
 // Réglages locaux de Clone90 (T23) : lit et valide clone90.local.json (dossier des ROMs et des BIOS), fichier ignoré par git.
 // Partagé par generate-games.mjs et serve.mjs (une seule règle). Aucune dépendance. Usage en ligne de commande : voir main().
 import { readFile, writeFile, rename, rm, stat } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { PROJECT_ROOT } from './project-root.mjs';
 
@@ -27,11 +28,21 @@ async function readRawSettings(root) {
   return { data: {}, invalid: true, warning: `${LOCAL_SETTINGS_FILE} illisible (JSON invalide) : dossiers par défaut utilisés` };
 }
 
+/** Dossiers trop larges : la racine, le dossier personnel, ses parents (/Users...), /Volumes et les dossiers système. */
+function tooWideFolders() {
+  const wide = new Set(['/', '/Volumes', '/System', '/Applications', '/Library', '/private', '/tmp']);
+  for (let dir = homedir(); !wide.has(dir); dir = dirname(dir)) wide.add(dir);
+  return wide;
+}
+
 /** Message d'erreur en français si la valeur n'est pas un chemin absolu vers un dossier existant, sinon null. */
-async function folderProblem(key, value) {
+export async function folderProblem(key, value) {
   if (typeof value !== 'string' || !isAbsolute(value)) {
     return `${LOCAL_SETTINGS_FILE} : ${key} doit être un chemin absolu (ex. /Volumes/Disque/ROMs)`;
   }
+  // INVARIANT : le serveur écoute par défaut sur toutes les interfaces ; un dossier trop large exposerait son contenu au réseau (revue T23).
+  const wide = resolve(value).replace(/\/+$/, '') || '/';
+  if (tooWideFolders().has(wide)) return `${LOCAL_SETTINGS_FILE} : ${key} : dossier trop large : choisissez le dossier qui contient directement vos jeux (${value})`;
   const info = await stat(value).catch(() => null);
   return info?.isDirectory() ? null : `${LOCAL_SETTINGS_FILE} : ${key} n'est pas un dossier existant : ${value}`;
 }
@@ -90,13 +101,18 @@ export function describeFolders(settings) {
     `Dossier des ${label} : ${settings[key]}${settings.custom[key] ? '' : ` (${defaultDir}/ du projet)`}`));
 }
 
-/** Ligne de commande : `show` affiche le résumé ; `set <romsDir|biosDir> <chemin|->` enregistre (« - » : retour au défaut). */
+/** Ligne de commande : `check <chemin>` sort en erreur (message en français) si le dossier est refusé ; `show` affiche le résumé ; `set <romsDir|biosDir> <chemin|->` enregistre (« - » : retour au défaut). */
 async function main(argv) {
   const [command, key, value] = argv;
+  if (command === 'check' && key) {
+    const problem = await folderProblem('dossier', key);
+    if (problem) console.error(problem.replace(`${LOCAL_SETTINGS_FILE} : dossier`, 'Dossier refusé'));
+    return problem ? 1 : 0;
+  }
   if (command === 'set' && key && value !== undefined) {
     await updateLocalSettings(PROJECT_ROOT, { [key]: value === '-' ? null : value });
   } else if (command !== 'show') {
-    console.error('Usage : node scripts/local-settings.mjs show | set <romsDir|biosDir> <chemin|->');
+    console.error('Usage : node scripts/local-settings.mjs show | check <chemin> | set <romsDir|biosDir> <chemin|->');
     return 1;
   }
   const settings = await readLocalSettings(PROJECT_ROOT);
