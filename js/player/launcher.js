@@ -8,6 +8,7 @@
 // chemin de jeu encodé, et BIOS Neo Geo gardé zippé (voir "keepZipped" ci-dessous). Reste ouvert (pas de Kickstart ni de jeu Amiga
 // réels) : 'bios/kick40068.A1200' retrouvé par puae, IPF, multi-disques.
 // Jeu à .cue (Mega-CD, T15) : `extraFiles` du jeu posés à côté du .cue ; BIOS `preload` posés en plus (voir buildLaunchPlan).
+// Samples fbneo (T22) : voir resolveSamples.
 // Multi-disquettes (T10) : voir diskSetFiles ci-dessous (m3u virtuel + disquettes posées par EJS_externalFiles).
 import { ejsDataUrl, BIOS_DIR } from '../config.js';
 import { buildRetroArchCfgExtra, appendRetroArchCfg } from './retroarch-cfg.js';
@@ -74,6 +75,24 @@ export function diskSetFiles(game) {
   };
 }
 
+/** Nom de romset sûr : lettres, chiffres, `_`, `-`, `.` (les romsets FBNeo sont ainsi). Tout autre nom : pas de samples. */
+const ROMSET_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+
+/**
+ * Samples du jeu (T22) : pack `<bios>/<system.samples.dir>/<romset>.zip` (différent de la ROM), posé tel quel dans le dossier de samples du cœur.
+ * Le nom du romset est celui du fichier du jeu sans extension. Déclaratif : `samples` de systems.json (fbneo : arcade, Neo Geo).
+ * @param {object} system @param {object} game
+ * @returns {{path: string, url: string, fsPath: string}|null} null : machine sans samples, ou nom de romset inhabituel
+ */
+export function resolveSamples(system, game) {
+  if (!system.samples) return null;
+  const file = baseName(game.file);
+  const romset = file.includes('.') ? file.slice(0, file.lastIndexOf('.')) : file;
+  if (!ROMSET_NAME.test(romset)) return null;
+  const path = `${BIOS_DIR}/${system.samples.dir}/${romset}.zip`;
+  return { path, url: assetUrl(path), fsPath: `${system.samples.fsDir}/${romset}.zip` };
+}
+
 /** Vrai si le jeu se lance avec plusieurs disquettes. */
 /** T18 : seules les machines avec `diskSets: true` (Amiga) lancent un jeu en plusieurs disquettes ; ailleurs `disks` est ignoré. */
 const hasDiskSet = (system, game) => system.diskSets === true && Array.isArray(game.disks) && game.disks.length > 1;
@@ -124,6 +143,12 @@ export function buildLaunchPlan({ system, game, cdnUrl, debug = false }) {
     const url = assetUrl(`${BIOS_DIR}/${entry.file}`);
     rawFiles.push({ url, fsPath: `/${baseName(entry.file)}` });
     files.push({ kind: 'bios', path: `${BIOS_DIR}/${entry.file}`, url, required: entry.required === true });
+  }
+  // T22 : samples fbneo, facultatifs (checkPlanFiles retire le fichier absent du plan, sans bloquer le lancement). Octets bruts : jamais décompressé.
+  const samples = resolveSamples(system, game);
+  if (samples) {
+    rawFiles.push({ url: samples.url, fsPath: samples.fsPath });
+    files.push({ kind: 'samples', path: samples.path, url: samples.url, required: false });
   }
   // T14 : lignes AJOUTÉES au retroarch.cfg d'EmulatorJS (journal d'erreurs pour détecter un échec ; raccourcis RetroArch à nul si la machine le demande).
   const retroarchCfgExtra = buildRetroArchCfgExtra({ disableHotkeys: system.disableRetroArchHotkeys !== false, debug }); // T15 : actif pour toute machine, `false` dans systems.json pour l'ôter

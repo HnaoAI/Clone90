@@ -267,7 +267,7 @@ const arcade = realSystems.find((s) => s.id === 'arcade');
 const pacman = { id: 'arcade/pacman', system: 'arcade', title: 'Pac-Man', file: 'roms/arcade/pacman.zip', cover: null };
 
 test('arcade (systems.json réel) : neogeo.zip présent donne /neogeo.zip dans rawFiles, jamais EJS_biosUrl', async () => {
-  const { missing, plan } = await checkPlanFiles(buildLaunchPlan({ system: arcade, game: pacman }), async () => true);
+  const { missing, plan } = await checkPlanFiles(buildLaunchPlan({ system: arcade, game: pacman }), async (u) => !u.startsWith('bios/samples/')); // T22 : le test porte sur neogeo.zip, les samples ont leur test (samples.test.mjs)
   assert.deepEqual(missing, []);
   assert.deepEqual(plan.rawFiles, [{ url: 'bios/neogeo.zip', fsPath: '/neogeo.zip' }]);
   assert.equal('EJS_biosUrl' in plan.globals, false);
