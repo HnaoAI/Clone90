@@ -1,5 +1,5 @@
 // Point d'entrée de index.html (T5) : charge les données, branche le routeur et la couche d'entrée sur l'écran courant.
-// Dépend de data, router, screens, input/*, ui/*. Seul module qui touche à la page entière ; la logique est dans screens.js et ui/.
+// Dépend de data, folders-client, router, screens, input/*, ui/*. Seul module qui touche à la page entière ; la logique est dans screens.js et ui/.
 // Contrat d'un écran : il rend dans #screen des éléments `data-nav` ; `current.onBack` (facultatif) traite l'action retour.
 // T27 : écran « Mes fichiers » (#/fichiers) ; après un ajout ou une suppression, les données sont rechargées (reload) sans recharger la page.
 import { loadData, groupGamesBySystem } from './data.js';
@@ -10,7 +10,9 @@ import { createRouter } from './router.js';
 import { createActionSource } from './input/actions.js';
 import { createFocusNavigator } from './input/focus-nav.js';
 import { visibleSystems, resolveRoute } from './screens.js';
-import { buildMachineTiles, renderHome } from './ui/machine-grid.js';
+import { buildMachineTiles, renderHome, FOLDERS_NAV_ID } from './ui/machine-grid.js';
+import { fetchFolderSettings, requestFolderChoice } from './folders-client.js';
+import { createFoldersPanel } from './ui/folders-panel.js';
 import { renderGameGrid, initialFocusId, EMPTY_NAV_ID, ADD_LOCAL_NAV_ID } from './ui/game-grid.js';
 import { renderFatalError } from './ui/error-screen.js';
 import { createToast } from './ui/toast.js';
@@ -36,8 +38,17 @@ async function main() {
     createFocusNavigator({ getRoot: () => screen }).focusFirst();
     return;
   }
-  let systems = visibleSystems(data.systems, data.games);
-  let gamesBySystem = groupGamesBySystem(systems, data.games);
+  let systems;
+  let gamesBySystem;
+  const applyData = (loaded) => {
+    data = loaded;
+    systems = visibleSystems(data.systems, data.games);
+    gamesBySystem = groupGamesBySystem(systems, data.games);
+  };
+  applyData(data);
+  // T25 : le bouton « Dossiers des jeux » n'existe que si l'API locale répond (jamais sur GitHub Pages ni en mode réseau).
+  let folderSettings = await fetchFolderSettings();
+  let foldersPanel = null;
   const nav = createFocusNavigator({ getRoot: () => screen });
   const router = createRouter(window);
   let current = {};
@@ -47,16 +58,16 @@ async function main() {
   /** Relit games.json et la bibliothèque locale (T27, après un ajout ou une suppression). Garde les données d'avant en cas d'échec. */
   async function reload() {
     try {
-      data = await loadAll();
-      systems = visibleSystems(data.systems, data.games);
-      gamesBySystem = groupGamesBySystem(systems, data.games);
+      applyData(await loadAll());
     } catch (e) { console.error('Rechargement impossible :', e.cause ?? e); }
   }
 
   function showHome() {
     clear(screen);
     const tiles = buildMachineTiles(systems, gamesBySystem);
-    screen.append(renderHome({ tiles, gamesStatus: data.gamesStatus, skipped: data.skipped, localSupported }));
+    screen.append(renderHome({
+      tiles, gamesStatus: data.gamesStatus, skipped: data.skipped, localSupported, onOpenFolders: folderSettings ? openFolders : undefined,
+    }));
     current = {};
     if (lastSystem) nav.focusById(lastSystem); // retour d'une grille : le focus revient sur la machine quittée
   }
@@ -113,6 +124,21 @@ async function main() {
     current = { onBack: () => router.navigate({ name: 'home' }) };
   }
 
+  /** Après un choix de dossier réussi : recharge games.json et redessine l'accueil (le panneau reste ouvert par-dessus). */
+  async function reloadGames() {
+    await reload();
+    showHome();
+  }
+
+  async function openFolders() {
+    folderSettings = (await fetchFolderSettings()) ?? folderSettings; // valeurs fraîches ; si le serveur ne répond plus, les précédentes
+    foldersPanel = createFoldersPanel({ settings: folderSettings, choose: (kind) => requestFolderChoice(kind), onChanged: reloadGames });
+    foldersPanel.open(document.body);
+    await foldersPanel.result;
+    foldersPanel = null;
+    nav.focusById(FOLDERS_NAV_ID); // le bouton a été recréé par le rechargement : on lui rend le focus
+  }
+
   function showGameGrid(machine, focus) {
     clear(screen);
     lastSystem = machine.id;
@@ -140,11 +166,12 @@ async function main() {
     onWake: () => {
       setGamepadMode(true);
       toast('Manette connectée');
-      if (!screen.contains(document.activeElement)) nav.focusFirst();
+      if (!foldersPanel && !screen.contains(document.activeElement)) nav.focusFirst();
     },
   });
   actions.start((action, source) => {
     setGamepadMode(source === 'gamepad');
+    if (foldersPanel?.handleAction(action)) return; // le panneau ouvert capte toutes les actions
     if (action === 'back') current.onBack?.();
     else nav.handleAction(action);
   });

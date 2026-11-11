@@ -156,6 +156,7 @@ emulateur/
   scripts/
     generate-games.mjs       scanner roms/ vers games.json
     serve.mjs                serveur local sans dépendance
+    settings-api.mjs         API locale des dossiers (T25), boîte du Mac dans mac-folder-dialog.mjs
   roms/   (gitignore)        roms/<machine>/*
   bios/   (gitignore)        kick*.A* , neogeo.zip, bios_*.bin
   docs/   architecture.md  ux.md
@@ -327,6 +328,8 @@ Plein écran : appel `requestFullscreen` dans le gestionnaire du clic "Jouer". M
 ## 9. Serveur local et limites de plateforme
 
 `scripts/serve.mjs` (Node, sans dépendance) : sert le dossier courant, port 8080 par défaut (`PORT` modifiable), MIME corrects (`.wasm`, `.json`, `.webmanifest`, `.adf` et inconnus en `application/octet-stream`), **requêtes Range** (utile pour les gros fichiers), `Cache-Control: no-cache` en développement, écoute sur toutes les interfaces pour l'accès depuis un téléphone, affiche l'URL locale et l'URL réseau (`http://192.168.x.x:8080`). Repli sans Node : `python3 -m http.server 8080`. **T23** : `clone90.local.json` (ignoré par git, jamais servi) peut rediriger `roms/` et `bios/` vers d'autres dossiers (`romsDir`, `biosDir`, lus par `scripts/local-settings.mjs`) ; l'adresse web et les chemins de `games.json` restent `roms/...`, et le realpath du dossier choisi devient la racine autorisée (règle T11).
+
+**T25 : API locale des dossiers.** `scripts/settings-api.mjs` répond à `GET /api/settings` et `POST /api/settings/choose` (`{ "kind": "roms" | "bios" | "bios-default" }`) pour le bouton « Dossiers des jeux ». Elle n'existe que si le serveur écoute en local (`--host 127.0.0.1`, lanceur) et sous macOS (`isSettingsApiEnabled`), sinon `/api/` répond 404. Contrôles de chaque requête : `Host` = `localhost:<port>` ou `127.0.0.1:<port>` (anti DNS rebinding), `Origin` identique ou absente avec `X-Clone90: 1`, `Content-Type: application/json`, corps de 1 Ko au plus limité à `{ "kind": ... }` (aucun chemin ne vient du navigateur), une seule boîte à la fois. La boîte « choisir un dossier » est ouverte par `scripts/mac-folder-dialog.mjs` (osascript, texte fixe) ; le dossier est validé par `local-settings.mjs` (`folderProblemKind`), écrit (`updateLocalSettings`), `games.json` est régénéré par `runGenerate` et `server.setFolders` applique les dossiers sans redémarrage. Côté navigateur : `js/folders-client.js` (fetch), `js/ui/folders-panel.js` (panneau sur `ui/dialog.js`). Le service worker ne prend jamais `api/` en charge (`NEVER_CACHED`).
 
 Limites à connaître :
 - **Mac/PC** : `http://localhost:8080` est un contexte sécurisé, le service worker et l'installation PWA fonctionnent.

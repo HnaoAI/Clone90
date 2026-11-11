@@ -1,8 +1,8 @@
 // Service worker de Clone90 (T8) : met en cache la COQUILLE de l'application seulement, pour l'installer et l'ouvrir hors ligne.
 // Fichier classique (pas un module : Firefox et d'anciens Safari ne gèrent pas les service workers en module).
 // Les fonctions pures sont exposées dans `self.Clone90SW` pour être testées sous Node (tests/sw.test.mjs, via node:vm).
-// INVARIANT (CLAUDE.md règle 6) : JAMAIS de roms/, bios/, games.json ni de ressource d'une autre origine (CDN EmulatorJS)
-// dans le cache. games.json et le CDN vont directement au réseau.
+// INVARIANT (CLAUDE.md règle 6) : JAMAIS de roms/, bios/, games.json, api/ (T25) ni de ressource d'une autre origine (CDN EmulatorJS)
+// dans le cache. games.json, api/ et le CDN vont directement au réseau.
 // T27 (jouer sur téléphone sans le Mac) : une requête GET ou HEAD vers roms/ ou bios/ est d'abord cherchée dans la bibliothèque locale
 // (IndexedDB `clone90-local`, fichiers que la personne a choisis sur son appareil, voir js/local-library.js) ; absente, elle part au réseau
 // telle quelle (Mac : rien ne change). Ces réponses ne sont JAMAIS écrites dans le cache (Cache Storage) : rien n'est téléchargé ni copié.
@@ -24,10 +24,10 @@ const CACHE_VERSION = `${CACHE_PREFIX}v${versionFromScriptSearch(self.location?.
 const SHELL_FILES = [
   './', 'index.html', 'player.html', 'manifest.webmanifest', 'systems.json',
   'css/base.css', 'css/home.css', 'css/grid.css', 'css/library.css', 'css/player.css',
-  'js/app.js', 'js/config.js', 'js/data.js', 'js/router.js', 'js/screens.js', 'js/sort.js', 'js/version.js',
+  'js/app.js', 'js/config.js', 'js/data.js', 'js/folders-client.js', 'js/router.js', 'js/screens.js', 'js/sort.js', 'js/version.js',
   'js/games-builder.js', 'js/posix-path.js', 'js/local-library.js', 'js/local-games.js',
   'js/input/actions.js', 'js/input/focus-nav.js',
-  'js/ui/dialog.js', 'js/ui/dom.js', 'js/ui/error-screen.js', 'js/ui/format.js', 'js/ui/game-grid.js',
+  'js/ui/dialog.js', 'js/ui/dom.js', 'js/ui/error-screen.js', 'js/ui/folders-panel.js', 'js/ui/format.js', 'js/ui/game-grid.js',
   'js/ui/input-mode.js', 'js/ui/library-screen.js', 'js/ui/logo.js', 'js/ui/machine-grid.js', 'js/ui/toast.js',
   'js/player/diagnostic-log.js', 'js/player/diagnostic-panel.js', 'js/player/disk-shortcut.js', 'js/player/ejs-start-watch.js', 'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js', 'js/player/retroarch-cfg.js',
   'js/pwa.js',
@@ -35,8 +35,8 @@ const SHELL_FILES = [
   'assets/fonts/PressStart2P-Regular.ttf', 'assets/fonts/OFL.txt',
 ];
 
-/** Dossiers et fichiers qui ne doivent JAMAIS entrer dans le cache (jeux, BIOS, liste des jeux). */
-const NEVER_CACHED = ['roms/', 'bios/', 'games.json'];
+/** Dossiers et fichiers qui ne doivent JAMAIS entrer dans le cache (jeux, BIOS, liste des jeux, API locale). */
+const NEVER_CACHED = ['roms/', 'bios/', 'games.json', 'api/']; // api/ (T25) : API locale des dossiers, toujours au réseau
 
 /** Chemin de `url` relatif à `scope`, sans paramètres ni ancre ; null si autre origine ou hors portée. */
 function scopedPath(url, scope) {
