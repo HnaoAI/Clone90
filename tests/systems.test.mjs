@@ -89,7 +89,7 @@ test('systems.json : amiga est complète (puae, Kickstart 3.1 imposé, wave 1)',
   }
   assert.deepEqual(amiga.bios.map((b) => [b.file, b.required, b.role]),
     [['kick40068.A1200', true, 'default']]);
-  assert.deepEqual(amiga.coreOptions, { puae_model: 'A1200' }, 'sans cela puae prend A500 et cherche kick34005.A500 (T0)');
+  assert.deepEqual(amiga.coreOptions, { puae_model: 'A1200', puae_floppy_multidrive: 'disabled' }, 'puae_model : sans cela puae prend A500 (T0) ; multidrive coupé : les cracks mono-lecteur demandent le disque 2 dans DF0 (T14)');
 });
 
 test('systems.json : neogeo est complète (alias arcade, neogeo.zip, wave 1)', () => {

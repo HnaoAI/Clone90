@@ -2,7 +2,7 @@
 // Aucun vrai EmulatorJS : fenêtre et document factices.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveBios, diskSetFiles, buildLaunchPlan, findMissingFiles, checkPlanFiles, describeMissing, loadEmulator, pauseEmulator, resumeEmulator, GAME_ELEMENT_ID } from '../js/player/launcher.js';
+import { resolveBios, diskSetFiles, buildLaunchPlan, findMissingFiles, checkPlanFiles, describeMissing, loadEmulator, pauseEmulator, resumeEmulator, GAME_ELEMENT_ID, STARTUP_GRACE_MS } from '../js/player/launcher.js';
 import { EJS_CDN_URL } from '../js/config.js';
 
 const neogeo = {
@@ -12,7 +12,7 @@ const neogeo = {
 const amiga = {
   id: 'amiga', name: 'Amiga', emulatorjsCore: 'amiga',
   bios: [{ file: 'kick40068.A1200', required: true, role: 'default' }],
-  coreOptions: { puae_model: 'A1200' },
+  coreOptions: { puae_model: 'A1200', puae_floppy_multidrive: 'disabled' },
 };
 const nes = { id: 'nes', name: 'NES', emulatorjsCore: 'nes', bios: [] };
 const gb = { id: 'gameboy', name: 'Game Boy', emulatorjsCore: 'gb', bios: [{ file: 'gb_bios.bin', required: false, role: 'optional' }] };
@@ -251,7 +251,7 @@ test('loadEmulator : BIOS illisible donne une erreur claire et n\'injecte pas lo
 // --- T0 : options du cœur (puae choisit A500 et cherche kick34005.A500 si on ne lui impose pas le modèle) ---
 test('buildLaunchPlan : coreOptions de la machine deviennent EJS_defaultOptions, et EmulatorJS ne les ignore pas (stockage local coupé)', () => {
   const plan = buildLaunchPlan({ system: amiga, game: { id: 'amiga/a', system: 'amiga', title: 'A', file: 'roms/amiga/a.adf' } });
-  assert.deepEqual(plan.globals.EJS_defaultOptions, { puae_model: 'A1200' });
+  assert.deepEqual(plan.globals.EJS_defaultOptions, { puae_model: 'A1200', puae_floppy_multidrive: 'disabled' });
   assert.equal(plan.globals.EJS_disableLocalStorage, true, 'sinon EmulatorJS stable ignore EJS_defaultOptions au premier lancement');
 });
 
@@ -378,4 +378,70 @@ test('buildLaunchPlan A1 : jeu, disquettes et BIOS avec # ? % sont encodés par 
   assert.match(plan.globals.EJS_biosUrl, /kick%20%231%3F\.rom$/);
   const single = buildLaunchPlan({ system: amiga, game: { ...g, disks: undefined } });
   assert.equal(single.globals.EJS_gameUrl, 'roms/amiga/Turrican%20II%20%231.adf');
+});
+
+// T14 : filtre "même disque" limité au démarrage, rétablissement si le second appel échoue.
+async function guardedEmulator({ failures = 0, current = 1 } = {}) {
+  const { win, doc } = fakeEnv();
+  const timers = [];
+  await loadEmulator(buildLaunchPlan({ system: amiga, game: leander }), { win, doc, getBytes, setTimer: (fn, ms) => timers.push({ fn, ms }) });
+  const state = { calls: [], failuresLeft: failures, current };
+  const emulator = {
+    gameManager: { getCurrentDisk: () => state.current },
+    handleSpecialOptions(option, value) {
+      state.calls.push([option, value]);
+      if (option === 'disk' && state.failuresLeft-- > 0) throw new Error('unreachable');
+    },
+  };
+  win.EJS_emulator = emulator;
+  return { win, emulator, state, timers };
+}
+
+test('T14 disquette : au démarrage, re-choisir le disque courant est ignoré (avant et pendant le délai suivant EJS_onGameStart)', async () => {
+  const { win, emulator, state, timers } = await guardedEmulator();
+  emulator.handleSpecialOptions('disk', '1');
+  assert.equal(state.calls.length, 0);
+  win.EJS_onGameStart();
+  assert.equal(timers.at(-1).ms, STARTUP_GRACE_MS);
+  assert.equal(STARTUP_GRACE_MS, 2000);
+  emulator.handleSpecialOptions('disk', '1');
+  assert.equal(state.calls.length, 0, 'le délai n\'est pas encore écoulé');
+});
+
+test('T14 disquette : après le délai de démarrage, re-choisir le disque courant appelle le vrai handler (sert de "réinsérer")', async () => {
+  const { win, emulator, state, timers } = await guardedEmulator({ current: 1 });
+  win.EJS_onGameStart();
+  timers.at(-1).fn();
+  emulator.handleSpecialOptions('disk', '1');
+  assert.deepEqual(state.calls, [['disk', '1']]);
+});
+
+test('T14 disquette : un premier échec est rappelé une fois et réussit, sans rétablissement', async () => {
+  const { win, emulator, state, timers } = await guardedEmulator({ failures: 1, current: 0 });
+  win.EJS_onGameStart();
+  timers.at(-1).fn();
+  emulator.handleSpecialOptions('disk', '1');
+  assert.deepEqual(state.calls, [['disk', '1'], ['disk', '1']]);
+});
+
+test('T14 disquette : si le second appel échoue aussi, le disque d\'origine est réinséré puis l\'erreur remonte', async () => {
+  const { win, emulator, state, timers } = await guardedEmulator({ failures: 2, current: 0 });
+  win.EJS_onGameStart();
+  timers.at(-1).fn();
+  assert.throws(() => emulator.handleSpecialOptions('disk', '2'), /unreachable/);
+  assert.deepEqual(state.calls, [['disk', '2'], ['disk', '2'], ['disk', '0']]);
+});
+
+test('T14 disquette : un rétablissement qui échoue aussi ne masque pas l\'erreur d\'origine ni ne ferme le jeu', async () => {
+  const { win, emulator, timers } = await guardedEmulator({ failures: 3, current: 0 });
+  win.EJS_onGameStart();
+  timers.at(-1).fn();
+  assert.throws(() => emulator.handleSpecialOptions('disk', '2'), /unreachable/);
+});
+
+test('T14 disquette : une autre option que disk ne déclenche ni filtre, ni rappel, ni rétablissement', async () => {
+  const { emulator, state } = await guardedEmulator({ failures: 1 });
+  state.failuresLeft = 0;
+  emulator.handleSpecialOptions('shader', 'x');
+  assert.deepEqual(state.calls, [['shader', 'x']]);
 });
