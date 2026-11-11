@@ -4,20 +4,47 @@
 -- INVARIANT : à la fermeture, on n'arrête que le serveur lancé par cette application, reconnu par son pid.
 -- INVARIANT : ni Clone90.app ni scripts/mac-app ne sont publics (liste blanche de scripts/serve.mjs).
 
-property pageUrl : "http://localhost:8080/"
-property logPath : "$HOME/Library/Logs/Clone90.log"
-property nodePath : "export PATH=/usr/local/bin:/opt/homebrew/bin:$PATH; "
-property serverPid : ""
+-- INVARIANT : aucun `property` : une applet réécrit ses propriétés dans son propre bundle à la fermeture, ce qui modifierait
+-- Clone90.app (commitée) et casserait sa signature. Les valeurs vivent dans des `global` initialisés dans `on run`.
+global pageUrl, logPath, nodePath, serverPid
 
--- Premier lancement : ouvre la page, en démarrant Clone90 si besoin.
+-- Premier lancement : initialise les valeurs, puis ouvre la page en démarrant Clone90 si besoin.
 on run
+	set pageUrl to "http://localhost:8080/"
+	set logPath to "\"$HOME/Library/Logs/Clone90.log\""
+	set nodePath to "export PATH=/usr/local/bin:/opt/homebrew/bin:$PATH; "
+	set serverPid to ""
+	my openClone90()
+end run
+
+-- Clic sur l'icône du Dock alors que l'application tourne : on rouvre la page, en relançant le serveur s'il ne répond plus.
+on reopen
+	my openClone90()
+end reopen
+
+-- Fermeture (Cmd + Q, ou clic droit sur l'icône puis Quitter) : on arrête le serveur lancé par nous, puis on quitte.
+on quit
+	global pageUrl, logPath, nodePath, serverPid
+	my stopServer()
+	continue quit
+end quit
+
+-- Ouvre la page Clone90 ; démarre d'abord le serveur s'il ne répond pas. En cas d'échec, boîte de dialogue puis fermeture.
+on openClone90()
+	global pageUrl, logPath, nodePath, serverPid
 	set projectDir to my findProjectDir()
+	if not my projectIsComplete(projectDir) then
+		display dialog "Clone90.app doit rester dans le dossier de Clone90, à côté de index.html et du dossier scripts. Remettez l'application dans ce dossier (ou faites-en un alias) puis relancez-la." buttons {"OK"} default button "OK" with icon caution with title "Clone90"
+		quit
+		return
+	end if
 	if not my nodeIsInstalled() then
 		my showNodeMissing()
 		quit
 		return
 	end if
 	if not my clone90Answers() then
+		my stopServer()
 		my startServer(projectDir)
 		if not my waitForClone90(10) then
 			my stopServer()
@@ -27,18 +54,7 @@ on run
 		end if
 	end if
 	open location pageUrl
-end run
-
--- Clic sur l'icône du Dock alors que l'application tourne : on rouvre la page.
-on reopen
-	if my clone90Answers() then open location pageUrl
-end reopen
-
--- Fermeture (Cmd + Q, ou clic droit sur l'icône puis Quitter) : on arrête le serveur lancé par nous, puis on quitte.
-on quit
-	my stopServer()
-	continue quit
-end quit
+end openClone90
 
 -- Dossier du projet : le dossier qui contient Clone90.app.
 on findProjectDir()
@@ -47,6 +63,7 @@ end findProjectDir
 
 -- Vrai si Node.js est trouvable (l'application ne reçoit pas le PATH du Terminal : chemins usuels ajoutés).
 on nodeIsInstalled()
+	global pageUrl, logPath, nodePath, serverPid
 	try
 		do shell script nodePath & "command -v node"
 		return true
@@ -55,6 +72,16 @@ on nodeIsInstalled()
 	end try
 end nodeIsInstalled
 
+-- Vrai si le dossier contient scripts/serve.mjs (l'application n'a pas été déplacée hors du projet).
+on projectIsComplete(projectDir)
+	try
+		do shell script "test -f " & quoted form of (projectDir & "/scripts/serve.mjs")
+		return true
+	on error
+		return false
+	end try
+end projectIsComplete
+
 on showNodeMissing()
 	set answer to display dialog "Node.js n'est pas installé sur ce Mac. Installez la version LTS depuis https://nodejs.org puis relancez Clone90." buttons {"Fermer", "Ouvrir nodejs.org"} default button "Ouvrir nodejs.org" with icon caution with title "Clone90"
 	if button returned of answer is "Ouvrir nodejs.org" then open location "https://nodejs.org"
@@ -62,6 +89,7 @@ end showNodeMissing
 
 -- Vrai si une page contenant « Clone90 » répond déjà sur le port 8080 (pas un autre programme).
 on clone90Answers()
+	global pageUrl, logPath, nodePath, serverPid
 	try
 		do shell script "curl -fs --max-time 2 " & pageUrl & " | grep -q Clone90"
 		return true
@@ -70,9 +98,11 @@ on clone90Answers()
 	end try
 end clone90Answers
 
+-- INVARIANT : `cd ...; node ... &` (point-virgule, pas `&&`) : avec `&&` la tâche de fond serait un sous-shell et $! n'en serait pas le pid de node.
 -- Met à jour la liste des jeux puis démarre le serveur en arrière-plan ; la sortie va dans le journal, le pid est mémorisé.
 on startServer(projectDir)
-	set prefix to nodePath & "cd " & quoted form of projectDir & " && "
+	global pageUrl, logPath, nodePath, serverPid
+	set prefix to nodePath & "cd " & quoted form of projectDir & "; "
 	try
 		do shell script prefix & "node scripts/generate-games.mjs >> " & logPath & " 2>&1 < /dev/null"
 	end try
@@ -90,6 +120,7 @@ end waitForClone90
 
 -- Arrête le serveur lancé par cette application, uniquement s'il s'agit bien encore de serve.mjs (le pid a pu être réattribué).
 on stopServer()
+	global pageUrl, logPath, nodePath, serverPid
 	if serverPid is "" then return
 	try
 		do shell script "ps -p " & serverPid & " -o command= | grep -q serve.mjs && kill " & serverPid
