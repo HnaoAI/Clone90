@@ -51,6 +51,7 @@
   --m-nes: #b03a2e; --m-snes: #6c3fa0; --m-gameboy: #4a6a2e;
   --m-gameboycolor: #7d3c98; --m-mastersystem: #1f5fa8; --m-gamegear: #2c3e50;
   --m-megadrive: #2b2b2b; --m-megacd: #34495e; --m-32x: #8e2a2a;
+  --m-pcengine: #8a3a5c; --m-pcenginecd: #1e6b6b;
   /* Plaque claire sous les vrais logos téléchargés (T29) : ils sont dessinés pour un fond clair (Game Boy, Neo Geo sombres). */
   --logo-plaque: #e9edf7;
 

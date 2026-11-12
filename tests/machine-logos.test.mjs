@@ -47,6 +47,12 @@ test('logoUrl : seulement raw.githubusercontent.com, thème es-theme-carbon fig�
   for (const bad of ['../x', 'a/b', 'A B', '', 'x?y', '%2e%2e']) assert.throws(() => logoUrl(bad), /invalide/);
 });
 
+test('T30 logoUrl : un dossier du thème avec tiret est accepté (tg-cd), jamais en début, en fin ni doublé ; l\'identifiant de machine reste sans tiret', () => {
+  assert.equal(logoUrl('tg-cd'), `https://raw.githubusercontent.com/RetroPie/es-theme-carbon/${LOGO_THEME_COMMIT}/tg-cd/art/system.svg`);
+  for (const bad of ['-x', 'x-', 'a--b', 'TG-CD', 'tg-cd/..', '-']) assert.throws(() => logoUrl(bad), /invalide/, bad);
+  assert.throws(() => logoTargetPath('tg-cd'), /invalide/);
+});
+
 test('logoTargetPath : dans le dossier des ROMs, sous clone90-logos/<machine>.svg', () => {
   assert.equal(LOGOS_DIR, 'clone90-logos');
   assert.equal(logoTargetPath('32x'), 'clone90-logos/32x.svg');

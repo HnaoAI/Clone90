@@ -16,12 +16,14 @@ export const MAX_LOGO_BYTES = 256 * 1024;
 /** Commit du thème es-theme-carbon (RetroPie) vérifié le 2026-11-12 : l'adresse figée garantit que le contenu ne change pas sans nous. */
 export const LOGO_THEME_COMMIT = 'b09973e0b0c589cb11fe772c169a6ff5d588b390';
 const SAFE_NAME = /^[a-z0-9]+$/;
+/** Dossier du thème : comme SAFE_NAME, avec des tirets entre les mots (T30 : `tg-cd`, le thème n'a pas de dossier `pcenginecd` à ce commit). */
+const SAFE_THEME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 /** Dossier des logos, DANS le dossier des ROMs (jamais dans le dépôt : roms/ est ignoré par git). */
 export { LOGOS_DIR };
 
 /** Seule fabrique d'adresses : hôte fixe, commit fixe, dossier du thème contrôlé. @throws {Error} si le nom est invalide */
 export function logoUrl(themeDir) {
-  if (!SAFE_NAME.test(themeDir ?? '')) throw new Error(`Dossier de logo invalide : ${themeDir}`);
+  if (!SAFE_THEME.test(themeDir ?? '')) throw new Error(`Dossier de logo invalide : ${themeDir}`);
   return `https://raw.githubusercontent.com/RetroPie/es-theme-carbon/${LOGO_THEME_COMMIT}/${themeDir}/art/system.svg`;
 }
 

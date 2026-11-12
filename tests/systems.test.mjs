@@ -10,7 +10,7 @@ const byId = (id) => systems.find((s) => s.id === id);
 
 const EXPECTED_IDS = [
   'amiga', 'neogeo', 'arcade', 'mastersystem', 'megadrive', 'gamegear', 'megacd',
-  '32x', 'nes', 'snes', 'gameboy', 'gameboycolor',
+  '32x', 'nes', 'snes', 'gameboy', 'gameboycolor', 'pcengine', 'pcenginecd',
 ];
 
 test('systems.json : version 1 et liste de machines non vide', () => {
@@ -18,8 +18,7 @@ test('systems.json : version 1 et liste de machines non vide', () => {
   assert.ok(Array.isArray(systems) && systems.length > 0);
 });
 
-test('systems.json : contient les 12 machines du tableau de la section 2', () => {
-  // NB : l'architecture parle de 13 machines mais son tableau en liste 12 (voir rapport T1).
+test('systems.json : contient les 14 machines du tableau de la section 2 (12 jusqu\'à T29, PC Engine et PC Engine CD depuis T30)', () => {
   assert.deepEqual([...systems.map((s) => s.id)].sort(), [...EXPECTED_IDS].sort());
 });
 
@@ -127,7 +126,7 @@ test('systems.json : cores EmulatorJS conformes au tableau (alias sans neogeo ni
   assert.deepEqual(cores, {
     amiga: 'amiga', neogeo: 'arcade', arcade: 'arcade', mastersystem: 'segaMS',
     megadrive: 'segaMD', gamegear: 'segaGG', megacd: 'segaCD', '32x': 'sega32x',
-    nes: 'nes', snes: 'snes', gameboy: 'gb', gameboycolor: 'gb',
+    nes: 'nes', snes: 'snes', gameboy: 'gb', gameboycolor: 'gb', pcengine: 'pce', pcenginecd: 'pce',
   });
 });
 
@@ -137,8 +136,8 @@ test('systems.json : BIOS Mega-CD en trois entrées optionnelles', () => {
   assert.ok(byId('megacd').bios.every((b) => !b.required && b.role === 'optional'));
 });
 
-test('systems.json : aucun BIOS requis hors amiga et neogeo', () => {
-  for (const s of systems.filter((x) => !['amiga', 'neogeo'].includes(x.id))) {
+test('systems.json : aucun BIOS requis hors amiga, neogeo et pcenginecd (T30 : syscard3.pce)', () => {
+  for (const s of systems.filter((x) => !['amiga', 'neogeo', 'pcenginecd'].includes(x.id))) {
     assert.ok(s.bios.every((b) => b.required === false), `${s.id}`);
   }
 });
@@ -237,4 +236,40 @@ test('T21 ejsVersion : l\'URL du CDN de chaque machine du vrai systems.json (Ami
 
 test('systems.json : chaque machine a un thumbnailsRepo (dépôt libretro-thumbnails des pochettes, T28), nom sûr pour une adresse', () => {
   for (const s of systems) assert.match(s.thumbnailsRepo ?? '', /^[A-Za-z0-9._-]+$/, `${s.id} : thumbnailsRepo`);
+});
+
+// --- T30 : PC Engine et PC Engine CD, vérifiées contre EmulatorJS 4.2.3 (paquets npm @emulatorjs/emulatorjs et @emulatorjs/core-mednafen_pce) ---
+// getCores() 4.2.3 : "pce": ["mednafen_pce"]. Extensions : core.json (pce, cue, ccd, iso, img, bin, chd) et valid_extensions du cœur (pce|sgx|cue|ccd|chd|toc|m3u).
+const MEDNAFEN_PCE_EXTENSIONS = ['pce', 'sgx', 'cue', 'ccd', 'chd', 'toc', 'm3u'];
+
+test('T30 PC Engine et PC Engine CD : alias pce (cœur mednafen_pce), wave 2, extensions acceptées par le cœur ou zip', () => {
+  for (const id of ['pcengine', 'pcenginecd']) {
+    const s = byId(id);
+    assert.ok(s, `${id} absente`);
+    assert.equal(s.emulatorjsCore, 'pce');
+    assert.equal(s.wave, 2);
+    for (const ext of s.extensions) assert.ok(ext === 'zip' || MEDNAFEN_PCE_EXTENSIONS.includes(ext), `${id} : ${ext}`);
+  }
+});
+
+test('T30 PC Engine : cartes HuCard pce, sgx (SuperGrafx) et zip, aucun BIOS', () => {
+  assert.equal(byId('pcengine').name, 'PC Engine');
+  assert.deepEqual(byId('pcengine').extensions, ['pce', 'sgx', 'zip']);
+  assert.deepEqual(byId('pcengine').bios, []);
+});
+
+test('T30 PC Engine CD : cue (et ses bin) et chd ; syscard3.pce requis, BIOS par défaut (EJS_biosUrl), non preload', () => {
+  const cd = byId('pcenginecd');
+  assert.equal(cd.name, 'PC Engine CD');
+  assert.deepEqual(cd.extensions, ['cue', 'chd']);
+  assert.deepEqual(cd.bios.map((b) => [b.file, b.required, b.role, b.preload === true]), [['syscard3.pce', true, 'default', false]]);
+});
+
+test('T30 pochettes et logos : dépôts libretro-thumbnails NEC et dossiers du thème pcengine et tg-cd', () => {
+  assert.equal(byId('pcengine').thumbnailsRepo, 'NEC_-_PC_Engine_-_TurboGrafx_16');
+  assert.equal(byId('pcenginecd').thumbnailsRepo, 'NEC_-_PC_Engine_CD_-_TurboGrafx-CD');
+  assert.equal(byId('pcengine').logoTheme, 'pcengine');
+  assert.equal(byId('pcenginecd').logoTheme, 'tg-cd');
+  assert.equal(byId('pcengine').logo, 'assets/logos/pcengine.svg');
+  assert.equal(byId('pcenginecd').accent, '--m-pcenginecd');
 });

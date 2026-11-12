@@ -21,7 +21,7 @@ const sys = (id, extra = {}) => ({ id, name: id.toUpperCase(), order: 1, extensi
 
 // --- systems.json ---
 test('systems.json : chaque machine a un logoTheme (dossier du thème es-theme-carbon, T29), nom sûr pour une adresse', () => {
-  for (const s of systems) assert.match(s.logoTheme ?? '', /^[a-z0-9]+$/, `${s.id} : logoTheme`);
+  for (const s of systems) assert.match(s.logoTheme ?? '', /^[a-z0-9]+(-[a-z0-9]+)*$/, `${s.id} : logoTheme`); // tiret admis depuis T30 (tg-cd)
   assert.equal(systems.find((s) => s.id === 'megacd').logoTheme, 'segacd');
   assert.equal(systems.find((s) => s.id === 'gameboycolor').logoTheme, 'gbc');
 });

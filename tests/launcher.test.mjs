@@ -663,3 +663,18 @@ test('T21 plan de lancement : le `cdnUrl` explicite (tests) l\'emporte sur la ve
 test('T21 plan de lancement : une ejsVersion invalide lève une erreur claire', () => {
   assert.throws(() => buildLaunchPlan({ system: { ...amiga, ejsVersion: 'nightly' }, game: gods }), /version/i);
 });
+
+test('T30 buildLaunchPlan PC Engine CD (vrai systems.json) : cœur pce, syscard3.pce en EJS_biosUrl et requis, .bin du .cue posés à côté', async () => {
+  const { readFileSync } = await import('node:fs');
+  const systems = JSON.parse(readFileSync(new URL('../systems.json', import.meta.url), 'utf8')).systems;
+  const cd = systems.find((s) => s.id === 'pcenginecd');
+  const game = { id: 'pcenginecd/ys', system: 'pcenginecd', title: 'Ys', file: 'roms/pcenginecd/Ys.cue', extraFiles: [{ file: 'roms/pcenginecd/Ys (Track 1).bin', as: 'Ys (Track 1).bin' }] };
+  const plan = buildLaunchPlan({ system: cd, game });
+  assert.equal(plan.globals.EJS_core, 'pce');
+  assert.equal(plan.globals.EJS_biosUrl, 'bios/syscard3.pce');
+  assert.ok(plan.files.some((f) => f.kind === 'bios' && f.path === 'bios/syscard3.pce' && f.required), JSON.stringify(plan.files));
+  const pce = systems.find((s) => s.id === 'pcengine');
+  const card = buildLaunchPlan({ system: pce, game: { id: 'pcengine/bonk', system: 'pcengine', title: 'Bonk', file: 'roms/pcengine/Bonk.pce' } });
+  assert.equal(card.globals.EJS_core, 'pce');
+  assert.equal('EJS_biosUrl' in card.globals, false);
+});

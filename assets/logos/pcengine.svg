@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100" data-lines="2">
+<title>PC Engine</title>
+<rect width="160" height="100" fill="#8a3a5c"/>
+<rect x="3" y="3" width="154" height="94" fill="none" stroke="#ffffff" stroke-width="2"/>
+<polygon points="80,8 92,20 80,32 68,20" fill="#ffffff"/>
+<path data-text="1" d="M63 35h12v3h-12zM84 35h9v3h-9zM63 38h3v3h-3zM75 38h3v3h-3zM81 38h3v3h-3zM93 38h3v3h-3zM63 41h3v3h-3zM75 41h3v3h-3zM81 41h3v3h-3zM63 44h12v3h-12zM81 44h3v3h-3zM63 47h3v3h-3zM81 47h3v3h-3zM63 50h3v3h-3zM81 50h3v3h-3zM93 50h3v3h-3zM63 53h3v3h-3zM84 53h9v3h-9zM27 65h15v3h-15zM45 65h3v3h-3zM57 65h3v3h-3zM66 65h9v3h-9zM84 65h9v3h-9zM99 65h3v3h-3zM111 65h3v3h-3zM117 65h15v3h-15zM27 68h3v3h-3zM45 68h6v3h-6zM57 68h3v3h-3zM63 68h3v3h-3zM75 68h3v3h-3zM87 68h3v3h-3zM99 68h6v3h-6zM111 68h3v3h-3zM117 68h3v3h-3zM27 71h3v3h-3zM45 71h3v3h-3zM51 71h3v3h-3zM57 71h3v3h-3zM63 71h3v3h-3zM87 71h3v3h-3zM99 71h3v3h-3zM105 71h3v3h-3zM111 71h3v3h-3zM117 71h3v3h-3zM27 74h12v3h-12zM45 74h3v3h-3zM54 74h6v3h-6zM63 74h3v3h-3zM69 74h9v3h-9zM87 74h3v3h-3zM99 74h3v3h-3zM108 74h6v3h-6zM117 74h12v3h-12zM27 77h3v3h-3zM45 77h3v3h-3zM57 77h3v3h-3zM63 77h3v3h-3zM75 77h3v3h-3zM87 77h3v3h-3zM99 77h3v3h-3zM111 77h3v3h-3zM117 77h3v3h-3zM27 80h3v3h-3zM45 80h3v3h-3zM57 80h3v3h-3zM63 80h3v3h-3zM75 80h3v3h-3zM87 80h3v3h-3zM99 80h3v3h-3zM111 80h3v3h-3zM117 80h3v3h-3zM27 83h15v3h-15zM45 83h3v3h-3zM57 83h3v3h-3zM66 83h12v3h-12zM84 83h9v3h-9zM99 83h3v3h-3zM111 83h3v3h-3zM117 83h15v3h-15z" fill="#ffffff"/>
+</svg>
