@@ -16,7 +16,7 @@
 - Le dépôt FBNeo refuse l'arbre récursif (500) : d'où deux requêtes par machine.
 
 ## Point pour le PO
-- Règle produit 5 : exception demandée par Hicham (lectures vers GitHub, uniquement sur clic ou commande), documentée en architecture 7.4. **CLAUDE.md non modifié** : la validation de Hicham (« ok pochettes ») m'a été relayée par un message d'agent, ce qui ne suffit pas pour changer CLAUDE.md. Il faut une confirmation directe de Hicham (ou du PO dans une demande de modification explicite du fichier) pour : (1) remplacer la règle 5 par « Aucune statistique, aucun compte. Aucune donnée de l'utilisateur n'est envoyée sur le réseau. Seule exception : des lectures vers github.com (base libre libretro-thumbnails), déclenchées par le bouton Télécharger les pochettes ou par `node scripts/covers.mjs` ; GitHub voit alors l'adresse IP et les noms des jeux cherchés. » ; (2) ajouter un « Journal des décisions » avec l'entrée du 2026-11-12.
+- Règle produit 5 : exception validée par Hicham dans le fil du projet le 2026-11-12 (« ok pochettes ») : lectures vers GitHub, uniquement sur clic ou commande. Documentée en architecture 7.4, et CLAUDE.md mis à jour par le PO (règle 5 et journal des décisions).
 
 ## Vérification manuelle (non faite par le dev : aucun navigateur, serveur ni téléchargement réel lancés)
 1. `node scripts/covers.mjs --dry-run` avec de vrais jeux : la liste annoncée est plausible.
