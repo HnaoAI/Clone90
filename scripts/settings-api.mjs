@@ -1,11 +1,13 @@
-// API locale des dossiers de jeux (T25) : GET /api/settings, POST /api/settings/choose. Branchée par serve.mjs.
-// Dépend de local-settings.mjs (lecture, validation, écriture) et de generate-games.mjs (régénération), sans les dupliquer.
+// API locale des dossiers de jeux (T25) et des pochettes (T28) : GET /api/settings, POST /api/settings/choose, GET /api/covers, POST /api/covers/download.
+// Branchée par serve.mjs. Dépend de local-settings.mjs (lecture, validation, écriture), de generate-games.mjs (régénération) et de covers.mjs, sans les dupliquer.
 // INVARIANT (sécurité) : active seulement si le serveur n'écoute que sur ce Mac (serve.mjs, isSettingsApiEnabled). Chaque requête doit
 //   avoir un en-tête Host localhost:<port> ou 127.0.0.1:<port> (anti DNS rebinding), une Origin identique (ou aucune avec X-Clone90: 1),
 //   un Content-Type application/json et un corps de 1 Ko au plus. Le navigateur ne fournit JAMAIS de chemin : il choisit un type
 //   ('roms', 'bios', 'roms-default', 'bios-default'), c'est la boîte du Mac qui choisit le dossier. Une seule boîte ouverte à la fois (verrou).
+//   T28 : le téléchargement des pochettes n'accepte que le corps `{}` (aucun paramètre) et partage le même verrou : jamais une boîte de choix pendant un téléchargement.
 import { readLocalSettings, updateLocalSettings, folderProblemKind } from './local-settings.mjs';
 import { runGenerate } from './generate-games.mjs';
+import { runCovers, formatSummary } from './covers.mjs';
 
 export const MAX_BODY_BYTES = 1024;
 /** Types de choix acceptés et réglage visé (null : retour au dossier du projet, sans boîte). */
@@ -23,7 +25,11 @@ const ERROR_TEXT = {
   generate: 'Les dossiers sont enregistrés, mais la liste des jeux n\'a pas pu être mise à jour. Relancez Clone90.',
   save: 'Les dossiers n\'ont pas pu être enregistrés. Vérifiez le fichier clone90.local.json.',
   busy: 'Une fenêtre de choix est déjà ouverte sur votre Mac.',
+  coversBusy: 'Le téléchargement des pochettes est en cours.',
+  coversFailed: 'Le téléchargement des pochettes a échoué. Vérifiez votre connexion à Internet.',
 };
+/** Routes connues : chemin -> méthode attendue. */
+const ROUTES = { '/api/settings': 'GET', '/api/settings/choose': 'POST', '/api/covers': 'GET', '/api/covers/download': 'POST' };
 
 /** Hôtes acceptés pour ce port (le nom de domaine d'une page piégée, même résolu vers 127.0.0.1, est refusé). */
 const allowedHosts = (port) => [`localhost:${port}`, `127.0.0.1:${port}`];
@@ -78,16 +84,22 @@ function parseKind(text) {
  * @param {(kind: 'roms'|'bios', options: {signal: AbortSignal}) => Promise<string|null>} options.chooseFolder boîte du Mac (injectable) ;
  *   null = annulé ; `signal` s'active si la requête HTTP se ferme (onglet fermé), pour libérer le verrou
  * @param {() => Promise<{exitCode: number}>} [options.regenerate] régénère games.json (le vrai générateur par défaut)
+ * @param {(options: {onProgress: Function}) => Promise<{exitCode: number, dryRun: boolean, summary: object}>} [options.downloadCovers]
+ *   téléchargement des pochettes (T28, `runCovers` par défaut), injectable pour les tests ; il régénère games.json lui-même
  * @param {Record<string, string>} [options.baseHeaders] en-têtes de toutes les réponses (nosniff)
  */
 export function createSettingsApi({ root, enabled, getPort, applyFolders, chooseFolder, baseHeaders = { 'X-Content-Type-Options': 'nosniff' },
-  regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }) }) {
+  regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }),
+  downloadCovers = (options) => runCovers({ root, ...options }) }) {
   let busy = false;
+  let coversJob = { status: 'idle' }; // idle | running (progress) | done (found, lines) | error (message)
 
   const send = (res, status, body, extra = {}) => {
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...baseHeaders, ...extra });
     res.end(JSON.stringify(body));
   };
+
+  const busyMessage = () => (coversJob.status === 'running' ? ERROR_TEXT.coversBusy : ERROR_TEXT.busy);
 
   async function currentSettings() {
     const s = await readLocalSettings(root);
@@ -125,7 +137,7 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
     if (text === null) return send(res, 413, { message: 'Requête trop grande' }, { Connection: 'close' });
     const kind = parseKind(text);
     if (kind === null) return send(res, 400, { message: 'Requête invalide' });
-    if (busy) return send(res, 409, { status: 'busy', message: ERROR_TEXT.busy });
+    if (busy) return send(res, 409, { status: 'busy', message: busyMessage() });
     busy = true;
     const abort = new AbortController();
     res.on('close', () => { if (!res.writableFinished) abort.abort(); });
@@ -139,17 +151,46 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
     } finally { busy = false; }
   }
 
+  /** POST /api/covers/download : lance le téléchargement en arrière-plan et répond tout de suite ; l'avancement se lit par GET /api/covers. */
+  async function handleCoversStart(req, res) {
+    if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] ?? '')) return send(res, 415, { message: 'Type de contenu refusé' });
+    const text = await readBody(req, MAX_BODY_BYTES);
+    if (text === null) return send(res, 413, { message: 'Requête trop grande' }, { Connection: 'close' });
+    let data;
+    try { data = JSON.parse(text); } catch { data = null; }
+    if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length) return send(res, 400, { message: 'Requête invalide' });
+    if (busy) return send(res, 409, { status: 'busy', message: busyMessage() });
+    busy = true;
+    coversJob = { status: 'running', progress: { phase: 'listing', done: 0, total: 0 } };
+    runCoversJob().finally(() => { busy = false; });
+    return send(res, 202, { status: 'started' });
+  }
+
+  async function runCoversJob() {
+    try {
+      const result = await downloadCovers({ onProgress: (progress) => { coversJob = { status: 'running', progress }; } });
+      coversJob = result.exitCode === 0
+        ? { status: 'done', found: result.summary.found.length, lines: formatSummary(result, { details: false }) }
+        : { status: 'error', message: ERROR_TEXT.generate };
+    } catch (err) {
+      console.error('Téléchargement des pochettes impossible :', err.message);
+      coversJob = { status: 'error', message: ERROR_TEXT.coversFailed };
+    }
+  }
+
   return {
     /** Traite une requête /api/... (le routage par préfixe est fait par serve.mjs). */
     async handle(req, res) {
       try {
         const path = (req.url ?? '').split('?')[0].split('#')[0];
-        const known = path === '/api/settings' || path === '/api/settings/choose';
+        const known = Object.hasOwn(ROUTES, path);
         if (!enabled || !known) return send(res, 404, { message: 'Introuvable' });
         const refused = checkRequestOrigin(req.headers, getPort(), req.method);
         if (refused) return send(res, refused.status, { message: refused.message });
-        const method = path === '/api/settings' ? 'GET' : 'POST';
+        const method = ROUTES[path];
         if (req.method !== method) return send(res, 405, { message: 'Méthode non autorisée' }, { Allow: method });
+        if (path === '/api/covers') return send(res, 200, coversJob);
+        if (path === '/api/covers/download') return await handleCoversStart(req, res);
         if (method === 'GET') return send(res, 200, await currentSettings());
         return await handleChoose(req, res);
       } catch (err) {
