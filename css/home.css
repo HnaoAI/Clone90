@@ -84,6 +84,7 @@
 .machine-tile.is-empty .machine-name { color: var(--text-muted); }
 .machine-tile.is-empty:focus-visible .machine-name, .input-gamepad .machine-tile.is-empty:focus .machine-name { color: var(--on-accent); }
 
+.home-tools { display: flex; justify-content: center; margin: 32px 0 0; } /* bouton « Dossiers des jeux » (T25) */
 .key-hint { margin: 32px 0 0; text-align: center; }
 @media (hover: none) and (pointer: coarse) { .key-hint { display: none; } }
 

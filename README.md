@@ -50,14 +50,16 @@ Double-cliquez sur **`Clone90.app`** (à la racine du dossier). Elle met à jour
 
 ## Choisir le dossier de vos jeux
 
-Vos ROMs (et vos BIOS) peuvent rester sur un autre disque ou dans un autre dossier que le projet. Double-cliquez sur **`Choisir le dossier des jeux.command`** (à la racine du dossier) : une fenêtre du Mac vous demande le dossier de vos ROMs, puis si vos BIOS sont dans `bios/` du projet ou dans un autre dossier. Annuler à n'importe quelle étape ne change rien.
+Vos ROMs (et vos BIOS) peuvent rester sur un autre disque ou dans un autre dossier que le projet. Une fois Clone90 ouvert avec **`Clone90.app`** (ou `Lancer Clone90.command`), cliquez sur le bouton **Dossiers des jeux** (sous les machines, sur l'accueil) : un panneau affiche les dossiers utilisés et propose **Choisir le dossier des ROMs**, **Choisir le dossier des BIOS**, **Utiliser les ROMs du projet** et **Utiliser les BIOS du projet** (retour aux dossiers `roms/` et `bios/` du projet). Une fenêtre du Mac s'ouvre pour choisir le dossier ; les jeux apparaissent aussitôt, sans redémarrer. Annuler la fenêtre ne change rien.
 
-- **La première fois**, comme pour le lanceur : clic droit (ou `Ctrl` + clic) sur le fichier, **Ouvrir**, puis **Ouvrir**.
+- Le bouton n'existe que sur le Mac, avec le lanceur (Clone90 n'écoute alors que sur ce Mac). Il n'apparaît ni sur GitHub Pages, ni depuis un téléphone, ni si vous lancez `node scripts/serve.mjs` sans `--host 127.0.0.1`.
+- **Secours** : double-cliquez sur **`Choisir le dossier des jeux.command`** (à la racine du dossier). Même résultat, mais il faut ensuite relancer Clone90 (voir plus bas). La première fois, comme pour le lanceur : clic droit (ou `Ctrl` + clic) sur le fichier, **Ouvrir**, puis **Ouvrir**.
+- Un dossier trop large (disque entier, dossier personnel, dossier système) est refusé avec un message : choisissez le dossier qui contient directement vos jeux.
 - Le dossier choisi doit contenir **un sous-dossier par machine**, comme `roms/` : `amiga/`, `neogeo/`, `arcade/`... (identifiants de `systems.json`).
 - Le choix est écrit dans `clone90.local.json` (fichier personnel, ignoré par git, jamais servi par le site). Exemple : `{ "romsDir": "/Volumes/Disque/ROMs", "biosDir": "/Volumes/Disque/BIOS" }`. Chaque clé est facultative ; sans elle, c'est `roms/` ou `bios/` du projet. Un chemin faux est signalé en français et Clone90 revient au dossier du projet.
 - Pour revenir au dossier du projet : supprimez `clone90.local.json`. On peut aussi simplement garder `roms/` dans le projet.
 - Après le choix, `Lancer Clone90.command` (ou `node scripts/generate-games.mjs`) affiche le dossier des jeux utilisé. Rien ne change dans le navigateur ni sur GitHub Pages.
-- Si Clone90 est déjà ouvert, fermez sa fenêtre Terminal puis relancez Lancer Clone90.
+- Avec le bouton « Dossiers des jeux », Clone90 prend le nouveau dossier tout de suite : pas besoin de le relancer. Avec le fichier de secours `Choisir le dossier des jeux.command`, si Clone90 est déjà ouvert, fermez sa fenêtre Terminal puis relancez Lancer Clone90.
 
 ## Où mettre les ROMs et les BIOS
 

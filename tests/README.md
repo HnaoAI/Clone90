@@ -36,3 +36,5 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `samples.test.mjs` : samples fbneo (plan de lancement Zaxxon avec et sans pack, Neo Geo, Amiga, validation de `samples`, liste blanche du serveur, service worker, générateur) (T22).
 - `posix-path.test.mjs` : `js/posix-path.js` identique à `node:path` posix (T27).
 - `local-library.test.mjs` : jouer sur téléphone sans le Mac (noms et chemins importés, BIOS au nom exact, IndexedDB factice, jeux locaux, fusion avec games.json, route `#/fichiers`, service worker sans cache, écran « Mes fichiers ») (T27).
+- `settings-api.test.mjs` : API locale des dossiers (désactivée hors macOS ou réseau, Host, Origin, X-Clone90, Content-Type, 1 Ko, corps invalide, verrou, annulation, refus, vrai générateur) et boîte du Mac factice (T25).
+- `folders-panel.test.mjs` : client de l'API, panneau « Dossiers des jeux », bouton de l'accueil, boîte générique, `api/` jamais en cache (T25).

@@ -81,6 +81,25 @@ Avec 12 machines : 3 rangées de 4 sur desktop, défilement vertical si nécessa
 
 Tablette / entre 600 et 1023 px : 3 colonnes.
 
+**Bouton « Dossiers des jeux » (T25).** Centré sous la grille des machines, bouton secondaire (bleu, classe `.button.is-secondary`, curseur ▶ au focus), `data-nav`, atteint en pressant bas depuis la dernière rangée. Il n'est dessiné que si `GET api/settings` répond (serveur du lanceur Mac) : jamais sur GitHub Pages ni en réseau local. Il ouvre un panneau modal (boîte de dialogue de la section 3.4, boîte large) :
+
+```
++--[ Dossiers des jeux ]--------------+
+| Clone90 cherche vos jeux et vos BIOS|
+| dans ces dossiers.                  |
+|  ROMs : /Volumes/Jeux (dossier choisi)
+|  BIOS : /projet/bios (dossier du projet)
+|  <message d'état, aria-live>        |
+| [ Choisir le dossier des ROMs ]     |
+| [ Choisir le dossier des BIOS ]     |
+| [ Utiliser les ROMs du projet ]     |
+| [ Utiliser les BIOS du projet ]     |
+| [ Fermer ]                          |
++-------------------------------------+
+```
+
+Quatre choix puis Fermer, en colonne : haut/bas pour naviguer (sans boucler), confirmer pour agir, retour ou Fermer pour fermer, focus sur le premier choix. Pendant le choix, les trois boutons sont marqués `aria-disabled` (appuis ignorés) et le message « Une fenêtre de choix s'est ouverte sur votre Mac. » est annoncé. Résultats : « Dossiers enregistrés. La liste des jeux est mise à jour. » (accueil redessiné derrière le panneau), « Aucun changement. » (annulation), ou le refus en français (dossier trop large ou introuvable, fenêtre déjà ouverte, serveur injoignable). Au retour, le focus revient sur le bouton « Dossiers des jeux ».
+
 ### 3.2 Grille de jeux
 
 En-tête : bouton "< Machines" (retour), nom + logo de la machine, nombre de jeux. Pas de recherche en v1 (à prévoir si une machine dépasse ~40 jeux, voir questions).

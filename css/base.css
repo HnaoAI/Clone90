@@ -195,6 +195,8 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
 .button:active, .back-button:active, .menu-button:active { transform: translate(2px, 2px); }
 .button { background: var(--accent); color: var(--on-accent); box-shadow: var(--frame-accent); }
 .back-button, .menu-button { padding: 8px 16px; background: var(--panel-2); color: var(--text); box-shadow: var(--frame); }
+.button.is-secondary { background: var(--panel-2); color: var(--text); box-shadow: var(--frame); }
+.button.is-secondary::before { color: var(--accent); text-shadow: 2px 2px 0 var(--line); }
 .dialog-button.is-danger { background: var(--danger); color: var(--text); box-shadow: var(--frame-danger); }
 
 .toast {
@@ -237,6 +239,16 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
 .dialog-body { padding: 20px 24px 28px; }
 .dialog-message { margin: 0 0 24px; color: var(--text-muted); }
 .dialog-actions { display: flex; gap: 20px; justify-content: flex-end; flex-wrap: wrap; }
+/* Panneau des dossiers (T25, js/ui/folders-panel.js) : boîte plus large, boutons en colonne, chemins longs coupés. */
+.dialog-box.is-wide { width: min(100%, 38rem); }
+.dialog-actions.is-vertical { flex-direction: column; align-items: stretch; gap: 16px; }
+.dialog-button[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
+.folder-list { margin: 0 0 20px; padding: 0; list-style: none; }
+.folder-line { margin-bottom: 8px; overflow-wrap: anywhere; }
+.folder-note { color: var(--text-muted); }
+.folders-status { min-height: 1.5em; margin: 0 0 20px; color: var(--text-muted); }
+.folders-status.is-ok { color: var(--accent); }
+.folders-status.is-error { color: var(--danger-text); }
 
 /* Marge de défilement : scrollIntoView (js/input/focus-nav.js) garde visibles le cadre (4 px), l'anneau de focus (4 px + décalage) et la mise à l'échelle 1.05 (CA-N6). */
 [data-nav] { scroll-margin: 32px; }
