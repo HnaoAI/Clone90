@@ -104,7 +104,23 @@ export async function fetchRepoListing(repo, fetchJson) {
   return list.tree.filter((e) => e.type === 'blob' && /\.png$/i.test(e.path)).map((e) => ({ name: e.path, sha: e.sha, size: e.size ?? 0 }));
 }
 
-const readCache = async (root) => JSON.parse(await readFile(join(root, COVERS_CACHE_FILE), 'utf8').catch(() => '{}')) ?? {};
+/** Cache lu sans jamais planter : fichier absent, illisible ou de mauvaise forme = cache vide. */
+async function readCache(root) {
+  try {
+    const cache = JSON.parse(await readFile(join(root, COVERS_CACHE_FILE), 'utf8'));
+    return cache && typeof cache === 'object' && !Array.isArray(cache) && cache.repos && typeof cache.repos === 'object' && !Array.isArray(cache.repos)
+      ? cache : { repos: {} };
+  } catch {
+    return { repos: {} };
+  }
+}
+/** Liste en cache de ce dépôt si elle est récente et bien formée, sinon null (elle sera relue sur GitHub). */
+function cachedListing(cache, repo, now) {
+  const entry = Object.hasOwn(cache.repos, repo) ? cache.repos[repo] : null;
+  const valid = entry && Array.isArray(entry.files) && entry.files.every((f) => f && typeof f.name === 'string' && typeof f.sha === 'string' && Number.isFinite(f.size))
+    && now - Date.parse(entry.fetchedAt) < CACHE_MAX_AGE_MS; // NaN (date absente ou fausse) : comparaison fausse, donc périmé
+  return valid ? entry.files : null;
+}
 async function writeCache(root, cache) {
   const target = join(root, COVERS_CACHE_FILE);
   await writeFile(`${target}.tmp`, JSON.stringify(cache)).then(() => rename(`${target}.tmp`, target)).catch(() => {}); // le cache n'est qu'un confort
@@ -118,13 +134,25 @@ export async function defaultFetchJson(url) {
   return res.json();
 }
 
-/** Octets d'une image (lecture seule), en refusant plus de `maxBytes`. @throws {Error} */
-export async function defaultFetchBytes(url, { maxBytes }) {
-  const res = await fetch(url, { headers: { 'User-Agent': 'clone90-covers' }, redirect: 'error', signal: AbortSignal.timeout(30000) });
+/**
+ * Octets d'une image (lecture seule), en refusant plus de `maxBytes` : d'après Content-Length AVANT de lire le corps, puis pendant la lecture.
+ * @param {string} url
+ * @param {{maxBytes: number, fetchFn?: typeof fetch}} options `fetchFn` injectable (tests)
+ * @throws {Error} message en français
+ */
+export async function defaultFetchBytes(url, { maxBytes, fetchFn = fetch }) {
+  const res = await fetchFn(url, { headers: { 'User-Agent': 'clone90-covers' }, redirect: 'error', signal: AbortSignal.timeout(30000) });
   if (!res.ok) throw new Error(`GitHub a répondu ${res.status}`);
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  if (bytes.length > maxBytes) throw new Error('image trop volumineuse');
-  return bytes;
+  const tooBig = new Error('image trop volumineuse');
+  if (Number(res.headers.get('content-length')) > maxBytes) { await res.body?.cancel(); throw tooBig; }
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of res.body ?? []) {
+    size += chunk.length;
+    if (size > maxBytes) throw tooBig; // quitter la boucle annule la lecture du corps
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 const errorText = (err) => err?.message ?? String(err);
@@ -148,7 +176,6 @@ export async function runCovers({ root = PROJECT_ROOT, dryRun = false, refresh =
   const { romsDir } = await readLocalSettings(root);
   summary.alreadyHave = games.filter((g) => g.cover).length;
   const cache = await readCache(root);
-  cache.repos ??= {};
   const todo = games.filter((g) => !g.cover);
   let done = 0;
   const step = (system) => onProgress({ phase: 'downloading', system, done, total: todo.length });
@@ -158,8 +185,7 @@ export async function runCovers({ root = PROJECT_ROOT, dryRun = false, refresh =
     const repo = system.thumbnailsRepo;
     if (!repo) { summary.noRepo.push(system.name); done += missing.length; continue; }
     onProgress({ phase: 'listing', system: system.name, done, total: todo.length });
-    let files = cache.repos[repo];
-    files = !refresh && files && now - Date.parse(files.fetchedAt) < CACHE_MAX_AGE_MS ? files.files : null;
+    let files = refresh ? null : cachedListing(cache, repo, now);
     try {
       if (!files) {
         files = await fetchRepoListing(repo, fetchJson);
@@ -205,22 +231,29 @@ async function handleGame({ game, files, repo, romsDir, dryRun, fetchBytes, summ
   }
 }
 
-/** Résumé en français, une ligne par information (`details` : liste aussi les titres). @returns {string[]} */
+/**
+ * Résumé en français, une ligne par résultat, compteurs à 0 omis (rien du tout : « Aucune pochette à chercher. »).
+ * @param {{summary: object, dryRun: boolean}} result
+ * @param {{details?: boolean}} [options] `details` : ajoute une ligne par jeu (ligne de commande)
+ * @returns {string[]}
+ */
 export function formatSummary({ summary, dryRun }, { details = true } = {}) {
   const s = summary;
-  const lines = [
-    `Pochettes ${dryRun ? 'qui seraient téléchargées' : 'téléchargées'} : ${s.found.length}`,
-    `Déjà présentes : ${s.alreadyHave}`,
-    `Introuvables : ${s.notFound.length}`,
-    `Ambiguës (rien téléchargé) : ${s.ambiguous.length}`,
+  const counts = [
+    [s.found.length, `Pochettes ${dryRun ? 'qui seraient téléchargées' : 'téléchargées'}`],
+    [s.alreadyHave, 'Déjà présentes'],
+    [s.notFound.length, 'Introuvables'],
+    [s.ambiguous.length, 'Plusieurs correspondances, ignorées'],
+    [s.failed.length, 'Échecs'],
   ];
-  if (s.failed.length) lines.push(`Échecs : ${s.failed.length}`);
+  const lines = counts.filter(([n]) => n > 0).map(([n, label]) => `${label} : ${n}`);
   for (const e of s.listingErrors) lines.push(`Liste indisponible pour ${e.system} : ${e.reason}`);
   if (s.noRepo.length) lines.push(`Machines sans base de pochettes : ${s.noRepo.join(', ')}`);
+  if (!lines.length) lines.push('Aucune pochette à chercher.');
   if (!details) return lines;
   if (dryRun) lines.push(...s.found.map((e) => `  À télécharger : ${e.file} (depuis ${e.source})`));
   lines.push(...s.notFound.map((t) => `  Introuvable : ${t}`));
-  lines.push(...s.ambiguous.map((a) => `  Ambiguë : ${a.title} (${a.options.slice(0, 4).join(' ; ')}${a.options.length > 4 ? ' ; ...' : ''})`));
+  lines.push(...s.ambiguous.map((a) => `  Plusieurs correspondances : ${a.title} (${a.options.slice(0, 4).join(' ; ')}${a.options.length > 4 ? ' ; ...' : ''})`));
   lines.push(...s.failed.map((f) => `  Échec : ${f.title} (${f.reason})`));
   return lines;
 }

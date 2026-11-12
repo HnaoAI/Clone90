@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
   normalizeTitle, chooseCover, coverTargetPath, isPng, fetchRepoListing, githubUrl, runCovers, formatSummary,
-  MAX_COVER_BYTES, COVERS_CACHE_FILE,
+  MAX_COVER_BYTES, COVERS_CACHE_FILE, defaultFetchBytes,
 } from '../scripts/covers.mjs';
 
 const FIXED_DATE = new Date('2026-11-12T10:00:00.000Z');
@@ -366,19 +366,55 @@ test('runCovers : aucun jeu, ou dossier des ROMs vide : rien à faire, aucune re
   });
 });
 
-test('formatSummary : résumé en français (trouvées, déjà présentes, introuvables, ambiguës)', () => {
+test('formatSummary : une ligne par résultat en français, compteurs à 0 omis, « Plusieurs correspondances, ignorées »', () => {
   const summary = {
-    found: [{ title: 'Gods', file: 'amiga/Gods.png', source: 'Gods.png' }], alreadyHave: 2, notFound: ['X'],
+    found: [{ title: 'Gods', file: 'amiga/Gods.png', source: 'Gods.png' }], alreadyHave: 2, notFound: [],
     ambiguous: [{ title: 'Y', options: ['Y (a).png', 'Y (b).png'] }], failed: [{ title: 'Z', reason: 'image de plus de 2 Mo' }],
     listingErrors: [{ system: 'Neo Geo', reason: 'limite de requêtes de GitHub atteinte' }], noRepo: ['NES'],
   };
-  const text = formatSummary({ summary, dryRun: false }).join('\n');
-  assert.match(text, /Pochettes téléchargées : 1/);
-  assert.match(text, /Déjà présentes : 2/);
-  assert.match(text, /Introuvables : 1/);
-  assert.match(text, /Ambiguës \(rien téléchargé\) : 1/);
-  assert.match(text, /Ambiguë : Y/);
-  assert.match(text, /Neo Geo/);
+  const short = formatSummary({ summary, dryRun: false }, { details: false });
+  assert.deepEqual(short, [
+    'Pochettes téléchargées : 1', 'Déjà présentes : 2', 'Plusieurs correspondances, ignorées : 1', 'Échecs : 1',
+    'Liste indisponible pour Neo Geo : limite de requêtes de GitHub atteinte', 'Machines sans base de pochettes : NES',
+  ]);
+  assert.ok(!short.join('\n').includes('Introuvables'), 'compteur à 0 omis');
+  const full = formatSummary({ summary, dryRun: false }).join('\n');
+  assert.match(full, /Plusieurs correspondances : Y/);
   assert.match(formatSummary({ summary, dryRun: true }).join('\n'), /qui seraient téléchargées : 1/);
-  assert.ok(!formatSummary({ summary, dryRun: false }, { details: false }).join('\n').includes('Ambiguë : Y'));
+});
+
+test('formatSummary : rien à chercher = une seule ligne claire', () => {
+  const empty = { found: [], alreadyHave: 0, notFound: [], ambiguous: [], failed: [], listingErrors: [], noRepo: [] };
+  assert.deepEqual(formatSummary({ summary: empty, dryRun: false }), ['Aucune pochette à chercher.']);
+});
+
+test('cache corrompu (JSON illisible, tableau, mauvaise forme, entrée tronquée) = traité comme vide, runCovers ne plante pas et le répare', async () => {
+  const bad = ['{pas du json', '[]', 'null', '"x"', '{"repos":[]}', '{"repos":{"Fake_Amiga":{"fetchedAt":"2026-11-12T10:00:00.000Z","files":"oups"}}}',
+    '{"repos":{"Fake_Amiga":{"fetchedAt":"2026-11-12T10:00:00.000Z","files":[{"name":1}]}}}', '{"repos":{"Fake_Amiga":{"files":[]}}}'];
+  for (const content of bad) {
+    const gh = fakeGithub({ Fake_Amiga: [file('Gods.png')], Fake_NeoGeo: [], Fake_Arcade: [] });
+    await withProject({ 'roms/amiga/Gods.adf': 'x', [COVERS_CACHE_FILE]: content }, async (root) => {
+      const out = await runCovers({ root, now: FIXED_DATE, net: gh.net });
+      assert.equal(out.exitCode, 0, content);
+      assert.deepEqual(out.summary.found.map((f) => f.file), ['amiga/Gods.png'], content);
+      assert.equal(gh.calls.json.length, 2, `liste relue : ${content}`);
+      assert.deepEqual(JSON.parse(await readFile(join(root, COVERS_CACHE_FILE), 'utf8')).repos.Fake_Amiga.files.map((f) => f.name), ['Gods.png']);
+    });
+  }
+});
+
+test('defaultFetchBytes : Content-Length au-dessus de 2 Mo refusé AVANT de lire le corps', async () => {
+  let pulled = false;
+  const body = new ReadableStream({ pull(controller) { pulled = true; controller.enqueue(new Uint8Array(10)); controller.close(); } }, { highWaterMark: 0 });
+  const fetchFn = async () => new Response(body, { status: 200, headers: { 'content-length': String(MAX_COVER_BYTES + 1) } });
+  await assert.rejects(defaultFetchBytes('https://raw.githubusercontent.com/x', { maxBytes: MAX_COVER_BYTES, fetchFn }), /trop volumineuse/);
+  assert.equal(pulled, false);
+});
+
+test('defaultFetchBytes : sans Content-Length, la lecture s\'arrête au-delà de la limite ; sinon renvoie les octets', async () => {
+  const big = new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array(1024)); } }, { highWaterMark: 0 });
+  await assert.rejects(defaultFetchBytes('https://x', { maxBytes: 4096, fetchFn: async () => new Response(big, { status: 200 }) }), /trop volumineuse/);
+  const bytes = await defaultFetchBytes('https://x', { maxBytes: 4096, fetchFn: async () => new Response(PNG, { status: 200 }) });
+  assert.deepEqual([...bytes], [...PNG]);
+  await assert.rejects(defaultFetchBytes('https://x', { maxBytes: 4096, fetchFn: async () => new Response('non', { status: 404 }) }), /404/);
 });

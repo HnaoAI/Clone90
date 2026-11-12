@@ -92,7 +92,8 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
   regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }),
   downloadCovers = (options) => runCovers({ root, ...options }) }) {
   let busy = false;
-  let coversJob = { status: 'idle' }; // idle | running (progress) | done (found, lines) | error (message)
+  let coversJob = { status: 'idle' }; // idle | running (progress) | done (found, lines) | error (message) ; `id` = numéro du travail, pour que le client ne traite qu'une fois sa fin
+  let jobCounter = 0;
 
   const send = (res, status, body, extra = {}) => {
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...baseHeaders, ...extra });
@@ -161,20 +162,21 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
     if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length) return send(res, 400, { message: 'Requête invalide' });
     if (busy) return send(res, 409, { status: 'busy', message: busyMessage() });
     busy = true;
-    coversJob = { status: 'running', progress: { phase: 'listing', done: 0, total: 0 } };
-    runCoversJob().finally(() => { busy = false; });
+    jobCounter += 1;
+    coversJob = { id: jobCounter, status: 'running', progress: { phase: 'listing', done: 0, total: 0 } };
+    runCoversJob(jobCounter).finally(() => { busy = false; });
     return send(res, 202, { status: 'started' });
   }
 
-  async function runCoversJob() {
+  async function runCoversJob(id) {
     try {
-      const result = await downloadCovers({ onProgress: (progress) => { coversJob = { status: 'running', progress }; } });
+      const result = await downloadCovers({ onProgress: (progress) => { coversJob = { id, status: 'running', progress }; } });
       coversJob = result.exitCode === 0
-        ? { status: 'done', found: result.summary.found.length, lines: formatSummary(result, { details: false }) }
-        : { status: 'error', message: ERROR_TEXT.generate };
+        ? { id, status: 'done', found: result.summary.found.length, lines: formatSummary(result, { details: false }) }
+        : { id, status: 'error', message: ERROR_TEXT.generate };
     } catch (err) {
       console.error('Téléchargement des pochettes impossible :', err.message);
-      coversJob = { status: 'error', message: ERROR_TEXT.coversFailed };
+      coversJob = { id, status: 'error', message: ERROR_TEXT.coversFailed };
     }
   }
 

@@ -246,9 +246,16 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
 .folder-list { margin: 0 0 20px; padding: 0; list-style: none; }
 .folder-line { margin-bottom: 8px; overflow-wrap: anywhere; }
 .folder-note { color: var(--text-muted); }
-.folders-status { min-height: 1.5em; margin: 0 0 20px; color: var(--text-muted); }
+.folders-status { min-height: 1.5em; margin: 0 0 20px; color: var(--text-muted); white-space: pre-line; }
 .folders-status.is-ok { color: var(--accent); }
 .folders-status.is-error { color: var(--danger-text); }
+/* Pochettes (T28) : groupe à part sous les choix de dossiers, barre de progression visuelle (hors zone annoncée). */
+.dialog-button.is-separated { margin-top: 12px; padding-top: 16px; border-top: 4px dashed var(--panel-3); }
+.covers-progress { display: block; width: 100%; height: 16px; margin: 0 0 12px; appearance: none; border: 0; background: var(--panel-3); }
+.covers-progress::-webkit-progress-bar { background: var(--panel-3); }
+.covers-progress::-webkit-progress-value { background: var(--accent); }
+.covers-progress::-moz-progress-bar { background: var(--accent); }
+.covers-progress[hidden] { display: none; }
 
 /* Marge de défilement : scrollIntoView (js/input/focus-nav.js) garde visibles le cadre (4 px), l'anneau de focus (4 px + décalage) et la mise à l'échelle 1.05 (CA-N6). */
 [data-nav] { scroll-margin: 32px; }

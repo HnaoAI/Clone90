@@ -60,10 +60,11 @@ test('API pochettes : GET /api/covers = inactif au départ ; POST répond 202 to
     assert.equal(started.status, 202);
     assert.deepEqual(started.json(), { status: 'started' });
     const running = await until(async () => { const j = (await t.call('GET', '/api/covers')).json(); return j.progress?.done === 3 && j; });
-    assert.deepEqual(running, { status: 'running', progress: { phase: 'downloading', system: 'Amiga', done: 3, total: 10 } });
+    assert.deepEqual(running, { id: 1, status: 'running', progress: { phase: 'downloading', system: 'Amiga', done: 3, total: 10 } });
     release();
     const done = await until(async () => { const j = (await t.call('GET', '/api/covers')).json(); return j.status === 'done' && j; });
     assert.equal(done.found, 2);
+    assert.equal(done.id, 1);
     assert.match(done.lines.join('\n'), /Pochettes téléchargées : 2/);
     assert.match(done.lines.join('\n'), /Déjà présentes : 1/);
   } finally { t.close(); }

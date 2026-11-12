@@ -130,12 +130,24 @@ async function main() {
     showHome();
   }
 
+  /** Fin d'un téléchargement de pochettes (T28), panneau ouvert ou fermé : une seule fois par travail (`state.id`), même si deux panneaux l'ont suivi. */
+  let lastCoversJob = null;
+  async function onCoversDone(state) {
+    if (state.id !== undefined && state.id === lastCoversJob) return;
+    lastCoversJob = state.id;
+    if (state.status === 'done' && state.found > 0) { // l'utilisateur a pu quitter l'accueil : on recharge les données, on ne redessine l'accueil que s'il est affiché
+      await reload();
+      if (screen.querySelector('.home')) showHome();
+    }
+    toast(state.status === 'done' ? state.lines[0] : state.message);
+  }
+
   async function openFolders() {
     folderSettings = (await fetchFolderSettings()) ?? folderSettings; // valeurs fraîches ; si le serveur ne répond plus, les précédentes
     const coversRunning = (await fetchCoversStatus())?.status === 'running'; // T28 : un téléchargement lancé avant la fermeture du panneau continue
     foldersPanel = createFoldersPanel({
       settings: folderSettings, choose: (kind) => requestFolderChoice(kind), onChanged: reloadGames,
-      covers: { start: () => requestCoversDownload(), status: () => fetchCoversStatus() }, coversRunning,
+      covers: { start: () => requestCoversDownload(), status: () => fetchCoversStatus() }, coversRunning, onCoversDone,
     });
     foldersPanel.open(document.body);
     await foldersPanel.result;
