@@ -113,21 +113,39 @@ const gamesFailureStatus = (e) => {
  * - systems.json absent ou invalide : erreur fatale (rejet) au message français ; l'erreur d'origine est dans `cause` (à journaliser en console).
  * - games.json : jamais fatal. `gamesStatus` vaut 'ok', 'empty' (aucun jeu), 'absent' (404,
  *   cas normal sur GitHub Pages car gitignoré), 'offline' (serveur injoignable) ou 'invalid' (illisible ou mauvaise version).
+ * - T27 : jeux de la bibliothèque locale (fichiers importés sur le téléphone) ajoutés à ceux de games.json, validés de la même façon ;
+ *   un jeu de games.json garde la priorité sur un jeu local de même id. Dès qu'il y a au moins un jeu, le statut est 'ok'.
  * @param {(url: string) => Promise<unknown>} [fetchJson] injectable pour les tests
- * @returns {Promise<{systems: object[], games: object[], gamesStatus: string, skipped: number}>}
+ * @param {(systems: object[]) => Promise<object[]>} [loadLocal] jeux locaux (js/local-games.js, loadLocalGames) ; absent = aucun
+ * @returns {Promise<{systems: object[], games: object[], gamesStatus: string, skipped: number, localCount: number}>}
  */
-export async function loadData(fetchJson = defaultFetchJson) {
+export async function loadData(fetchJson = defaultFetchJson, loadLocal = null) {
   let systems;
   try {
     systems = validateSystems(await fetchJson(SYSTEMS_URL));
   } catch (e) {
     throw new Error(describeSystemsError(e), { cause: e });
   }
+  let result;
   try {
     const { games, skipped } = validateGames(await fetchJson(GAMES_URL), systems.map((s) => s.id));
-    return { systems, games, skipped, gamesStatus: games.length ? 'ok' : 'empty' };
+    result = { systems, games, skipped, gamesStatus: games.length ? 'ok' : 'empty' };
   } catch (e) {
-    return { systems, games: [], skipped: 0, gamesStatus: gamesFailureStatus(e) };
+    result = { systems, games: [], skipped: 0, gamesStatus: gamesFailureStatus(e) };
+  }
+  const local = loadLocal ? await localGames(loadLocal, systems, result.games) : [];
+  if (!local.length) return { ...result, localCount: 0 };
+  return { ...result, games: [...result.games, ...local], gamesStatus: 'ok', localCount: local.length };
+}
+
+/** Jeux locaux valides et d'id libre (T27). Une erreur de la bibliothèque n'empêche jamais l'accueil : liste vide. */
+async function localGames(loadLocal, systems, serverGames) {
+  try {
+    const { games } = validateGames({ version: 1, games: await loadLocal(systems) }, systems.map((s) => s.id));
+    const taken = new Set(serverGames.map((g) => g.id));
+    return games.filter((g) => !taken.has(g.id)).map((g) => ({ ...g, local: true }));
+  } catch {
+    return [];
   }
 }
 

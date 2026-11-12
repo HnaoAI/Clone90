@@ -1,28 +1,35 @@
-// Routes hash `#/` et `#/<machine>?focus=<idJeu>` (T3). Aucune logique d'écran, aucune liste de machines :
+// Routes hash `#/`, `#/<machine>?focus=<idJeu>` (T3) et `#/fichiers?machine=<id>` (écran « Mes fichiers », T27). Aucune logique d'écran, aucune liste de machines :
 // savoir si la machine existe est l'affaire de l'appelant (app.js). Le jeu est une page (player.html), pas une route.
 import { PLAYER_PAGE, HOME_PAGE } from './config.js';
 import { encodeGameId } from './data.js';
 
 const SYSTEM_SEGMENT = /^[a-z0-9]+$/;
 
+/** Segment de l'écran « Mes fichiers » (T27). INVARIANT : aucune machine de systems.json ne porte cet id (tests/router.test.mjs). */
+export const LIBRARY_SEGMENT = 'fichiers';
+
 /**
- * Lit un hash. Formes : '', '#', '#/' (accueil) ; '#/<machine>[?focus=<id>]' ; sinon notfound.
+ * Lit un hash. Formes : '', '#', '#/' (accueil) ; '#/fichiers[?machine=<id>]' (T27) ; '#/<machine>[?focus=<id>]' ; sinon notfound.
  * @param {string} [hash] valeur de location.hash
- * @returns {{name: 'home'} | {name: 'system', system: string, focus: string|null} | {name: 'notfound'}}
+ * @returns {{name: 'home'} | {name: 'library', machine: string|null} | {name: 'system', system: string, focus: string|null} | {name: 'notfound'}}
  */
 export function parseHash(hash = '') {
   const [path, query = ''] = hash.replace(/^#/, '').split('?', 2);
   const segments = path.split('/').filter(Boolean);
   if (segments.length === 0 && (path === '' || path === '/')) return { name: 'home' };
   if (segments.length !== 1 || !path.startsWith('/') || !SYSTEM_SEGMENT.test(segments[0])) return { name: 'notfound' };
-  return { name: 'system', system: segments[0], focus: readFocus(query) };
+  if (segments[0] === LIBRARY_SEGMENT) {
+    const machine = readParam(query, 'machine');
+    return { name: 'library', machine: machine && SYSTEM_SEGMENT.test(machine) ? machine : null };
+  }
+  return { name: 'system', system: segments[0], focus: readParam(query, 'focus') };
 }
 
-/** Lit `focus` à la main : URLSearchParams décoderait déjà une fois (et lirait + comme espace), d'où un double décodage. */
-function readFocus(query) {
-  const pair = query.split('&').find((p) => p.startsWith('focus='));
+/** Lit un paramètre à la main : URLSearchParams décoderait déjà une fois (et lirait + comme espace), d'où un double décodage. */
+function readParam(query, name) {
+  const pair = query.split('&').find((p) => p.startsWith(`${name}=`));
   if (!pair) return null;
-  try { return decodeURIComponent(pair.slice('focus='.length)) || null; } catch { return null; }
+  try { return decodeURIComponent(pair.slice(name.length + 1)) || null; } catch { return null; }
 }
 
 /**
@@ -30,6 +37,7 @@ function readFocus(query) {
  * @param {{name: string, system?: string, focus?: string|null}} route
  */
 export function buildHash(route) {
+  if (route.name === 'library') return `#/${LIBRARY_SEGMENT}${route.machine ? `?machine=${route.machine}` : ''}`;
   if (route.name !== 'system') return '#/';
   const focus = route.focus ? `?focus=${encodeGameId(route.focus)}` : '';
   return `#/${route.system}${focus}`;

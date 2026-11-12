@@ -2,7 +2,10 @@
 // Fichier classique (pas un module : Firefox et d'anciens Safari ne gèrent pas les service workers en module).
 // Les fonctions pures sont exposées dans `self.Clone90SW` pour être testées sous Node (tests/sw.test.mjs, via node:vm).
 // INVARIANT (CLAUDE.md règle 6) : JAMAIS de roms/, bios/, games.json ni de ressource d'une autre origine (CDN EmulatorJS)
-// dans le cache. Le service worker ne répond même pas à ces requêtes : elles vont directement au réseau.
+// dans le cache. games.json et le CDN vont directement au réseau.
+// T27 (jouer sur téléphone sans le Mac) : une requête GET ou HEAD vers roms/ ou bios/ est d'abord cherchée dans la bibliothèque locale
+// (IndexedDB `clone90-local`, fichiers que la personne a choisis sur son appareil, voir js/local-library.js) ; absente, elle part au réseau
+// telle quelle (Mac : rien ne change). Ces réponses ne sont JAMAIS écrites dans le cache (Cache Storage) : rien n'est téléchargé ni copié.
 // Décision (architecture 8.4) : EmulatorJS garde lui-même ses cœurs en cache navigateur ; le CDN n'est pas pris en charge ici.
 // INVARIANT : tout fichier de js/, css/ ou assets/icons/ ou assets/fonts/ doit figurer dans SHELL_FILES (les logos de assets/logos/ viennent de systems.json, voir logoPaths) (vérifié par tests/sw.test.mjs).
 // Nom du cache (T16) : `clone90-shell-v<APP_VERSION>`. La version vient de js/version.js (source unique) par l'adresse d'enregistrement
@@ -20,11 +23,12 @@ const CACHE_VERSION = `${CACHE_PREFIX}v${versionFromScriptSearch(self.location?.
 
 const SHELL_FILES = [
   './', 'index.html', 'player.html', 'manifest.webmanifest', 'systems.json',
-  'css/base.css', 'css/home.css', 'css/grid.css', 'css/player.css',
+  'css/base.css', 'css/home.css', 'css/grid.css', 'css/library.css', 'css/player.css',
   'js/app.js', 'js/config.js', 'js/data.js', 'js/router.js', 'js/screens.js', 'js/sort.js', 'js/version.js',
+  'js/games-builder.js', 'js/posix-path.js', 'js/local-library.js', 'js/local-games.js',
   'js/input/actions.js', 'js/input/focus-nav.js',
   'js/ui/dialog.js', 'js/ui/dom.js', 'js/ui/error-screen.js', 'js/ui/format.js', 'js/ui/game-grid.js',
-  'js/ui/input-mode.js', 'js/ui/logo.js', 'js/ui/machine-grid.js', 'js/ui/toast.js',
+  'js/ui/input-mode.js', 'js/ui/library-screen.js', 'js/ui/logo.js', 'js/ui/machine-grid.js', 'js/ui/toast.js',
   'js/player/diagnostic-log.js', 'js/player/diagnostic-panel.js', 'js/player/disk-shortcut.js', 'js/player/ejs-start-watch.js', 'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js', 'js/player/retroarch-cfg.js',
   'js/pwa.js',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/icon-192-maskable.png', 'assets/icons/icon-512-maskable.png',
@@ -70,7 +74,26 @@ function logoPaths(systemsJson) {
 /** Noms de caches de Clone90 à supprimer (anciennes versions). Les caches d'autres applications restent intacts. */
 const staleCacheNames = (names, current = CACHE_VERSION) => names.filter((n) => n.startsWith(CACHE_PREFIX) && n !== current);
 
-self.Clone90SW = { CACHE_VERSION, SHELL_FILES, NEVER_CACHED, scopedPath, isNeverCached, isShellPath, shouldHandle, logoPaths, staleCacheNames };
+/** Base de la bibliothèque locale (T27). INVARIANT : identique à LOCAL_DB de js/local-library.js (tests/local-library.test.mjs). */
+const LOCAL_DB = { name: 'clone90-local', version: 1, store: 'files' };
+
+/** Dossiers servis depuis la bibliothèque locale quand le fichier y est (T27). */
+const LOCAL_PREFIXES = ['roms/', 'bios/'];
+
+/** Chemin à chercher dans la bibliothèque locale pour cette requête (GET ou HEAD vers roms/ ou bios/ dans la portée), sinon null. */
+function localLibraryPath(method, url, scope) {
+  if (method !== 'GET' && method !== 'HEAD') return null;
+  let path;
+  try { path = scopedPath(url, scope); } catch { return null; }
+  return path !== null && LOCAL_PREFIXES.some((p) => path.startsWith(p)) && !path.split('/').includes('..') ? path : null;
+}
+
+/** En-têtes de la réponse d'un fichier local : type générique (comme le serveur local pour une ROM) et taille. */
+function localResponseInit(record) {
+  return { status: 200, headers: { 'Content-Type': record.blob?.type || 'application/octet-stream', 'Content-Length': String(record.size ?? record.blob?.size ?? 0), 'Cache-Control': 'no-store' } };
+}
+
+self.Clone90SW = { CACHE_VERSION, SHELL_FILES, NEVER_CACHED, LOCAL_DB, LOCAL_PREFIXES, scopedPath, isNeverCached, isShellPath, shouldHandle, logoPaths, staleCacheNames, localLibraryPath, localResponseInit };
 
 if (typeof ServiceWorkerGlobalScope !== 'undefined' && self instanceof ServiceWorkerGlobalScope) {
   const scope = () => self.registration.scope;
@@ -104,9 +127,42 @@ if (typeof ServiceWorkerGlobalScope !== 'undefined' && self instanceof ServiceWo
     })());
   });
 
+  /** Ouvre la bibliothèque locale (même création de magasin que js/local-library.js). Rejet si IndexedDB est indisponible. */
+  const openLocalDb = () => new Promise((resolve, reject) => {
+    const request = indexedDB.open(LOCAL_DB.name, LOCAL_DB.version);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(LOCAL_DB.store)) request.result.createObjectStore(LOCAL_DB.store, { keyPath: 'path' });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  /** Enregistrement local de `path`, ou null (absent, ou base illisible : on retombe alors sur le réseau). */
+  async function readLocal(path) {
+    try {
+      const db = await openLocalDb();
+      try {
+        return await new Promise((resolve, reject) => {
+          const request = db.transaction(LOCAL_DB.store, 'readonly').objectStore(LOCAL_DB.store).get(path);
+          request.onsuccess = () => resolve(request.result ?? null);
+          request.onerror = () => reject(request.error);
+        });
+      } finally { db.close(); }
+    } catch { return null; }
+  }
+
   // Réseau d'abord, cache en secours : le développeur et le joueur voient toujours la dernière version quand le réseau répond.
   self.addEventListener('fetch', (event) => {
     const { request } = event;
+    const localPath = localLibraryPath(request.method, request.url, scope());
+    if (localPath !== null) { // T27 : fichier importé sur cet appareil, sinon réseau ; jamais de cache
+      event.respondWith((async () => {
+        const record = await readLocal(localPath);
+        if (!record?.blob) return fetch(request);
+        return new Response(request.method === 'HEAD' ? null : record.blob, localResponseInit(record));
+      })());
+      return;
+    }
     if (!shouldHandle(request.method, request.url, scope(), logos)) return; // pas de respondWith : réseau direct, rien en cache
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_VERSION);

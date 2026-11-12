@@ -1,0 +1,34 @@
+/* Écran « Mes fichiers » (T27) et bouton d'accès de l'accueil. Couleurs : variables de base.css uniquement (tests/design.test.mjs). */
+.home-title-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+.home-title-row .screen-title { margin: 0; }
+
+.grid-add { margin-left: auto; }
+
+.library { max-width: 48rem; margin: 0 auto; }
+.library .grid-header { margin-bottom: 20px; }
+.library-intro { margin: 0 4px 24px; color: var(--text-muted); }
+.library-heading { margin: 32px 4px 8px; font-family: var(--font-pixel); font-size: 0.75rem; font-weight: 400; line-height: 1.6; color: var(--accent); }
+.library > .muted { margin: 0 4px 16px; }
+
+.library-machines { display: flex; flex-wrap: wrap; gap: 16px; margin: 0; padding: 4px; list-style: none; }
+.library-machines .back-button { min-width: 8rem; }
+.library-machines .is-selected { background: var(--accent); color: var(--on-accent); box-shadow: var(--frame-accent); }
+
+.library .button { margin: 4px; }
+.library-bios { margin: 16px 4px 0; padding: 0; list-style: none; color: var(--text-muted); }
+.library-bios li { padding: 4px 0; }
+.library-bios li.is-present { color: var(--text); }
+
+.library-group { margin: 16px 4px 0; }
+.library-group-title { margin: 0 0 8px; font-size: 1rem; }
+.library-files { margin: 0; padding: 0; list-style: none; }
+.library-file { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px; margin-bottom: 12px; background: var(--panel); box-shadow: var(--frame); }
+.library-file-name { flex: 1 1 12rem; overflow-wrap: anywhere; }
+.library-file-size { flex: 0 0 auto; }
+
+button[disabled], .back-button[disabled] { opacity: 0.5; cursor: not-allowed; }
+@media (max-width: 599px) {
+  .library-machines .back-button { min-width: 0; }
+  .library-machines li { flex: 1 1 calc(50% - 16px); }
+  .library-machines li .back-button { width: 100%; }
+}

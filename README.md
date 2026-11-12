@@ -30,6 +30,10 @@ Le site est alors sur <http://localhost:8080>. Le serveur affiche aussi l'adress
 - Liens symboliques : `roms/` et `bios/` peuvent être des liens vers un autre disque (ex. `roms` vers `/Volumes/Disque/roms`). Un lien placé DANS ces dossiers (fichier ou sous-dossier) qui pointe hors de leur emplacement réel est refusé (403), comme tout lien du reste du projet qui sort de la racine du projet.
 - Sur Android en réseau local (HTTP), le jeu fonctionne mais le site ne peut pas être installé comme application (limite du navigateur hors HTTPS).
 
+## Jouer sur téléphone sans le Mac (T27)
+
+Sur https://hnaoai.github.io/Clone90/ (ou toute adresse en HTTPS, ou localhost), le bouton **Mes fichiers** de l'accueil permet de choisir ses jeux et BIOS sur l'appareil. Ils sont copiés dans le navigateur (IndexedDB), jamais envoyés ni publiés. Le service worker répond aux adresses `roms/...` et `bios/...` avec ces fichiers (sinon il laisse partir la requête au réseau, donc le Mac ne change pas) et ne les met jamais en cache. La liste des jeux est construite dans le navigateur avec les mêmes règles que `generate-games.mjs` (`js/games-builder.js`, partagé). Mode d'emploi : `docs/guide.md`, « Jouer sur le téléphone sans le Mac ».
+
 ## Lancer sans Terminal (Mac)
 
 Double-cliquez sur **`Clone90.app`** (à la racine du dossier). Elle met à jour la liste des jeux, démarre Clone90 en arrière-plan et ouvre la page dans votre navigateur, **sans fenêtre Terminal**.

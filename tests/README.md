@@ -34,3 +34,5 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `design.test.mjs` : design « Cartouche bleue » (palette, contrastes WCAG, couleur déclarée une seule fois, `prefers-reduced-motion` couvre les animations, clignotement 1 Hz, focus, logos/icônes/manifeste alignés sur `base.css`) (T24).
 - `mac-app.test.mjs` : application Mac `Clone90.app` (source AppleScript, bundle, `bash -n` du script de construction, jamais servie ni mise en cache) (T26).
 - `samples.test.mjs` : samples fbneo (plan de lancement Zaxxon avec et sans pack, Neo Geo, Amiga, validation de `samples`, liste blanche du serveur, service worker, générateur) (T22).
+- `posix-path.test.mjs` : `js/posix-path.js` identique à `node:path` posix (T27).
+- `local-library.test.mjs` : jouer sur téléphone sans le Mac (noms et chemins importés, BIOS au nom exact, IndexedDB factice, jeux locaux, fusion avec games.json, route `#/fichiers`, service worker sans cache, écran « Mes fichiers ») (T27).

@@ -5,6 +5,8 @@
 // Seuls exit-guard (lecture seule) et le bouton Menu peuvent demander la sortie.
 import { HOME_PAGE } from '../config.js';
 import { loadData } from '../data.js';
+import { loadLocalGames } from '../local-games.js';
+import { canUseLocalLibrary } from '../local-library.js';
 import { parsePlayerParams, buildReturnUrl } from '../router.js';
 import { createActionSource } from '../input/actions.js';
 import { createFocusNavigator } from '../input/focus-nav.js';
@@ -220,7 +222,7 @@ async function main() {
   if (!systemId || !gameId) { showLoadError({ reason: 'no-params' }, HOME_PAGE); return; }
   let data;
   try {
-    data = await loadData();
+    data = await loadData(undefined, canUseLocalLibrary(window) ? (systems) => loadLocalGames(systems) : null); // T27 : jeux importés sur l'appareil
   } catch (e) {
     console.error('Chargement de systems.json impossible :', e.cause ?? e);
     showLoadError({ reason: 'data', message: e.message }, HOME_PAGE);
@@ -234,6 +236,11 @@ async function main() {
     return;
   }
   leaveUrl = buildReturnUrl(systemId, game.id);
+  // T27 : les fichiers d'un jeu importé ne sont servis que par le service worker (sw.js) ; sans lui (rechargement forcé, 1re visite), rien ne marcherait.
+  if (game.local && !navigator.serviceWorker?.controller) {
+    showMessage({ title: 'Rechargez la page pour jouer.', details: ['Ce jeu est gardé sur cet appareil. Le navigateur doit recharger la page une fois pour pouvoir le lire.'], actionLabel: 'Revenir à la liste' });
+    return;
+  }
   currentGameTitle = game.title;
   currentGameFiles = game.disks ?? [game.file];
   diskCount = game.disks?.length ?? 1;
@@ -250,7 +257,8 @@ async function main() {
   plan = checked.plan;
   const { missing } = checked;
   if (missing.length) {
-    showMessage({ title: describeMissing(missing)[0].title, details: describeMissing(missing).map((m) => m.detail) });
+    const described = describeMissing(missing, { local: game.local === true });
+    showMessage({ title: described[0].title, details: described.map((m) => m.detail) });
     return;
   }
   phase = 'ready';
