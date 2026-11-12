@@ -65,6 +65,7 @@
 
   --gap: 24px;
   --margin-x: 48px;
+  --player-bar: 0px; /* barre du haut de la page de jeu (T28), redéfinie en portrait par player.css */
   --focus-offset: 8px;
 }
 

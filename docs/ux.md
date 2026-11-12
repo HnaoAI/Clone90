@@ -176,7 +176,7 @@ Même en-tête que la grille. Message centré, ton direct, avec le chemin exact 
 
 EmulatorJS occupe tout l'écran. Le site ajoute seulement :
 
-- **Bouton "Menu"** (flèche ◀ + texte "Menu"), coin haut gauche, 48 x 48 px min, semi-transparent (opacité 0.6). Sur desktop il se masque après 3 s sans mouvement de souris et réapparaît au mouvement. Sur tactile il reste visible en permanence (opacité 0.4) car les contrôles virtuels d'EmulatorJS sont en bas : le haut gauche est libre. (confirmé : les contrôles virtuels EmulatorJS occupent le bas de l'écran)
+- **Bouton "Menu"** (flèche ◀ + texte "Menu"), coin haut gauche (T28 : en portrait et sur écran presque carré, dans une barre de 80 px au-dessus du jeu, avec le ☰ d'EmulatorJS à droite, pour ne plus recouvrir l'image ; en paysage de téléphone, dans les bandes noires à côté du jeu), 48 x 48 px min, semi-transparent (opacité 0.6). Sur desktop il se masque après 3 s sans mouvement de souris et réapparaît au mouvement. Sur tactile il reste visible en permanence (opacité 0.4) car les contrôles virtuels d'EmulatorJS sont en bas : le haut gauche est libre. (confirmé : les contrôles virtuels EmulatorJS occupent le bas de l'écran)
 - **Chargement** : pendant le chargement de la ROM, écran sombre avec titre du jeu + "Chargement..." et le bouton Menu déjà actif. En cas d'échec : "Impossible de lancer ce jeu." + raison si connue + bouton "Revenir à la liste" (focus).
 
 ```

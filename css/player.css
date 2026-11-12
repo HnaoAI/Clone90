@@ -6,6 +6,12 @@
   background: var(--bg-deep) repeating-linear-gradient(180deg, var(--bg-deep) 0 32px, var(--band-deep) 32px 64px);
   overflow: hidden;
 }
+/* T28 : en portrait (et sur écran presque carré, tablette 4:3), EmulatorJS colle l'image du jeu en haut. Le bouton Menu et le ☰
+   d'EmulatorJS la recouvraient (signalé par Hicham sur Android). On réserve une barre en haut : le jeu commence dessous. Valeur par défaut (0px, paysage de téléphone : jeu centré, côtés libres) dans base.css.
+   INVARIANT : la barre reste plus haute que le bouton Menu (16 px + 48 px + anneau) ; tests/player-layout.test.mjs. */
+@media (orientation: portrait), (max-aspect-ratio: 3/2) {
+  .player-body { --player-bar: calc(80px + env(safe-area-inset-top, 0px)); }
+}
 
 .player-screen {
   position: fixed;
@@ -20,7 +26,8 @@
 .player-screen > * { pointer-events: auto; }
 body.is-playing .player-screen, body.is-playing .player-screen > * { pointer-events: none; }
 
-#game { position: fixed; inset: 0; z-index: 1; width: 100%; height: 100%; background: var(--line); }
+/* T28 : largeur et hauteur écrites ici car .ejs_parent (emulator.css) impose 100 % : sans elles, le bas des contrôles virtuels sortirait de l'écran. */
+#game { position: fixed; top: var(--player-bar); left: 0; z-index: 1; width: 100%; height: calc(100% - var(--player-bar)); background: var(--line); }
 #game[hidden] { display: none; }
 
 .play-screen {
@@ -91,6 +98,19 @@ body.is-playing .menu-wrap { opacity: 0.6; }
   font-size: 0.875rem;
   text-align: center;
   white-space: pre-line; /* 2e ligne du raccourci disquette (T12) */
+}
+
+/* ☰ d'EmulatorJS (menu de sauvegarde, réglages ; tactile seulement) : 24 px collé à l'image en haut à droite par défaut.
+   T28 : posé dans la barre du haut, à droite (en face du bouton Menu), avec une cible de 48 px. Seul sélecteur d'EmulatorJS
+   dans nos feuilles : à revérifier si la version d'EmulatorJS change (classe créée par src/emulator.js de la 4.2.3). */
+.player-body .ejs_virtualGamepad_open {
+  position: fixed;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  width: 48px;
+  height: 48px;
+  padding: 12px;
+  box-sizing: border-box;
 }
 
 /* Toast du player (T12, "Disquette 2 / 3") : au-dessus du lecteur (#game z-index 1), sous le bouton Menu en haut ; en bas au centre. */
