@@ -3,7 +3,7 @@
 // INVARIANT : à relever à CHAQUE livraison (voir README, « Numéro de version »). tests/version.test.mjs échoue si le numéro de ticket est en retard.
 // Le service worker (sw.js, script classique) ne peut pas importer ce module : pwa.js l'enregistre sous `sw.js?v=<APP_VERSION>` et sw.js lit ce paramètre.
 
-export const APP_VERSION = '0.28.0';
+export const APP_VERSION = '0.29.0';
 /** Date de la livraison, au format ISO (AAAA-MM-JJ). */
 export const APP_DATE = '2026-11-12';
 

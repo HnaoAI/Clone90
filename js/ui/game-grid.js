@@ -8,7 +8,7 @@ import { buildHash, buildPlayerUrl } from '../router.js';
 import { ROMS_DIR } from '../config.js';
 import { el } from './dom.js';
 import { formatGameCount } from './format.js';
-import { accentVar, createLogo } from './logo.js';
+import { accentVar, createLogo, machineLogoSources } from './logo.js';
 
 /** Identifiants data-nav-id du bouton retour de l'en-tête et du bouton de l'état vide (focus d'arrivée, CA-C1). */
 export const BACK_NAV_ID = 'back';
@@ -73,7 +73,7 @@ export function describeEmptyState(machine) {
 function coverFallback(tile, machine, doc) {
   return [
     el('span', { class: 'cover-initials', text: tile.initials, attrs: { 'aria-hidden': 'true' } }, [], doc),
-    el('span', { class: 'cover-logo' }, [createLogo({ logo: assetUrl(machine.logo ?? null), name: machine.name, accent: tile.accent }, doc)], doc),
+    el('span', { class: 'cover-logo' }, [createLogo({ ...machineLogoSources(machine), name: machine.name, accent: tile.accent }, doc)], doc),
   ];
 }
 
@@ -102,7 +102,7 @@ function renderHeader(machine, count, doc, showAdd = false) {
 function renderEmptyState(machine, localSupported, doc) {
   const empty = describeEmptyState(machine);
   return el('section', { class: 'empty-state' }, [
-    el('span', { class: 'empty-logo' }, [createLogo({ logo: assetUrl(machine.logo ?? null), name: machine.name, accent: 'var(--disabled-bg)' }, doc)], doc),
+    el('span', { class: 'empty-logo' }, [createLogo({ ...machineLogoSources(machine), name: machine.name, accent: 'var(--disabled-bg)' }, doc)], doc),
     el('p', { class: 'empty-title', text: empty.title }, [], doc),
     localSupported && el('p', {}, ['Sur ce téléphone, ajoutez vos fichiers : ils restent dans ce navigateur.'], doc),
     localSupported && el('a', { class: 'button', text: 'Ajouter des jeux', attrs: { href: buildHash({ name: 'library', machine: machine.id }) }, dataset: { nav: '', navId: ADD_LOCAL_NAV_ID } }, [], doc),

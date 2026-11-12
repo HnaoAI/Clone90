@@ -7,6 +7,7 @@
       "order": 10,
       "emulatorjsCore": "amiga",
       "thumbnailsRepo": "Commodore_-_Amiga",
+      "logoTheme": "amiga",
       "diskSets": true,
       "ejsVersion": "4.2.1",
       "extensions": [
@@ -43,6 +44,7 @@
       "order": 20,
       "emulatorjsCore": "arcade",
       "thumbnailsRepo": "SNK_-_Neo_Geo",
+      "logoTheme": "neogeo",
       "extensions": [
         "zip"
       ],
@@ -69,6 +71,7 @@
       "order": 30,
       "emulatorjsCore": "arcade",
       "thumbnailsRepo": "FBNeo_-_Arcade_Games",
+      "logoTheme": "arcade",
       "extensions": [
         "zip"
       ],
@@ -95,6 +98,7 @@
       "order": 40,
       "emulatorjsCore": "segaMS",
       "thumbnailsRepo": "Sega_-_Master_System_-_Mark_III",
+      "logoTheme": "mastersystem",
       "extensions": [
         "sms",
         "zip"
@@ -110,6 +114,7 @@
       "order": 50,
       "emulatorjsCore": "segaMD",
       "thumbnailsRepo": "Sega_-_Mega_Drive_-_Genesis",
+      "logoTheme": "megadrive",
       "extensions": [
         "md",
         "bin",
@@ -135,6 +140,7 @@
       "order": 60,
       "emulatorjsCore": "segaGG",
       "thumbnailsRepo": "Sega_-_Game_Gear",
+      "logoTheme": "gamegear",
       "extensions": [
         "gg",
         "zip"
@@ -150,6 +156,7 @@
       "order": 70,
       "emulatorjsCore": "segaCD",
       "thumbnailsRepo": "Sega_-_Mega-CD_-_Sega_CD",
+      "logoTheme": "segacd",
       "extensions": [
         "cue",
         "iso",
@@ -190,6 +197,7 @@
       "order": 80,
       "emulatorjsCore": "sega32x",
       "thumbnailsRepo": "Sega_-_32X",
+      "logoTheme": "sega32x",
       "extensions": [
         "32x",
         "bin",
@@ -206,6 +214,7 @@
       "order": 90,
       "emulatorjsCore": "nes",
       "thumbnailsRepo": "Nintendo_-_Nintendo_Entertainment_System",
+      "logoTheme": "nes",
       "extensions": [
         "nes",
         "fds",
@@ -232,6 +241,7 @@
       "order": 100,
       "emulatorjsCore": "snes",
       "thumbnailsRepo": "Nintendo_-_Super_Nintendo_Entertainment_System",
+      "logoTheme": "snes",
       "extensions": [
         "sfc",
         "smc",
@@ -250,6 +260,7 @@
       "order": 110,
       "emulatorjsCore": "gb",
       "thumbnailsRepo": "Nintendo_-_Game_Boy",
+      "logoTheme": "gb",
       "extensions": [
         "gb",
         "zip"
@@ -273,6 +284,7 @@
       "order": 120,
       "emulatorjsCore": "gb",
       "thumbnailsRepo": "Nintendo_-_Game_Boy_Color",
+      "logoTheme": "gbc",
       "extensions": [
         "gbc",
         "zip"

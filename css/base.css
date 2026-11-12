@@ -51,6 +51,8 @@
   --m-nes: #b03a2e; --m-snes: #6c3fa0; --m-gameboy: #4a6a2e;
   --m-gameboycolor: #7d3c98; --m-mastersystem: #1f5fa8; --m-gamegear: #2c3e50;
   --m-megadrive: #2b2b2b; --m-megacd: #34495e; --m-32x: #8e2a2a;
+  /* Plaque claire sous les vrais logos téléchargés (T29) : ils sont dessinés pour un fond clair (Game Boy, Neo Geo sombres). */
+  --logo-plaque: #e9edf7;
 
   /* Cadres pixel (box-shadow), un par ton. Pas de border-radius ni de clip-path (il couperait l'anneau de focus). */
   --frame: 0 0 0 4px var(--line), inset 4px 4px 0 var(--bevel-hi), inset -4px -4px 0 var(--bevel-lo);
@@ -227,6 +229,8 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
 }
 .dialog-box {
   width: min(100%, 26rem);
+  max-height: calc(100vh - 40px); /* T29 : le panneau des dossiers peut dépasser la hauteur de l'écran : il défile au lieu d'être coupé */
+  overflow-y: auto;
   background: var(--panel);
   box-shadow: var(--frame);
 }

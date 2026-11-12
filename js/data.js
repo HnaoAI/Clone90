@@ -4,6 +4,8 @@ import { SYSTEMS_URL, GAMES_URL, EJS_VERSION_FORMAT } from './config.js';
 import { compareTitles } from './sort.js';
 
 const SYSTEM_ID = /^[a-z0-9]+$/;
+/** Dossier des logos téléchargés dans le dossier des ROMs (T29) : même valeur que LOGOS_DIR de scripts/generate-games.mjs. */
+const LOGOS_DIR = 'clone90-logos';
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isNonEmptyString = (v) => typeof v === 'string' && v.length > 0;
@@ -66,7 +68,8 @@ const isValidGame = (g, systemIds) => isObject(g)
  * chemin absolu ou remontant) sont écartées et comptées, pour ne pas bloquer toute la grille.
  * @param {unknown} raw JSON déjà parsé
  * @param {string[]} systemIds ids connus (venant de systems.json)
- * @returns {{games: object[], skipped: number}}
+ * T29 : `logos` (facultatif) = logos de machines téléchargés ; seul le chemin exact `roms/clone90-logos/<id>.svg` d'une machine connue est gardé.
+ * @returns {{games: object[], skipped: number, logos: Record<string, string>}}
  * @throws {Error} si l'enveloppe est invalide (version, liste)
  */
 export function validateGames(raw, systemIds) {
@@ -78,7 +81,18 @@ export function validateGames(raw, systemIds) {
   for (const g of raw.games) {
     if (isValidGame(g, systemIds) && !ids.has(g.id)) { ids.add(g.id); games.push(g); }
   }
-  return { games, skipped: raw.games.length - games.length };
+  return { games, skipped: raw.games.length - games.length, logos: validateLogos(raw.logos, systemIds) };
+}
+
+/** Logos téléchargés valides (T29) : chemin fixe par machine, rien d'autre (pas de chemin venu du fichier). */
+function validateLogos(raw, systemIds) {
+  const logos = {};
+  if (!isObject(raw)) return logos;
+  for (const id of systemIds) {
+    const expected = `roms/${LOGOS_DIR}/${id}.svg`;
+    if (Object.hasOwn(raw, id) && raw[id] === expected) logos[id] = expected;
+  }
+  return logos;
 }
 
 /** fetchJson par défaut. Lève une erreur portant `status` si la réponse n'est pas ok. */
@@ -128,8 +142,9 @@ export async function loadData(fetchJson = defaultFetchJson, loadLocal = null) {
   }
   let result;
   try {
-    const { games, skipped } = validateGames(await fetchJson(GAMES_URL), systems.map((s) => s.id));
-    result = { systems, games, skipped, gamesStatus: games.length ? 'ok' : 'empty' };
+    const { games, skipped, logos } = validateGames(await fetchJson(GAMES_URL), systems.map((s) => s.id));
+    const withLogos = systems.map((s) => (logos[s.id] ? { ...s, downloadedLogo: logos[s.id] } : s));
+    result = { systems: withLogos, games, skipped, gamesStatus: games.length ? 'ok' : 'empty' };
   } catch (e) {
     result = { systems, games: [], skipped: 0, gamesStatus: gamesFailureStatus(e) };
   }

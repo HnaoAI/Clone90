@@ -27,13 +27,13 @@ L'architecture détaillée est dans `docs/architecture.md`, l'interface dans `do
 2. `systems.json` est la **seule source de vérité** des machines : aucune liste de machines écrite ailleurs.
 3. Une seule couche d'entrée (`js/input/`) pour clavier, manette, tactile et souris.
 4. Seul `js/player/launcher.js` connaît EmulatorJS.
-5. Aucune statistique, aucun compte. Aucune donnée de l'utilisateur n'est envoyée sur le réseau. Seule exception : des lectures vers github.com (base libre libretro-thumbnails), déclenchées par le bouton « Télécharger les pochettes » ou par `node scripts/covers.mjs` ; GitHub voit alors l'adresse IP et les noms des jeux cherchés.
+5. Aucune statistique, aucun compte. Aucune donnée de l'utilisateur n'est envoyée sur le réseau. Seules exceptions : des lectures vers github.com, déclenchées uniquement par un clic ou une commande : (a) base libre libretro-thumbnails, par le bouton « Télécharger les pochettes » ou `node scripts/covers.mjs` ; GitHub voit l'adresse IP et les noms des jeux cherchés ; (b) logos du thème es-theme-carbon (RetroPie), par le bouton « Télécharger les logos des machines » ou `node scripts/machine-logos.mjs` ; GitHub voit l'adresse IP, aucun nom de jeu.
 6. Le service worker ne met jamais en cache les ROMs ni les BIOS.
 
 ## Décisions déjà prises (validées par Hicham le 2026-11-09)
 
 - Le jeu tourne dans une page dédiée `player.html`, précédée d'un écran « Jouer » (geste utilisateur requis pour le plein écran et le son).
-- Logos des machines faits maison (pas de logos officiels).
+- Logos des machines faits maison (pas de logos officiels) dans le dépôt et sur le site. Depuis T29, les vrais logos peuvent être téléchargés sur le Mac, dans le dossier des ROMs, jamais publiés.
 - Titres arcade et Neo Geo : `data/titles.json` (nom de romset vers titre), sinon nom du fichier.
 - Android en réseau local sans HTTPS : on joue, mais pas d'installation PWA. Limite acceptée.
 - Sur GitHub Pages, aucun jeu : un message clair l'explique.
@@ -49,3 +49,4 @@ Le spike T0 attend les ROMs et BIOS de test que Hicham fournira : ne pas les lui
 
 ## Journal des décisions
 - 2026-11-12 : exception à la règle 5 pour le téléchargement des pochettes depuis github.com, validée par Hicham (« ok pochettes »). Raison : choisir les jeux par leur pochette ; connexion seulement sur action de l'utilisateur, lectures seules.
+- 2026-11-12 : exception étendue aux logos des machines (T29), à la demande de Hicham (« Peut-on faire pareil que les pochettes, avec les logos des machines ? »). Source : thème es-theme-carbon de RetroPie (CC BY-NC-SA, usage personnel), commit figé ; logos rangés dans le dossier des ROMs, jamais publiés ; repli sur les logos maison. Connexion seulement au clic, lectures seules, aucun nom de jeu envoyé.
