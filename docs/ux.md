@@ -100,6 +100,8 @@ Tablette / entre 600 et 1023 px : 3 colonnes.
 
 Quatre choix puis Fermer, en colonne : haut/bas pour naviguer (sans boucler), confirmer pour agir, retour ou Fermer pour fermer, focus sur le premier choix. Pendant le choix, les trois boutons sont marqués `aria-disabled` (appuis ignorés) et le message « Une fenêtre de choix s'est ouverte sur votre Mac. » est annoncé. Résultats : « Dossiers enregistrés. La liste des jeux est mise à jour. » (accueil redessiné derrière le panneau), « Aucun changement. » (annulation), ou le refus en français (dossier trop large ou introuvable, fenêtre déjà ouverte, serveur injoignable). Au retour, le focus revient sur le bouton « Dossiers des jeux ».
 
+**Pochettes (T28).** Le panneau ajoute, entre « Utiliser les BIOS du projet » et « Fermer », le bouton **Télécharger les pochettes** et une phrase d'explication (base libre libretro-thumbnails, usage personnel, images gardées sur ce Mac). Pendant le téléchargement, tous les choix sauf Fermer sont `aria-disabled` et la zone `role="status"` annonce « Lecture de la liste des pochettes (Amiga)... » puis « Téléchargement des pochettes : 12 sur 80... ». À la fin, le résumé en une ligne (« Pochettes téléchargées : 5 ; Déjà présentes : 2 ; Introuvables : 3 ; Ambiguës (rien téléchargé) : 1 ») et l'accueil se redessine si des pochettes sont arrivées. Fermer le panneau ne l'interrompt pas ; rouvert, le suivi reprend.
+
 ### 3.2 Grille de jeux
 
 En-tête : bouton "< Machines" (retour), nom + logo de la machine, nombre de jeux. Pas de recherche en v1 (à prévoir si une machine dépasse ~40 jeux, voir questions).
