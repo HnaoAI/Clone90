@@ -62,11 +62,14 @@ async function readTitles(root, warnings) {
 }
 
 const exists = (path) => access(path).then(() => true, () => false);
+const isFile = (path) => stat(path).then((s) => s.isFile(), () => false);
+/** Dossier des logos téléchargés, dans le dossier des ROMs (T29, scripts/machine-logos.mjs). Même valeur dans js/data.js (navigateur). */
+export const LOGOS_DIR = 'clone90-logos';
 
 /**
  * Scanne roms/ et construit le contenu de games.json (n'écrit rien).
  * @param {{root?: string, now?: Date}} options `now` injectable pour une sortie reproductible
- * @returns {Promise<{version: number, generatedAt: string, games: object[], warnings: string[], counts: Record<string, number>, folders: string[]}>} `folders` : dossiers ROMs/BIOS utilisés (T23)
+ * @returns {Promise<{version: number, generatedAt: string, games: object[], logos: Record<string, string>, warnings: string[], counts: Record<string, number>, folders: string[]}>} `folders` : dossiers ROMs/BIOS utilisés (T23)
  * @throws {Error} si systems.json est illisible
  */
 export async function generateGames({ root = PROJECT_ROOT, now = new Date() } = {}) {
@@ -97,7 +100,12 @@ export async function generateGames({ root = PROJECT_ROOT, now = new Date() } = 
       }
     }
   }
-  return { version: 1, generatedAt: now.toISOString(), games, warnings, counts, systems, folders: describeFolders(settings) };
+  const logos = {};
+  for (const system of systems) { // T29 : logos téléchargés par scripts/machine-logos.mjs, rangés dans le dossier des ROMs
+    const rel = `${LOGOS_DIR}/${system.id}.svg`;
+    if (/^[a-z0-9]+$/.test(system.id) && await isFile(join(settings.romsDir, rel))) logos[system.id] = `roms/${rel}`;
+  }
+  return { version: 1, generatedAt: now.toISOString(), games, logos, warnings, counts, systems, folders: describeFolders(settings) };
 }
 
 /**
@@ -113,7 +121,7 @@ export async function runGenerate({ root = PROJECT_ROOT, check = false, now = ne
     logError(err.message);
     return { exitCode: 1 };
   }
-  const { systems, counts, warnings, games, folders } = result;
+  const { systems, counts, warnings, games, folders, logos } = result;
   for (const line of folders) log(line);
   for (const s of systems) if (counts[s.id]) log(`${s.name} : ${counts[s.id]} jeu(x)`);
   log(`Total : ${games.length} jeu(x)`);
@@ -125,7 +133,7 @@ export async function runGenerate({ root = PROJECT_ROOT, check = false, now = ne
   const target = join(root, 'games.json');
   const temp = `${target}.tmp-${process.pid}`;
   try {
-    await writeFile(temp, `${JSON.stringify({ version: result.version, generatedAt: result.generatedAt, games }, null, 2)}\n`);
+    await writeFile(temp, `${JSON.stringify({ version: result.version, generatedAt: result.generatedAt, games, logos }, null, 2)}\n`);
     await rename(temp, target);
   } catch (err) {
     await rm(temp, { force: true });

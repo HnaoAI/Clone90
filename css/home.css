@@ -52,6 +52,7 @@
 }
 .machine-tile .machine-logo { padding-right: 22px; border: 3px solid var(--line); } /* 22 px à droite : place de la jauge */
 .machine-logo img { width: 100%; height: 100%; object-fit: contain; }
+.machine-logo.is-downloaded { background: var(--logo-plaque); } /* vrai logo téléchargé (T29) ; le logo maison garde la couleur de la machine */
 
 /* Jauge verticale de 6 segments (js/ui/machine-grid.js, gaugeSegments) : décorative (aria-hidden), le texte « N jeux » reste l'information. */
 .gauge { position: absolute; right: 5px; top: 6px; bottom: 6px; width: 10px; display: flex; flex-direction: column-reverse; gap: 2px; }
@@ -81,6 +82,7 @@
 .machine-tile.is-empty { background: var(--disabled-bg); box-shadow: var(--frame-disabled); }
 .machine-tile.is-empty:focus-visible, .input-gamepad .machine-tile.is-empty:focus { box-shadow: var(--frame-accent); }
 .machine-tile.is-empty .machine-logo { background: repeating-linear-gradient(45deg, var(--stripe-a) 0 6px, var(--stripe-b) 6px 12px); filter: grayscale(1); }
+.machine-tile.is-empty .machine-logo.is-downloaded { background: var(--logo-plaque); opacity: 0.6; }
 .machine-tile.is-empty .machine-name { color: var(--text-muted); }
 .machine-tile.is-empty:focus-visible .machine-name, .input-gamepad .machine-tile.is-empty:focus .machine-name { color: var(--on-accent); }
 

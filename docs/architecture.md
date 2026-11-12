@@ -291,6 +291,21 @@ Interface : `scripts/settings-api.mjs` ajoute `GET /api/covers` (état : `idle`,
 
 Limites : Neo Geo et arcade ont souvent plusieurs images pour un même jeu (cartouche MVS `NGM` ou AES `NGH`, sets `set 1`, `set 2`, versions de l'arcade) : ces jeux sont signalés « ambiguës » (constaté en lecture : `Metal Slug 3`, `Garou`, `Zaxxon`, `Pac-Man`, `Galaga`, `Donkey Kong` en arcade), `Viewpoint`, `Samurai Shodown II` et `Metal Slug` passent. Amiga (3339 images), Mega Drive, etc. correspondent mieux (`Gods`, `Leander`, `Zaxxon`).
 
+## 7.5 scripts/machine-logos.mjs (T29, logos des machines)
+
+Même mécanisme que les pochettes (7.4), plus simple : pas de liste à lire ni de correspondance à deviner.
+
+1. **Source** : thème EmulationStation `RetroPie/es-theme-carbon`, fichier `<logoTheme>/art/system.svg`, à un **commit figé** (`LOGO_THEME_COMMIT`). `logoTheme` est un champ de `systems.json` (règle 2) : `amiga`, `neogeo`, `arcade`, `mastersystem`, `megadrive`, `gamegear`, `segacd` (Mega-CD), `sega32x` (32X), `nes`, `snes`, `gb`, `gbc`. Licence du thème CC BY-NC-SA ; les logos sont des marques : usage personnel, jamais publiés. Ni libretro-thumbnails (pas de logos de machines) ni retroarch-assets (icônes de consoles seulement) ne conviennent.
+2. **Téléchargement** (`logoUrl`, seule fabrique d'adresses, hôte `raw.githubusercontent.com`) avec `defaultFetchBytes` de `covers.mjs` (256 Ko au plus, redirections refusées). Une requête par machine, aucune donnée de l'utilisateur dans l'adresse.
+3. **Vérification** (`checkSvg`) : le texte doit commencer par `<svg` (après en-tête XML, commentaires, DOCTYPE) ; refus de `<script`, `foreignObject`/`iframe`/`embed`/`object`, attributs `on...=`, `javascript:`, `@import`, `url(...)` externe, `href` autre que `#...` ou `data:image/(png|jpeg|gif)`, entités externes, paramètres ou imbriquées (les entités internes en texte simple des fichiers Adobe Illustrator, NES et 32X, sont admises).
+4. **Écriture** exclusive (`wx`, jamais d'écrasement) dans `<dossier des ROMs>/clone90-logos/<id>.svg` (`LOGOS_DIR`, exporté par `generate-games.mjs`), puis `games.json` régénéré.
+5. **games.json** : champ `logos` (`{ "amiga": "roms/clone90-logos/amiga.svg" }`) écrit par `generateGames` pour chaque fichier présent. `validateGames` (js/data.js) ne garde que le chemin exact attendu pour une machine connue ; `loadData` l'ajoute à la machine (`downloadedLogo`). `machineLogoSources` et `createLogo` (js/ui/logo.js) : vrai logo d'abord (classe `is-downloaded`, plaque claire), puis logo maison, puis nom.
+6. **Serveur** : tout `.svg` est servi avec `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:` (aucun script, même ouvert directement).
+
+API : `GET /api/logos` et `POST /api/logos/download`, mêmes règles que les pochettes (corps `{}`, 202 puis suivi, `id` de travail commun aux deux, verrou partagé : un seul téléchargement à la fois, pochettes ou logos). Panneau : `DOWNLOADS` (js/ui/folders-panel.js) décrit les deux boutons, une seule implémentation du lancement et du suivi.
+
+INVARIANT : seules des lectures vers `raw.githubusercontent.com`, uniquement au clic ou par la commande. Exception à la règle 5 étendue le 2026-11-12 à la demande de Hicham (CLAUDE.md).
+
 ## 8. Application web
 
 ### 8.1 Navigation et écrans (index.html)

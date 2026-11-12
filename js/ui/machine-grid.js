@@ -2,10 +2,9 @@
 // Logique pure (buildMachineTiles, describeGamesStatus) séparée du rendu (renderMachineGrid), testable sans navigateur.
 // INVARIANT : aucune liste de machines ici, tout vient de systems.json. Les tuiles sont des liens `#/<machine>`
 // (clic, tap, middle-click natifs) marqués `data-nav` : le clavier et la manette passent par js/input/.
-import { assetUrl } from '../data.js';
 import { buildHash } from '../router.js';
 import { el } from './dom.js';
-import { accentVar, createLogo } from './logo.js';
+import { accentVar, createLogo, machineLogoSources } from './logo.js';
 import { formatGameCount, splitCode } from './format.js';
 import { formatVersionLabel } from '../version.js';
 
@@ -18,14 +17,14 @@ export const LIBRARY_NAV_ID = 'library';
  * @param {object[]} systems machines à afficher, triées par `order`
  * @param {Map<string, object[]>} gamesBySystem résultat de groupGamesBySystem
  * @returns {{id: string, name: string, count: number, countLabel: string, empty: boolean, href: string,
- *            logo: string|null, accent: string}[]}
+ *            logo: string|null, fallbackLogo: string|null, downloaded: boolean, accent: string}[]} logos : voir machineLogoSources (T29)
  */
 export function buildMachineTiles(systems, gamesBySystem) {
   const tiles = systems.map((s) => {
     const count = gamesBySystem.get(s.id)?.length ?? 0;
     return {
       id: s.id, name: s.name, count, countLabel: formatGameCount(count), empty: count === 0,
-      href: buildHash({ name: 'system', system: s.id }), logo: assetUrl(s.logo ?? null), accent: accentVar(s.accent),
+      href: buildHash({ name: 'system', system: s.id }), ...machineLogoSources(s), accent: accentVar(s.accent),
     };
   });
   return [...tiles.filter((t) => !t.empty), ...tiles.filter((t) => t.empty)];

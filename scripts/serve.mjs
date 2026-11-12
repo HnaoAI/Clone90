@@ -55,6 +55,8 @@ const MIME_TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 };
 const DEFAULT_MIME = 'application/octet-stream';
+/** Politique des SVG (T29) : styles et images intégrés seulement, aucun script. */
+const SVG_POLICY = "default-src 'none'; style-src 'unsafe-inline'; img-src data:";
 
 /**
  * Détermine le port d'écoute : option --port (ou --port=N), sinon variable PORT, sinon 8080.
@@ -219,6 +221,8 @@ export function createStaticServer({ root, romsDir, biosDir, api }) {
         'Cache-Control': 'no-cache',
         'Accept-Ranges': 'bytes',
       };
+      // T29 : un SVG ouvert directement (logo téléchargé d'Internet) ne peut exécuter aucun script ni charger de ressource externe.
+      if (extname(file).toLowerCase() === '.svg') headers['Content-Security-Policy'] = SVG_POLICY;
       const range = parseRange(req.headers.range, info.size);
       if (range === 'invalid') {
         return reply(res, 416, 'Plage non satisfaisante', { 'Content-Range': `bytes */${info.size}` });

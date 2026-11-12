@@ -41,3 +41,5 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `folders-panel.test.mjs` : client de l'API, panneau « Dossiers des jeux », bouton de l'accueil, boîte générique, `api/` jamais en cache (T25).
 - `covers.test.mjs` : pochettes automatiques sans réseau (faux dépôts GitHub : correspondance, région, ambiguïté, caractères remplacés, pas d'écrasement, PNG vérifié, 2 Mo, dry-run, multi-disquettes, arcade, cache) (T28).
 - `covers-api.test.mjs` : API locale des pochettes (sécurité identique à T25, 202 puis suivi, verrou partagé, erreurs) (T28).
+- `machine-logos.test.mjs` : logos des machines sans réseau (adresse figée, SVG vérifié, scripts et liens refusés, pas d'écrasement, dossier des ROMs choisi, champ `logos` de games.json) (T29).
+- `machine-logos-ui.test.mjs` : logos côté navigateur et serveur (`logoTheme`, validation de `logos`, repli logo téléchargé, logo maison, nom ; client, panneau, API et verrou partagé ; CSP des SVG) (T29).

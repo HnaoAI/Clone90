@@ -1,12 +1,11 @@
-// Client de l'API locale des dossiers (T25) et des pochettes (T28) : lit les dossiers utilisés, demande un choix, lance et suit le téléchargement des pochettes. Dépend seulement de fetch (injectable).
+// Client de l'API locale des dossiers (T25), des pochettes (T28) et des logos des machines (T29) : lit les dossiers utilisés, demande un choix,
+// lance et suit un téléchargement (pochettes ou logos, même mécanisme). Dépend seulement de fetch (injectable).
 // INVARIANT : on n'envoie JAMAIS de chemin, seulement le type de choix ('roms', 'bios', 'roms-default', 'bios-default') : c'est la boîte du Mac qui choisit.
 // Adresses relatives (GitHub Pages sous /<dépôt>/). Sans API (GitHub Pages, serveur ouvert au réseau, autre système), fetchFolderSettings renvoie null.
 
 const SETTINGS_URL = 'api/settings';
 const CHOOSE_URL = 'api/settings/choose';
-const COVERS_URL = 'api/covers';
-const COVERS_DOWNLOAD_URL = 'api/covers/download';
-const COVERS_STATES = ['idle', 'running', 'done', 'error'];
+const JOB_STATES = ['idle', 'running', 'done', 'error'];
 const CHOICE_STATUSES = ['ok', 'cancelled', 'refused', 'error', 'busy'];
 const UNREACHABLE_TEXT = 'Impossible de joindre Clone90. Le serveur est-il toujours lancé ?';
 
@@ -57,35 +56,40 @@ export async function requestFolderChoice(kind, fetchFn = globalThis.fetch) {
 }
 
 /**
- * Lance le téléchargement des pochettes (corps `{}` : aucun paramètre, le serveur décide de tout).
- * @param {typeof fetch} [fetchFn]
+ * Lance un téléchargement en arrière-plan (corps `{}` : aucun paramètre, le serveur décide de tout).
+ * @param {'covers'|'logos'} name @param {string} what « des pochettes », « des logos » (message de refus)
  * @returns {Promise<{status: 'started'|'busy'|'error', message?: string}>} ne lève jamais d'exception
  */
-export async function requestCoversDownload(fetchFn = globalThis.fetch) {
+async function requestJobStart(name, what, fetchFn) {
   let res;
   try {
-    res = await fetchFn(COVERS_DOWNLOAD_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Clone90': '1' }, body: '{}' });
+    res = await fetchFn(`api/${name}/download`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Clone90': '1' }, body: '{}' });
   } catch {
     return { status: 'error', message: UNREACHABLE_TEXT };
   }
   const body = await res.json().catch(() => null);
   if (res.status === 202 && isObject(body) && body.status === 'started') return { status: 'started' };
   if (res.status === 409 && isObject(body)) return { status: 'busy', message: body.message };
-  return { status: 'error', message: 'Impossible de lancer le téléchargement des pochettes : la demande a été refusée.' };
+  return { status: 'error', message: `Impossible de lancer le téléchargement ${what} : la demande a été refusée.` };
 }
 
-/**
- * État du téléchargement des pochettes : `{status: 'idle'|'running'|'done'|'error', progress?, found?, lines?, message?}`.
- * @param {typeof fetch} [fetchFn]
- * @returns {Promise<object|null>} null si le serveur ne répond pas ou répond autre chose
- */
-export async function fetchCoversStatus(fetchFn = globalThis.fetch) {
+/** État d'un téléchargement : `{status: 'idle'|'running'|'done'|'error', id?, progress?, found?, lines?, message?}`, ou null si le serveur ne répond pas ou répond autre chose. */
+async function fetchJobStatus(name, fetchFn) {
   try {
-    const res = await fetchFn(COVERS_URL, { cache: 'no-store' });
+    const res = await fetchFn(`api/${name}`, { cache: 'no-store' });
     if (!res.ok) return null;
     const body = await res.json();
-    return isObject(body) && COVERS_STATES.includes(body.status) ? body : null;
+    return isObject(body) && JOB_STATES.includes(body.status) ? body : null;
   } catch {
     return null;
   }
 }
+
+/** Lance le téléchargement des pochettes (T28). @param {typeof fetch} [fetchFn] @returns {Promise<{status: 'started'|'busy'|'error', message?: string}>} */
+export const requestCoversDownload = (fetchFn = globalThis.fetch) => requestJobStart('covers', 'des pochettes', fetchFn);
+/** État du téléchargement des pochettes (T28). @param {typeof fetch} [fetchFn] @returns {Promise<object|null>} */
+export const fetchCoversStatus = (fetchFn = globalThis.fetch) => fetchJobStatus('covers', fetchFn);
+/** Lance le téléchargement des logos des machines (T29). @param {typeof fetch} [fetchFn] @returns {Promise<{status: 'started'|'busy'|'error', message?: string}>} */
+export const requestLogosDownload = (fetchFn = globalThis.fetch) => requestJobStart('logos', 'des logos', fetchFn);
+/** État du téléchargement des logos (T29). @param {typeof fetch} [fetchFn] @returns {Promise<object|null>} */
+export const fetchLogosStatus = (fetchFn = globalThis.fetch) => fetchJobStatus('logos', fetchFn);

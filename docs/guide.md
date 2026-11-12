@@ -54,6 +54,17 @@ Les pochettes (jaquettes) s'affichent sur les tuiles de jeux. Deux façons de le
 
 La casse des lettres n'a pas d'importance (`gods.PNG` fonctionne). Si plusieurs formats existent pour un même nom, `png` passe avant `jpg`, `jpeg` puis `webp`. Après un ajout à la main, relancez `node scripts/generate-games.mjs` (ou rechargez la liste par un changement de dossier dans « Dossiers des jeux »). Le téléchargement automatique écrit toujours en `.png`.
 
+### Logos des machines (T29)
+
+Par défaut, l'accueil montre des logos faits maison. Vous pouvez les remplacer **sur votre Mac** par les vrais logos des machines : dans Clone90 (ouvert avec `Clone90.app` ou `Lancer Clone90.command`), cliquez sur **Dossiers des jeux**, puis sur **Télécharger les logos des machines**. Résumé à la fin (« Logos téléchargés : 12 ») et l'accueil se met à jour tout seul. En ligne de commande : `node scripts/machine-logos.mjs`.
+
+- Source : le thème libre [es-theme-carbon](https://github.com/RetroPie/es-theme-carbon) de RetroPie (licence CC BY-NC-SA, usage non commercial), un logo SVG par machine, lu à une version figée du thème. Les logos sont des marques de leurs fabricants : **usage personnel** seulement.
+- Ils sont copiés **dans le dossier de vos ROMs**, sous `clone90-logos/` (par exemple `clone90-logos/amiga.svg`), donc **jamais publiés** (`roms/` est ignoré par git). Un logo déjà présent n'est jamais remplacé.
+- Chaque fichier est vérifié avant d'être écrit (image SVG de 256 Ko au plus, sans script ni lien externe), et le serveur local sert les SVG en interdisant tout script.
+- **Connexion à Internet** : seulement au clic sur ce bouton (ou avec la commande), des lectures vers github.com (raw.githubusercontent.com). GitHub voit votre adresse IP ; **aucun nom de jeu** ni aucun fichier n'est envoyé.
+- Si un logo manque ou ne s'affiche pas, Clone90 reprend le logo maison. Pour revenir aux logos maison : supprimez le dossier `clone90-logos` de votre dossier des ROMs, puis relancez Clone90.
+- Le bouton n'existe que sur le Mac avec le lanceur (ni GitHub Pages, ni téléphone : ceux-ci gardent les logos maison).
+
 ### Démarrer
 
 1. Après chaque ajout ou retrait de jeu, dans le Terminal :
