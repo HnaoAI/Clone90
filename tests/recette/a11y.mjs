@@ -65,7 +65,7 @@ const PLAYER = `${BASE}/player.html?system=amiga&game=${encodeURIComponent('amig
       const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
       const text = cs.getPropertyValue('--text').trim();
       const out = {};
-      for (const m of ['arcade', 'neogeo', 'amiga', 'nes', 'snes', 'gameboy', 'gameboycolor', 'mastersystem', 'gamegear', 'megadrive', 'megacd', '32x']) out[m] = +ratio(text, cs.getPropertyValue(`--m-${m}`).trim()).toFixed(2);
+      for (const m of ['arcade', 'neogeo', 'amiga', 'nes', 'snes', 'gameboy', 'gameboycolor', 'mastersystem', 'gamegear', 'megadrive', 'megacd', '32x', 'pcengine', 'pcenginecd']) out[m] = +ratio(text, cs.getPropertyValue(`--m-${m}`).trim()).toFixed(2);
       out['accent/bg'] = +ratio(cs.getPropertyValue('--accent').trim(), cs.getPropertyValue('--bg').trim()).toFixed(2);
       out['on-accent/accent'] = +ratio(cs.getPropertyValue('--on-accent').trim(), cs.getPropertyValue('--accent').trim()).toFixed(2);
       out['muted/surface'] = +ratio(cs.getPropertyValue('--text-muted').trim(), cs.getPropertyValue('--surface').trim()).toFixed(2);

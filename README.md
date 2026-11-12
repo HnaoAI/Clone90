@@ -88,7 +88,7 @@ La casse des lettres n'a pas d'importance (`gods.PNG` fonctionne). Si plusieurs 
 
 ## Logos des machines (T29)
 
-Par défaut, l'accueil montre des logos faits maison. Vous pouvez les remplacer **sur votre Mac** par les vrais logos des machines : dans Clone90 (ouvert avec `Clone90.app` ou `Lancer Clone90.command`), cliquez sur **Dossiers des jeux**, puis sur **Télécharger les logos des machines**. Résumé à la fin (« Logos téléchargés : 12 ») et l'accueil se met à jour tout seul. En ligne de commande : `node scripts/machine-logos.mjs`.
+Par défaut, l'accueil montre des logos faits maison. Vous pouvez les remplacer **sur votre Mac** par les vrais logos des machines : dans Clone90 (ouvert avec `Clone90.app` ou `Lancer Clone90.command`), cliquez sur **Dossiers des jeux**, puis sur **Télécharger les logos des machines**. Résumé à la fin (« Logos téléchargés : 14 ») et l'accueil se met à jour tout seul. En ligne de commande : `node scripts/machine-logos.mjs`.
 
 - Source : le thème libre [es-theme-carbon](https://github.com/RetroPie/es-theme-carbon) de RetroPie (licence CC BY-NC-SA, usage non commercial), un logo SVG par machine, lu à une version figée du thème. Les logos sont des marques de leurs fabricants : **usage personnel** seulement.
 - Ils sont copiés **dans le dossier de vos ROMs**, sous `clone90-logos/` (par exemple `clone90-logos/amiga.svg`), donc **jamais publiés** (`roms/` est ignoré par git). Un logo déjà présent n'est jamais remplacé.
@@ -106,9 +106,9 @@ roms/<machine>/<fichier du jeu>
 bios/<fichier BIOS>
 ```
 
-`<machine>` est l'identifiant de `systems.json` : `amiga`, `neogeo`, `arcade`, `mastersystem`, `megadrive`, `gamegear`, `megacd`, `32x`, `nes`, `snes`, `gameboy`, `gameboycolor`. Les extensions acceptées par machine sont dans `systems.json`.
+`<machine>` est l'identifiant de `systems.json` : `amiga`, `neogeo`, `arcade`, `mastersystem`, `megadrive`, `gamegear`, `megacd`, `32x`, `nes`, `snes`, `gameboy`, `gameboycolor`, `pcengine`, `pcenginecd`. Les extensions acceptées par machine sont dans `systems.json`.
 
-Toutes les machines ci-dessous sont affichées sur l'accueil ; celles sans jeu sont grisées. L'Amiga et la Neo Geo sont testées avec de vrais fichiers ; les 10 autres (T15) sont vérifiées dans le code d'EmulatorJS 4.2.3 mais **pas encore essayées avec de vrais jeux** (section « Autres machines »).
+Toutes les machines ci-dessous sont affichées sur l'accueil ; celles sans jeu sont grisées. L'Amiga et la Neo Geo sont testées avec de vrais fichiers ; les 12 autres (T15, T30) sont vérifiées dans le code d'EmulatorJS 4.2.3 mais **pas encore essayées avec de vrais jeux** (section « Autres machines »).
 
 ### BIOS Amiga
 
@@ -157,8 +157,12 @@ Dans chaque dossier, un jeu peut aussi être un `.zip` contenant le fichier du j
 | `snes` | `.sfc`, `.smc`, `.swc`, `.fig` | Snes9x | aucun |
 | `gameboy` | `.gb` | Gambatte | `gb_bios.bin` (facultatif, posé) |
 | `gameboycolor` | `.gbc` | Gambatte | `gbc_bios.bin` (facultatif, posé) |
+| `pcengine` | `.pce`, `.sgx` (SuperGrafx) | Beetle PCE (mednafen_pce) | aucun |
+| `pcenginecd` | `.cue` + ses `.bin`, `.chd` | Beetle PCE (mednafen_pce) | `syscard3.pce` (System Card 3) : **obligatoire pour tous les jeux CD** |
 
 Mega-CD : mettez le `.cue` et ses `.bin` (et pistes audio) dans le même dossier, **sans les renommer** (le `.cue` contient leurs noms). Le générateur n'en fait qu'UNE tuile (le `.cue`). Un `.bin` sans `.cue` est ignoré avec un avertissement. Les images CD sont lourdes (300 à 700 Mo) et sont chargées entièrement en mémoire par le navigateur : préférez le format `.chd` ou `.iso` (un seul fichier). **`cue+bin` n'est pas testé avec de vrais fichiers** et peut échouer sans message utile si le disque dépasse la mémoire du navigateur. Les `.m3u` (multi-disques) ne sont pas pris en charge.
+
+PC Engine CD (T30) : même règle que le Mega-CD pour le `.cue` et ses `.bin`. Le BIOS se nomme exactement `syscard3.pce` (en minuscules), dans `bios/`. Les jeux sur carte (HuCard) vont dans `roms/pcengine/`, les CD dans `roms/pcenginecd/`.
 
 ## Générer la liste des jeux
 

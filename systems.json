@@ -301,6 +301,46 @@
       "logo": "assets/logos/gameboycolor.svg",
       "accent": "--m-gameboycolor",
       "wave": 2
+    },
+    {
+      "id": "pcengine",
+      "name": "PC Engine",
+      "order": 130,
+      "emulatorjsCore": "pce",
+      "thumbnailsRepo": "NEC_-_PC_Engine_-_TurboGrafx_16",
+      "logoTheme": "pcengine",
+      "extensions": [
+        "pce",
+        "sgx",
+        "zip"
+      ],
+      "bios": [],
+      "logo": "assets/logos/pcengine.svg",
+      "accent": "--m-pcengine",
+      "wave": 2
+    },
+    {
+      "id": "pcenginecd",
+      "name": "PC Engine CD",
+      "order": 140,
+      "emulatorjsCore": "pce",
+      "thumbnailsRepo": "NEC_-_PC_Engine_CD_-_TurboGrafx-CD",
+      "logoTheme": "tg-cd",
+      "extensions": [
+        "cue",
+        "chd"
+      ],
+      "bios": [
+        {
+          "file": "syscard3.pce",
+          "required": true,
+          "role": "default",
+          "note": "System Card 3, nécessaire pour tous les jeux CD (nom exact, en minuscules)"
+        }
+      ],
+      "logo": "assets/logos/pcenginecd.svg",
+      "accent": "--m-pcenginecd",
+      "wave": 2
     }
   ]
 }

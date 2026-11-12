@@ -34,7 +34,7 @@ Le bouton retour système (navigateur, geste retour Android) fait exactement la 
 
 But : choisir une machine en 1 action. Une machine est visible si sa vague est livrée OU si elle a au moins un jeu (décision PO). Celles à 0 jeu sont affichées grisées en fin de liste avec la mention "0 jeu" (elles restent focusables pour afficher l'état vide, ce qui guide l'ajout de ROMs). En v1, seules amiga et neogeo sont listées.
 
-Ordre : celui du champ `order` de systems.json (source de vérité, rien en dur dans le code). Les machines avec jeux passent avant celles à 0 jeu. Ordre initial retenu : Amiga, Neo Geo, Arcade, Master System, Mega Drive, Game Gear, Mega CD, 32X, NES, SNES, Game Boy, Game Boy Color.
+Ordre : celui du champ `order` de systems.json (source de vérité, rien en dur dans le code). Les machines avec jeux passent avant celles à 0 jeu. Ordre initial retenu : Amiga, Neo Geo, Arcade, Master System, Mega Drive, Game Gear, Mega CD, 32X, NES, SNES, Game Boy, Game Boy Color, puis PC Engine et PC Engine CD (T30).
 
 Chaque carte machine : logo (SVG ou PNG fond transparent), nom en texte (toujours présent, le logo seul ne suffit pas), nombre de jeux.
 
@@ -311,6 +311,7 @@ Source unique : le bloc `:root` de `css/base.css` (aucune couleur littérale ail
   --m-arcade: #c0392b;  --m-neogeo: #7a5a06; --m-amiga: #a84300;
   --m-nes: #b03a2e;     --m-snes: #6c3fa0;   --m-gameboy: #4a6a2e;
   --m-gameboycolor: #7d3c98; --m-mastersystem: #1f5fa8; --m-gamegear: #2c3e50;
+  --m-pcengine: #8a3a5c; --m-pcenginecd: #1e6b6b;
   --m-megadrive: #2b2b2b;    --m-megacd: #34495e;       --m-32x: #8e2a2a;
 }
 ```
