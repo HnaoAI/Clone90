@@ -108,7 +108,7 @@ Le dépôt contient un fichier vide `.nojekyll`. Il dit à GitHub de publier les
 ### Ce que vous verrez
 
 - L'accueil s'affiche avec toutes les machines, et un message **"Aucun jeu disponible ici"** : normal, il n'y a aucun jeu en ligne. Les machines sont grisées.
-- Le message explique la suite : pour jouer, il faut lancer Clone90 chez vous (partie 1).
+- Le message explique la suite : ajoutez vos fichiers avec **Mes fichiers** (voir plus bas), ou lancez Clone90 chez vous (partie 1).
 - À chaque mise à jour de `main`, le site se met à jour tout seul en quelques minutes.
 
 ### Installer comme application (PWA)
@@ -120,6 +120,19 @@ Depuis l'adresse Pages (en `https`), l'installation est possible :
 
 L'application installée s'ouvre en plein écran et fonctionne même sans internet pour les écrans du site. Elle ne contient aucun jeu.
 
-### Jouer quand même avec des jeux
+### Jouer sur le téléphone sans le Mac (T27)
 
-Le site en ligne ne peut pas servir vos jeux. Pour jouer, lancez Clone90 en local (partie 1) : c'est le même site, mais avec vos `roms/`, `bios/` et `games.json`.
+Le site en ligne ne publie aucun jeu, mais il sait lire **vos** fichiers, gardés sur le téléphone :
+
+1. Copiez vos jeux et vos BIOS sur le téléphone (câble USB, Google Drive, e-mail à vous-même...). Ils arrivent par exemple dans **Téléchargements**.
+2. Ouvrez https://hnaoai.github.io/Clone90/ dans **Chrome**, puis touchez **Mes fichiers**.
+3. **Ajouter des jeux** : touchez la machine (Amiga, Neo Geo...), puis choisissez vos fichiers (plusieurs à la fois si vous voulez). Pour un jeu Amiga sur plusieurs disquettes, choisissez toutes les disquettes ensemble : elles sont regroupées en un seul jeu, comme sur le Mac.
+4. **Ajouter des BIOS** : touchez **Choisir des BIOS** et choisissez le fichier (Amiga : `kick40068.A1200` ; Neo Geo : `neogeo.zip`). La liste sous le bouton dit ce qui est présent ou manquant. Le nom doit être exact (les majuscules ne comptent pas).
+5. Revenez aux machines : vos jeux apparaissent, touchez-en un, puis **Jouer**.
+
+Bon à savoir :
+- Les fichiers sont **copiés dans Chrome, sur ce téléphone seulement**. Rien n'est envoyé sur internet, rien n'est publié. Vous pouvez effacer l'original des Téléchargements.
+- Internet reste nécessaire pour charger le moteur d'émulation (EmulatorJS), au moins au premier lancement de chaque machine.
+- Effacer les données du site dans Chrome efface aussi vos jeux. **Mes fichiers** permet de supprimer un fichier.
+- Si le jeu affiche « Rechargez la page pour jouer », rechargez une fois (le site doit d'abord s'installer dans le navigateur).
+- Sur le Mac, rien ne change : vous pouvez continuer avec `roms/`, `bios/` et le lanceur (partie 1). « Mes fichiers » marche aussi sur un ordinateur, dans Chrome.

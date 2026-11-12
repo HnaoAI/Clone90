@@ -5,6 +5,7 @@ Feuilles de style du design « Cartouche bleue » (T24). Toute couleur est une v
 - `base.css` : palette, cadres pixel, fond rayé, en-tête, boutons, focus et curseur clignotant, toast, boîte de dialogue, `prefers-reduced-motion`.
 - `home.css` : accueil (tuiles de machines, jauge de jeux, machines à 0 jeu).
 - `grid.css` : grille de jeux (tuiles 3:4, plaque de titre, état vide, bouton retour).
+- `library.css` : écran « Mes fichiers » et bouton d'accès de l'accueil (T27).
 - `player.css` : page de jeu (écran Jouer, « PRÊT ? », bouton Menu et anneau, rappel de sortie, panneau de diagnostic).
 
 Tests : `tests/design.test.mjs`. Maquette de référence : `docs/ux.md` (section 5).

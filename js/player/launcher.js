@@ -190,13 +190,17 @@ export const headExists = async (url) => (await fetch(url, { method: 'HEAD', cac
 
 /**
  * Messages d'erreur pour les fichiers manquants (docs/ux.md 3.4 : raison connue en clair).
- * @param {{kind: string, path: string}[]} missing
+ * T27 : un BIOS manquant peut aussi être ajouté depuis l'écran « Mes fichiers » ; pour un jeu importé (`local`), le jeu manquant aussi.
+ * @param {{kind: string, path: string, message?: string}[]} missing
+ * @param {{local?: boolean}} [context] `local` : le jeu vient de la bibliothèque de l'appareil
  * @returns {{title: string, detail: string}[]}
  */
-export const describeMissing = (missing) => missing.map((f) => (f.message
+export const describeMissing = (missing, { local = false } = {}) => missing.map((f) => (f.message
   ? { title: 'BIOS manquant', detail: f.message }
   : f.kind === 'bios'
-  ? { title: 'BIOS manquant', detail: `Placez ${f.path.slice(BIOS_DIR.length + 1)} dans le dossier ${BIOS_DIR}/ (nom exact, voir le README).` }
+  ? { title: 'BIOS manquant', detail: `Placez ${f.path.slice(BIOS_DIR.length + 1)} dans le dossier ${BIOS_DIR}/ (nom exact, voir le README). Sur un téléphone : ajoutez-le dans « Mes fichiers », avec ce nom exact.` }
+  : local
+  ? { title: 'Jeu introuvable', detail: `Le fichier ${f.path.split('/').pop()} n'est plus sur cet appareil. Ajoutez-le de nouveau dans « Mes fichiers ».` }
   : { title: 'Jeu introuvable', detail: `Le fichier ${f.path} n'existe plus. Relancez node scripts/generate-games.mjs puis rechargez la liste.` }));
 
 /** Télécharge un fichier en octets. EmulatorJS n'écrit un fichier brut que si ce sont des Uint8Array (un ArrayBuffer fait échouer l'écriture). */

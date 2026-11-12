@@ -18,9 +18,10 @@ export function visibleSystems(systems, games, maxWave = MAX_VISIBLE_WAVE) {
  * Ramène une route lue dans le hash à un écran affichable : route inconnue ou machine non affichée = accueil.
  * @param {{name: string, system?: string, focus?: string|null}} route résultat de parseHash
  * @param {object[]} systems machines AFFICHÉES (voir visibleSystems)
- * @returns {{name: 'home'} | {name: 'system', system: string, focus: string|null, machine: object}}
+ * @returns {{name: 'home'} | {name: 'library', machine: string|null} | {name: 'system', system: string, focus: string|null, machine: object}}
  */
 export function resolveRoute(route, systems) {
+  if (route.name === 'library') return { name: 'library', machine: systems.some((s) => s.id === route.machine) ? route.machine : null }; // T27
   if (route.name !== 'system') return { name: 'home' };
   const machine = systems.find((s) => s.id === route.system);
   return machine ? { name: 'system', system: route.system, focus: route.focus ?? null, machine } : { name: 'home' };

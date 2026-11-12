@@ -13,6 +13,8 @@ import { accentVar, createLogo } from './logo.js';
 /** Identifiants data-nav-id du bouton retour de l'en-tête et du bouton de l'état vide (focus d'arrivée, CA-C1). */
 export const BACK_NAV_ID = 'back';
 export const EMPTY_NAV_ID = 'back-empty';
+/** data-nav-id du bouton « Ajouter des jeux depuis cet appareil » de l'état vide (T27). */
+export const ADD_LOCAL_NAV_ID = 'add-local';
 
 const LEADING_ARTICLES = new Set(['the', 'a', 'an', 'le', 'la', 'les', 'l', 'un', 'une']);
 
@@ -85,7 +87,7 @@ export function createCover(tile, machine, doc) {
   return box;
 }
 
-function renderHeader(machine, count, doc) {
+function renderHeader(machine, count, doc, showAdd = false) {
   return el('header', { class: 'grid-header' }, [
     el('a', { class: 'back-button', attrs: { href: buildHash({ name: 'home' }), 'aria-label': 'Retour aux machines' }, dataset: { nav: '', navId: BACK_NAV_ID } }, [
       el('span', { text: '\u25C0\uFE0E', attrs: { 'aria-hidden': 'true' } }, [], doc),
@@ -93,15 +95,18 @@ function renderHeader(machine, count, doc) {
     ], doc),
     el('h2', { class: 'grid-title' }, [machine.name], doc),
     el('span', { class: 'grid-count', text: formatGameCount(count) }, [], doc),
+    showAdd && el('a', { class: 'back-button grid-add', text: 'Ajouter', attrs: { href: buildHash({ name: 'library', machine: machine.id }), 'aria-label': `Ajouter des jeux ${machine.name} depuis cet appareil` }, dataset: { nav: '', navId: ADD_LOCAL_NAV_ID } }, [], doc),
   ], doc);
 }
 
-function renderEmptyState(machine, doc) {
+function renderEmptyState(machine, localSupported, doc) {
   const empty = describeEmptyState(machine);
   return el('section', { class: 'empty-state' }, [
     el('span', { class: 'empty-logo' }, [createLogo({ logo: assetUrl(machine.logo ?? null), name: machine.name, accent: 'var(--disabled-bg)' }, doc)], doc),
     el('p', { class: 'empty-title', text: empty.title }, [], doc),
-    el('p', {}, ['Déposez vos ROMs dans le dossier : ', el('code', { text: empty.path }, [], doc)], doc),
+    localSupported && el('p', {}, ['Sur ce téléphone, ajoutez vos fichiers : ils restent dans ce navigateur.'], doc),
+    localSupported && el('a', { class: 'button', text: 'Ajouter des jeux', attrs: { href: buildHash({ name: 'library', machine: machine.id }) }, dataset: { nav: '', navId: ADD_LOCAL_NAV_ID } }, [], doc),
+    el('p', {}, [localSupported ? 'Sur le Mac, déposez vos ROMs dans le dossier : ' : 'Déposez vos ROMs dans le dossier : ', el('code', { text: empty.path }, [], doc)], doc),
     el('p', {}, ['puis lancez ', el('code', { text: 'node scripts/generate-games.mjs' }, [], doc), ' et rechargez la page.'], doc),
     empty.formats && el('p', { class: 'muted' }, ['Formats acceptés : ', el('code', { text: empty.formats }, [], doc)], doc),
     el('a', { class: 'button', text: 'Revenir aux machines', attrs: { href: buildHash({ name: 'home' }) }, dataset: { nav: '', navId: EMPTY_NAV_ID } }, [], doc),
@@ -110,14 +115,14 @@ function renderEmptyState(machine, doc) {
 
 /**
  * Écran grille d'une machine.
- * @param {{machine: object, games: object[]}} model jeux de CETTE machine, déjà triés
+ * @param {{machine: object, games: object[], localSupported?: boolean}} model jeux de CETTE machine, déjà triés ; `localSupported` : T27, bouton d'ajout depuis l'appareil
  * @param {Document} [doc]
  * @returns {HTMLElement}
  */
-export function renderGameGrid({ machine, games }, doc = globalThis.document) {
+export function renderGameGrid({ machine, games, localSupported = false }, doc = globalThis.document) {
   const tiles = buildGameTiles(games, machine);
   const body = tiles.length === 0
-    ? renderEmptyState(machine, doc)
+    ? renderEmptyState(machine, localSupported, doc)
     : el('ul', { class: 'game-list' }, tiles.map((t) => el('li', { class: 'game-item' }, [
       el('a', {
         class: 'game-tile', attrs: { href: t.href, 'aria-label': t.title, title: t.title }, dataset: { nav: '', navId: t.id },
@@ -126,5 +131,5 @@ export function renderGameGrid({ machine, games }, doc = globalThis.document) {
         el('span', { class: 'game-title', text: t.title }, [], doc),
       ], doc),
     ], doc)), doc);
-  return el('section', { class: 'game-screen' }, [renderHeader(machine, tiles.length, doc), body], doc);
+  return el('section', { class: 'game-screen' }, [renderHeader(machine, tiles.length, doc, localSupported && tiles.length > 0), body], doc);
 }

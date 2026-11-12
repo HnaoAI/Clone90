@@ -9,6 +9,9 @@ import { accentVar, createLogo } from './logo.js';
 import { formatGameCount, splitCode } from './format.js';
 import { formatVersionLabel } from '../version.js';
 
+/** data-nav-id du bouton « Mes fichiers » de l'accueil (T27). */
+export const LIBRARY_NAV_ID = 'library';
+
 /**
  * Tuiles de l'accueil : machines avec jeux d'abord, machines à 0 jeu ensuite (grisées), ordre de systems.json conservé
  * dans chaque groupe (docs/ux.md 3.1).
@@ -57,8 +60,9 @@ export function describeGamesStatus(status, skipped = 0) {
     case 'absent':
       return {
         title: 'Aucun jeu disponible ici',
-        text: `Les jeux ne sont jamais publiés avec le site (droits d'auteur), donc rien à jouer sur GitHub Pages. `
-          + `Pour jouer, lancez Clone90 chez vous : déposez vos ROMs dans roms/<machine>/, puis ${regenerate} et node scripts/serve.mjs.`,
+        text: `Les jeux ne sont jamais publiés avec le site (droits d'auteur), donc rien à jouer sur GitHub Pages sans vos fichiers. `
+          + `Sur ce téléphone : touchez « Mes fichiers » et ajoutez vos jeux, ils restent dans ce navigateur. `
+          + `Sur le Mac : déposez vos ROMs dans roms/<machine>/, puis ${regenerate} et node scripts/serve.mjs.`,
       };
     case 'empty':
       return { title: 'Aucun jeu trouvé', text: `Déposez vos ROMs dans roms/<machine>/ puis lancez ${regenerate}, et rechargez la page.` };
@@ -100,13 +104,17 @@ export function renderMachineGrid(tiles, doc = globalThis.document) {
 
 /**
  * Écran d'accueil complet : titre, message sur l'état de games.json (le cas échéant), cartes, rappel des touches.
- * @param {{tiles: ReturnType<typeof buildMachineTiles>, gamesStatus: string, skipped?: number}} model
+ * T27 : bouton « Mes fichiers » (jeux et BIOS gardés sur cet appareil), seulement si le navigateur le permet (`localSupported`).
+ * @param {{tiles: ReturnType<typeof buildMachineTiles>, gamesStatus: string, skipped?: number, localSupported?: boolean}} model
  * @param {Document} [doc]
  */
-export function renderHome({ tiles, gamesStatus, skipped = 0 }, doc = globalThis.document) {
+export function renderHome({ tiles, gamesStatus, skipped = 0, localSupported = false }, doc = globalThis.document) {
   const status = describeGamesStatus(gamesStatus, skipped);
   return el('section', { class: 'home' }, [
-    el('h2', { class: 'screen-title', text: 'Choisis une machine' }, [], doc),
+    el('div', { class: 'home-title-row' }, [
+      el('h2', { class: 'screen-title', text: 'Choisis une machine' }, [], doc),
+      localSupported && el('a', { class: 'back-button library-link', text: 'Mes fichiers', attrs: { href: buildHash({ name: 'library' }) }, dataset: { nav: '', navId: LIBRARY_NAV_ID } }, [], doc),
+    ], doc),
     status && el('div', { class: 'banner', attrs: { role: 'status' } }, [
       el('strong', { text: status.title }, [], doc),
       el('p', {}, splitCode(status.text).map((s) => (s.code ? el('code', { text: s.text }, [], doc) : s.text)), doc),
