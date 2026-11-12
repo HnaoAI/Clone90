@@ -10,6 +10,7 @@ Playwright est cherché dans `PLAYWRIGHT_PATH` (défaut : `~/node_modules/playwr
 - `perf.mjs` : coût d'une flèche avec 3000 tuiles (faux fichiers `roms/amiga/`).
 - `pages.mjs` : simulation GitHub Pages sous `/Clone90/` (sans roms ni games.json), service worker, manifest.
 - `robustesse.mjs` : games.json corrompu, systems.json illisible, noms spéciaux, ROM manquante.
+- `mobile-menu.mjs` : Pixel 7 portrait et paysage avec le VRAI EmulatorJS (paquets npm dépaquetés, `EJS_DATA` et `EJS_CORE`) et une ROM NES homebrew : bouton Menu et ☰ hors de l'image du jeu, 48 px, ☰ toujours actif (T28).
 - `subpath-server.mjs` : serveur statique minimal qui imite GitHub Pages (sous-chemin, pas de roms/, bios/, games.json).
 
 Chaque script écrit une ligne JSON par vérification sur la sortie standard (`id`, `verdict`, `detail`).
