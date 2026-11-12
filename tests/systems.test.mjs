@@ -234,3 +234,7 @@ test('T21 ejsVersion : l\'URL du CDN de chaque machine du vrai systems.json (Ami
   assert.equal(ejsDataUrl(byId('amiga').ejsVersion), 'https://cdn.emulatorjs.org/4.2.1/data/');
   assert.equal(ejsDataUrl(byId('neogeo').ejsVersion), 'https://cdn.emulatorjs.org/4.2.3/data/');
 });
+
+test('systems.json : chaque machine a un thumbnailsRepo (dépôt libretro-thumbnails des pochettes, T28), nom sûr pour une adresse', () => {
+  for (const s of systems) assert.match(s.thumbnailsRepo ?? '', /^[A-Za-z0-9._-]+$/, `${s.id} : thumbnailsRepo`);
+});

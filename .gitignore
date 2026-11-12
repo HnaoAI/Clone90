@@ -13,3 +13,5 @@ config-equipe/
 node_modules/
 .DS_Store
 *.log
+# Cache des listes de pochettes (T28)
+clone90.covers-cache.json
