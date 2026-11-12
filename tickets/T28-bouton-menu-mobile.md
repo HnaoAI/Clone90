@@ -24,5 +24,8 @@
 - En mode `debug=1`, la pastille Diag repliée se pose sur le ☰ (mode de diagnostic seulement).
 - Non essayé sur un vrai téléphone.
 
+## Correction 0.28.1 : la mise à jour n'arrivait pas sur le téléphone
+Hicham restait en 0.27 sur son téléphone après la livraison. Cause : le service worker allait bien au réseau d'abord, mais par un `fetch` simple, que le navigateur servait depuis son cache HTTP (GitHub Pages : `max-age=600`, soit jusqu'à 10 minutes). `sw.js` redemande maintenant la coquille avec `cache: 'no-cache'` (revalidation, 304 si inchangé). Test : `tests/sw.test.mjs`.
+
 ## Vérification manuelle (Hicham)
 Sur le téléphone, lancer un jeu en portrait puis en paysage : le bouton Menu et le ☰ ne cachent plus l'image.

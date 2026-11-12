@@ -35,6 +35,13 @@ const SHELL_FILES = [
   'assets/fonts/PressStart2P-Regular.ttf', 'assets/fonts/OFL.txt',
 ];
 
+/**
+ * Options du fetch réseau de la coquille (T28, mise à jour sur téléphone). GitHub Pages sert avec Cache-Control: max-age=600 :
+ * un fetch simple pouvait rendre l'ancienne version depuis le cache HTTP du navigateur jusqu'à 10 minutes après une livraison
+ * (Hicham restait en 0.27 sur son téléphone). no-cache revalide toujours auprès du serveur (304 si rien n'a changé, donc peu coûteux).
+ */
+const NETWORK_FETCH_INIT = { cache: 'no-cache' };
+
 /** Dossiers et fichiers qui ne doivent JAMAIS entrer dans le cache (jeux, BIOS, liste des jeux, API locale). */
 const NEVER_CACHED = ['roms/', 'bios/', 'games.json', 'api/']; // api/ (T25) : API locale des dossiers, toujours au réseau
 
@@ -93,7 +100,7 @@ function localResponseInit(record) {
   return { status: 200, headers: { 'Content-Type': record.blob?.type || 'application/octet-stream', 'Content-Length': String(record.size ?? record.blob?.size ?? 0), 'Cache-Control': 'no-store' } };
 }
 
-self.Clone90SW = { CACHE_VERSION, SHELL_FILES, NEVER_CACHED, LOCAL_DB, LOCAL_PREFIXES, scopedPath, isNeverCached, isShellPath, shouldHandle, logoPaths, staleCacheNames, localLibraryPath, localResponseInit };
+self.Clone90SW = { CACHE_VERSION, NETWORK_FETCH_INIT, SHELL_FILES, NEVER_CACHED, LOCAL_DB, LOCAL_PREFIXES, scopedPath, isNeverCached, isShellPath, shouldHandle, logoPaths, staleCacheNames, localLibraryPath, localResponseInit };
 
 if (typeof ServiceWorkerGlobalScope !== 'undefined' && self instanceof ServiceWorkerGlobalScope) {
   const scope = () => self.registration.scope;
@@ -167,7 +174,7 @@ if (typeof ServiceWorkerGlobalScope !== 'undefined' && self instanceof ServiceWo
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_VERSION);
       try {
-        const res = await fetch(request);
+        const res = await fetch(request, NETWORK_FETCH_INIT);
         if (res.ok) await cache.put(request.url.split('#')[0].split('?')[0], res.clone());
         return res;
       } catch {

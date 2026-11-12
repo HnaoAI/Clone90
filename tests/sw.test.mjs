@@ -119,3 +119,9 @@ test('staleCacheNames : supprime les anciennes versions de Clone90, jamais les c
   assert.deepEqual(sw.staleCacheNames([sw.CACHE_VERSION]), []);
   assert.deepEqual(sw.staleCacheNames([]), []);
 });
+
+test('mise à jour sur téléphone (T28) : la coquille est redemandée au serveur (cache: no-cache), jamais lue telle quelle dans le cache HTTP', () => {
+  // GitHub Pages sert avec Cache-Control: max-age=600 : sans no-cache, le téléphone garde l'ancienne version jusqu'à 10 minutes après une livraison.
+  assert.equal(sw.NETWORK_FETCH_INIT.cache, 'no-cache');
+  assert.match(source, /await fetch\(request, NETWORK_FETCH_INIT\)/);
+});
