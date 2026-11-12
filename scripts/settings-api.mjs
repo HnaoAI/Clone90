@@ -3,13 +3,14 @@
 // INVARIANT (sécurité) : active seulement si le serveur n'écoute que sur ce Mac (serve.mjs, isSettingsApiEnabled). Chaque requête doit
 //   avoir un en-tête Host localhost:<port> ou 127.0.0.1:<port> (anti DNS rebinding), une Origin identique (ou aucune avec X-Clone90: 1),
 //   un Content-Type application/json et un corps de 1 Ko au plus. Le navigateur ne fournit JAMAIS de chemin : il choisit un type
-//   ('roms', 'bios', 'bios-default'), c'est la boîte du Mac qui choisit le dossier. Une seule boîte ouverte à la fois (verrou).
+//   ('roms', 'bios', 'roms-default', 'bios-default'), c'est la boîte du Mac qui choisit le dossier. Une seule boîte ouverte à la fois (verrou).
 import { readLocalSettings, updateLocalSettings, folderProblemKind } from './local-settings.mjs';
 import { runGenerate } from './generate-games.mjs';
 
 export const MAX_BODY_BYTES = 1024;
 /** Types de choix acceptés et réglage visé (null : retour au dossier du projet, sans boîte). */
-const KINDS = { roms: 'romsDir', bios: 'biosDir', 'bios-default': 'biosDir' };
+const KINDS = { roms: 'romsDir', bios: 'biosDir', 'roms-default': 'romsDir', 'bios-default': 'biosDir' };
+const isDefaultKind = (kind) => kind.endsWith('-default');
 const CUSTOM_HEADER = 'x-clone90';
 
 const REFUSALS = {
@@ -20,6 +21,7 @@ const REFUSALS = {
 const ERROR_TEXT = {
   dialog: 'La fenêtre de choix n\'a pas pu s\'ouvrir sur ce Mac.',
   generate: 'Les dossiers sont enregistrés, mais la liste des jeux n\'a pas pu être mise à jour. Relancez Clone90.',
+  save: 'Les dossiers n\'ont pas pu être enregistrés. Vérifiez le fichier clone90.local.json.',
   busy: 'Une fenêtre de choix est déjà ouverte sur votre Mac.',
 };
 
@@ -32,6 +34,8 @@ const allowedHosts = (port) => [`localhost:${port}`, `127.0.0.1:${port}`];
  */
 export function checkRequestOrigin(headers, port, method) {
   if (!allowedHosts(port).includes(headers.host ?? '')) return { status: 403, message: 'Hôte refusé' };
+  // Défense en profondeur : un navigateur qui sait dire « requête venue d'un autre site » est cru. Absent (curl, anciens navigateurs) : accepté.
+  if (['cross-site', 'same-site'].includes(headers['sec-fetch-site'])) return { status: 403, message: 'Requête d\'un autre site refusée' };
   const origin = headers.origin;
   if (origin !== undefined) {
     return allowedHosts(port).some((h) => origin === `http://${h}`) ? null : { status: 403, message: 'Origine refusée' };
@@ -71,7 +75,8 @@ function parseKind(text) {
  * @param {boolean} options.enabled voir isSettingsApiEnabled
  * @param {() => number} options.getPort port d'écoute réel
  * @param {(folders: {romsDir: string, biosDir: string}) => void} options.applyFolders applique les dossiers au serveur sans redémarrage
- * @param {(kind: 'roms'|'bios') => Promise<string|null>} options.chooseFolder boîte du Mac (injectable) ; null = annulé
+ * @param {(kind: 'roms'|'bios', options: {signal: AbortSignal}) => Promise<string|null>} options.chooseFolder boîte du Mac (injectable) ;
+ *   null = annulé ; `signal` s'active si la requête HTTP se ferme (onglet fermé), pour libérer le verrou
  * @param {() => Promise<{exitCode: number}>} [options.regenerate] régénère games.json (le vrai générateur par défaut)
  * @param {Record<string, string>} [options.baseHeaders] en-têtes de toutes les réponses (nosniff)
  */
@@ -98,11 +103,11 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
     return exitCode === 0 ? { status: 'ok' } : { status: 'error', message: ERROR_TEXT.generate };
   }
 
-  async function choose(kind) {
+  async function choose(kind, signal) {
     const key = KINDS[kind];
-    if (kind !== 'bios-default') {
+    if (!isDefaultKind(kind)) {
       let path;
-      try { path = await chooseFolder(kind); } catch (err) {
+      try { path = await chooseFolder(kind, { signal }); } catch (err) {
         console.error('Boîte de choix du Mac impossible :', err.message);
         return { status: 'error', message: ERROR_TEXT.dialog };
       }
@@ -122,9 +127,14 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
     if (kind === null) return send(res, 400, { message: 'Requête invalide' });
     if (busy) return send(res, 409, { status: 'busy', message: ERROR_TEXT.busy });
     busy = true;
+    const abort = new AbortController();
+    res.on('close', () => { if (!res.writableFinished) abort.abort(); });
     try {
       let result;
-      try { result = await choose(kind); } catch (err) { result = { status: 'error', message: err.message }; }
+      try { result = await choose(kind, abort.signal); } catch (err) {
+        console.error('Enregistrement des dossiers impossible :', err.message); // le détail (chemins) reste dans le journal du serveur
+        result = { status: 'error', message: ERROR_TEXT.save };
+      }
       return send(res, 200, { ...result, settings: await currentSettings() });
     } finally { busy = false; }
   }

@@ -20,18 +20,19 @@ export function buildAppleScript(kind) {
 /**
  * Ouvre la boîte du Mac et attend le choix.
  * @param {'roms'|'bios'} kind
- * @param {{execFile?: Function}} [options] `execFile` (promise) injectable pour les tests
+ * @param {{execFile?: Function, signal?: AbortSignal}} [options] `execFile` (promise) injectable pour les tests ; `signal` abandonne la boîte
  * @returns {Promise<string|null>} chemin absolu sans « / » final, ou null si la personne annule
  * @throws {Error} si osascript échoue pour une autre raison qu'une annulation
  */
-export async function chooseFolderOnMac(kind, { execFile = promisify(nodeExecFile) } = {}) {
+export async function chooseFolderOnMac(kind, { execFile = promisify(nodeExecFile), signal } = {}) {
   const script = buildAppleScript(kind);
   try {
-    const { stdout } = await execFile('osascript', ['-e', script], { timeout: DIALOG_TIMEOUT_MS });
+    const { stdout } = await execFile('osascript', ['-e', script], { timeout: DIALOG_TIMEOUT_MS, signal });
     const path = String(stdout).trim();
     if (path === '') return null;
     return path === '/' ? path : path.replace(/\/+$/, '');
   } catch (err) {
+    if (err?.name === 'AbortError' || err?.code === 'ABORT_ERR') return null; // requête fermée : la boîte est abandonnée
     if (/-128/.test(err?.stderr ?? '')) return null; // « User canceled. (-128) »
     throw err;
   }

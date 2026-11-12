@@ -244,6 +244,25 @@ test('API : « BIOS du projet » retire biosDir sans ouvrir de boîte', async ()
   } finally { t.close(); }
 });
 
+test('API : « Utiliser les ROMs du projet » (roms-default) retire romsDir sans ouvrir de boîte, sans toucher aux BIOS, et sert de nouveau roms/ du projet', async () => {
+  const romsExt = await tmp('roms-ext');
+  const biosExt = await tmp('bios-ext');
+  const t = await setup();
+  try {
+    await mkdir(join(t.root, 'roms'));
+    await writeFile(join(t.root, 'roms', 'p.adf'), 'PROJET');
+    await writeFile(join(t.root, 'clone90.local.json'), JSON.stringify({ romsDir: romsExt, biosDir: biosExt }));
+    const r = await t.post('roms-default');
+    assert.equal(r.json().status, 'ok');
+    assert.equal(r.json().settings.romsIsDefault, true);
+    assert.equal(r.json().settings.biosIsDefault, false);
+    assert.deepEqual(JSON.parse(await readFile(join(t.root, 'clone90.local.json'), 'utf8')), { biosDir: biosExt });
+    assert.equal(t.calls.choose.length, 0);
+    assert.equal(t.calls.regenerate, 1);
+    assert.equal((await t.call('GET', '/roms/p.adf')).text, 'PROJET');
+  } finally { t.close(); }
+});
+
 test('API : annuler la boîte du Mac ne change rien (statut cancelled, rien d\'écrit, pas de régénération)', async () => {
   const t = await setup({ choose: async () => null });
   try {
@@ -305,6 +324,64 @@ test('API : verrou, une seule boîte ouverte à la fois (409), relâché ensuite
     release = null;
     assert.equal((await t.post('bios-default')).status, 200);
   } finally { t.close(); }
+});
+
+test('API sécurité : Sec-Fetch-Site cross-site ou same-site refusé (403) en GET et POST ; same-origin, none ou absent acceptés', async () => {
+  const t = await setup();
+  try {
+    for (const value of ['cross-site', 'same-site']) {
+      assert.equal((await t.call('GET', '/api/settings', { headers: { 'Sec-Fetch-Site': value } })).status, 403, `GET ${value}`);
+      assert.equal((await t.post('bios-default', { ...t.ok, 'Sec-Fetch-Site': value })).status, 403, `POST ${value}`);
+    }
+    assert.equal(t.calls.regenerate, 0);
+    for (const value of ['same-origin', 'none']) {
+      assert.equal((await t.call('GET', '/api/settings', { headers: { 'Sec-Fetch-Site': value } })).status, 200, value);
+    }
+    assert.equal((await t.post('bios-default', { ...t.ok, 'Sec-Fetch-Site': 'same-origin' })).status, 200);
+    assert.equal((await t.call('GET', '/api/settings')).status, 200, 'absent (curl)');
+  } finally { t.close(); }
+});
+
+test('API : le message d\'erreur ne contient aucun chemin quand l\'écriture échoue (message constant, détail au journal seulement)', async () => {
+  const ext = await tmp('ext');
+  const t = await setup({ choose: async () => ext });
+  try {
+    await mkdir(join(t.root, 'clone90.local.json')); // un dossier à la place du fichier : erreur système avec chemin absolu
+    const r = await t.post('roms');
+    assert.equal(r.json().status, 'error');
+    const { message } = r.json(); // `settings` donne légitimement les dossiers utilisés (comme GET) ; c'est le message qui ne doit rien fuiter
+    assert.ok(!message.includes(t.root) && !message.includes(ext) && !/EISDIR|ENOTEMPTY|EACCES/.test(message), message);
+    assert.match(message, /n'ont pas pu être enregistrés/);
+  } finally { t.close(); }
+});
+
+test('API : fermer la requête (onglet fermé) abandonne la boîte du Mac et libère le verrou', async () => {
+  let signalSeen;
+  const aborted = [];
+  const root = await tmp('abort');
+  let server;
+  const api = createSettingsApi({ root, enabled: true, getPort: () => server.address().port, applyFolders: () => {},
+    chooseFolder: (kind, { signal }) => new Promise((resolve) => { signalSeen = signal; signal.addEventListener('abort', () => { aborted.push(kind); resolve(null); }); }),
+    regenerate: async () => ({ exitCode: 0 }) });
+  server = createStaticServer({ root, api });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const options = { host: '127.0.0.1', port: server.address().port, method: 'POST', path: '/api/settings/choose',
+    headers: { 'X-Clone90': '1', 'Content-Type': 'application/json' } };
+  try {
+    const req = http.request(options);
+    req.on('error', () => {});
+    req.end(JSON.stringify({ kind: 'roms' }));
+    while (!signalSeen) await new Promise((r) => setTimeout(r, 5));
+    req.destroy();
+    while (aborted.length === 0) await new Promise((r) => setTimeout(r, 5));
+    assert.deepEqual(aborted, ['roms']);
+    const again = await new Promise((resolve, reject) => {
+      const r2 = http.request(options, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+      r2.on('error', reject);
+      r2.end(JSON.stringify({ kind: 'bios-default' }));
+    });
+    assert.equal(again, 200, 'plus de verrou');
+  } finally { server.close(); }
 });
 
 test('API : clone90.local.json invalide n\'est pas écrasé (statut error)', async () => {
@@ -375,6 +452,14 @@ test('Mac : la boîte a un texte fixe par type, passé à osascript sans interpr
   assert.match(exec.calls[0][1][1], /ROMs/);
   assert.match(exec.calls[1][1][1], /BIOS/);
   await assert.rejects(() => chooseFolderOnMac('"; do shell script "x', { execFile: exec }), /inconnu/);
+});
+
+test('Mac : requête fermée (AbortError) abandonne la boîte : null, et le signal est transmis à osascript', async () => {
+  const seen = [];
+  const exec = async (file, args, opts) => { seen.push(opts.signal); throw Object.assign(new Error('aborted'), { name: 'AbortError', code: 'ABORT_ERR' }); };
+  const signal = new AbortController().signal;
+  assert.equal(await chooseFolderOnMac('roms', { execFile: exec, signal }), null);
+  assert.equal(seen[0], signal);
 });
 
 test('Mac : annuler la boîte (code -128) renvoie null ; une autre erreur est relancée', async () => {

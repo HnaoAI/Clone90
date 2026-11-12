@@ -1,5 +1,5 @@
 // Client de l'API locale des dossiers (T25) : lit les dossiers utilisés, demande un choix. Dépend seulement de fetch (injectable).
-// INVARIANT : on n'envoie JAMAIS de chemin, seulement le type de choix ('roms', 'bios', 'bios-default') : c'est la boîte du Mac qui choisit.
+// INVARIANT : on n'envoie JAMAIS de chemin, seulement le type de choix ('roms', 'bios', 'roms-default', 'bios-default') : c'est la boîte du Mac qui choisit.
 // Adresses relatives (GitHub Pages sous /<dépôt>/). Sans API (GitHub Pages, serveur ouvert au réseau, autre système), fetchFolderSettings renvoie null.
 
 const SETTINGS_URL = 'api/settings';
@@ -33,7 +33,7 @@ export async function fetchFolderSettings(fetchFn = globalThis.fetch) {
 
 /**
  * Demande le choix d'un dossier (ouvre la boîte du Mac et attend la réponse, parfois longtemps).
- * @param {'roms'|'bios'|'bios-default'} kind
+ * @param {'roms'|'bios'|'roms-default'|'bios-default'} kind
  * @param {typeof fetch} [fetchFn]
  * @returns {Promise<{status: 'ok'|'cancelled'|'refused'|'error'|'busy', message?: string, settings?: object}>} ne lève jamais d'exception
  */

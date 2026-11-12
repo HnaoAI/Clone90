@@ -84,9 +84,9 @@ test('panneau : describeFolderLines indique le dossier du projet ou le dossier c
   assert.deepEqual(lines.map((l) => [l.label, l.path, l.note]), [['ROMs', '/Users/moi/Jeux/ROMs', 'dossier choisi'], ['BIOS', '/projet/bios', 'dossier du projet']]);
 });
 
-test('panneau : trois choix dans l\'ordre, textes français', () => {
+test('panneau : quatre choix dans l\'ordre, textes français', () => {
   assert.deepEqual(FOLDER_CHOICES.map((c) => [c.kind, c.label]),
-    [['roms', 'Choisir le dossier des ROMs'], ['bios', 'Choisir le dossier des BIOS'], ['bios-default', 'BIOS du projet']]);
+    [['roms', 'Choisir le dossier des ROMs'], ['bios', 'Choisir le dossier des BIOS'], ['roms-default', 'Utiliser les ROMs du projet'], ['bios-default', 'Utiliser les BIOS du projet']]);
 });
 
 test('panneau : describeChoiceResult couvre ok, annulé, refusé, erreur, occupé', () => {
@@ -117,7 +117,7 @@ test('panneau : role dialog modal, dossiers actuels affichés, zone d\'état ari
   assert.match(text, /\/Users\/moi\/Jeux\/ROMs/);
   assert.match(text, /\/projet\/bios/);
   assert.equal(statusOf(panel.element).attrs['aria-live'], 'polite');
-  assert.deepEqual(buttonsOf(panel.element).map((b) => b.textContent), ['Choisir le dossier des ROMs', 'Choisir le dossier des BIOS', 'BIOS du projet', 'Fermer']);
+  assert.deepEqual(buttonsOf(panel.element).map((b) => b.textContent), ['Choisir le dossier des ROMs', 'Choisir le dossier des BIOS', 'Utiliser les ROMs du projet', 'Utiliser les BIOS du projet', 'Fermer']);
   assert.equal(doc.activeElement.textContent, 'Choisir le dossier des ROMs');
   assert.ok(buttonsOf(panel.element).every((b) => b.dataset.nav === ''), 'tous navigables par la couche d\'entrée');
 });
@@ -167,7 +167,7 @@ test('panneau : annulé, refusé ou en erreur = message, dossiers inchangés, on
 test('panneau : Fermer et retour ferment, le panneau capte toutes les actions tant qu\'il est ouvert', async () => {
   const a = openPanel({ choose: async () => ({ status: 'cancelled' }) });
   assert.equal(a.panel.handleAction('left'), true);
-  for (let i = 0; i < 3; i += 1) a.panel.handleAction('down');
+  for (let i = 0; i < 4; i += 1) a.panel.handleAction('down');
   assert.equal(a.doc.activeElement.textContent, 'Fermer');
   a.panel.handleAction('down');
   assert.equal(a.doc.activeElement.textContent, 'Fermer', 'pas de bouclage');

@@ -1,4 +1,4 @@
-// Panneau « Dossiers des jeux » de l'accueil (T25) : dossiers actuels et trois choix. Dépend de ui/dialog.js et ui/dom.js.
+// Panneau « Dossiers des jeux » de l'accueil (T25) : dossiers actuels et quatre choix. Dépend de ui/dialog.js et ui/dom.js.
 // Aucun appel réseau ici : `choose(kind)` (js/folders-client.js) est fourni par l'écran hôte. Textes en français.
 // INVARIANT : comme toute boîte (dialog.js), le panneau ne lit jamais clavier ni manette ; l'hôte lui transmet les actions.
 import { el, clear } from './dom.js';
@@ -8,7 +8,8 @@ import { createDialog } from './dialog.js';
 export const FOLDER_CHOICES = [
   { kind: 'roms', label: 'Choisir le dossier des ROMs' },
   { kind: 'bios', label: 'Choisir le dossier des BIOS' },
-  { kind: 'bios-default', label: 'BIOS du projet' },
+  { kind: 'roms-default', label: 'Utiliser les ROMs du projet' },
+  { kind: 'bios-default', label: 'Utiliser les BIOS du projet' },
 ];
 export const PENDING_TEXT = 'Une fenêtre de choix s\'est ouverte sur votre Mac.';
 const SAVING_TEXT = 'Enregistrement en cours...';
@@ -76,7 +77,7 @@ export function createFoldersPanel({ settings, choose, onChanged }, doc = global
 
   async function run(kind) {
     setBusy(true);
-    show(kind === 'bios-default' ? SAVING_TEXT : PENDING_TEXT);
+    show(kind.endsWith('-default') ? SAVING_TEXT : PENDING_TEXT);
     let result;
     try { result = await choose(kind); } catch (err) {
       console.error('Choix du dossier impossible :', err);

@@ -92,12 +92,13 @@ Tablette / entre 600 et 1023 px : 3 colonnes.
 |  <message d'état, aria-live>        |
 | [ Choisir le dossier des ROMs ]     |
 | [ Choisir le dossier des BIOS ]     |
-| [ BIOS du projet ]                  |
+| [ Utiliser les ROMs du projet ]     |
+| [ Utiliser les BIOS du projet ]     |
 | [ Fermer ]                          |
 +-------------------------------------+
 ```
 
-Boutons en colonne : haut/bas pour naviguer (sans boucler), confirmer pour agir, retour ou Fermer pour fermer, focus sur le premier choix. Pendant le choix, les trois boutons sont marqués `aria-disabled` (appuis ignorés) et le message « Une fenêtre de choix s'est ouverte sur votre Mac. » est annoncé. Résultats : « Dossiers enregistrés. La liste des jeux est mise à jour. » (accueil redessiné derrière le panneau), « Aucun changement. » (annulation), ou le refus en français (dossier trop large ou introuvable, fenêtre déjà ouverte, serveur injoignable). Au retour, le focus revient sur le bouton « Dossiers des jeux ».
+Quatre choix puis Fermer, en colonne : haut/bas pour naviguer (sans boucler), confirmer pour agir, retour ou Fermer pour fermer, focus sur le premier choix. Pendant le choix, les trois boutons sont marqués `aria-disabled` (appuis ignorés) et le message « Une fenêtre de choix s'est ouverte sur votre Mac. » est annoncé. Résultats : « Dossiers enregistrés. La liste des jeux est mise à jour. » (accueil redessiné derrière le panneau), « Aucun changement. » (annulation), ou le refus en français (dossier trop large ou introuvable, fenêtre déjà ouverte, serveur injoignable). Au retour, le focus revient sur le bouton « Dossiers des jeux ».
 
 ### 3.2 Grille de jeux
 
