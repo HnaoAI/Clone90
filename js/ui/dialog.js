@@ -44,9 +44,10 @@ export function resolveDialogAction(action, index, count, vertical = false) {
  * @param {object} options
  * @param {string} options.title
  * @param {Node[]} [options.content] noeuds du corps, au-dessus des boutons
- * @param {{label: string, danger?: boolean, secondary?: boolean}[]} options.buttons
+ * @param {{label: string, danger?: boolean, secondary?: boolean, separated?: boolean}[]} options.buttons `separated` : espace et filet au-dessus (groupe à part, T28)
  * @param {number} [options.defaultIndex] bouton focalisé à l'ouverture
  * @param {boolean} [options.vertical] boutons empilés (haut/bas pour naviguer)
+ * @param {string} [options.describedBy] ids (séparés par des espaces) des textes qui décrivent la boîte, lus avec son titre (aria-describedby)
  * @param {string} [options.boxClass] classe ajoutée à la boîte (ex. `is-wide`)
  * @param {(index: number, api: {close: (value: unknown) => void}) => void} options.onPress appui sur un bouton (clic, tap, confirm)
  * @param {unknown} [options.cancelValue] valeur du résultat sur retour ou clic hors de la boîte (false par défaut)
@@ -54,7 +55,7 @@ export function resolveDialogAction(action, index, count, vertical = false) {
  * @param {Document} [doc]
  * @returns {{element: HTMLElement, result: Promise<unknown>, open: (parent: Node) => void, close: (value: unknown) => void, handleAction: (action: string) => boolean, buttons: HTMLElement[]}}
  */
-export function createDialog({ title, content = [], buttons, defaultIndex = 0, vertical = false, boxClass = '', onPress, cancelValue = false,
+export function createDialog({ title, content = [], buttons, defaultIndex = 0, vertical = false, boxClass = '', describedBy = '', onPress, cancelValue = false,
   restoreFocusWhen = () => true }, doc = globalThis.document) {
   let resolve;
   const result = new Promise((r) => { resolve = r; });
@@ -63,13 +64,13 @@ export function createDialog({ title, content = [], buttons, defaultIndex = 0, v
   let opener = null;
 
   const buttonNodes = buttons.map((b, i) => el('button', {
-    class: `button dialog-button${b.danger ? ' is-danger' : ''}${b.secondary ? ' is-secondary' : ''}`,
+    class: `button dialog-button${b.danger ? ' is-danger' : ''}${b.secondary ? ' is-secondary' : ''}${b.separated ? ' is-separated' : ''}`,
     text: b.label, attrs: { type: 'button' }, dataset: { nav: '' },
     on: { click: () => onPress(i, { close }) },
   }, [], doc));
   const element = el('div', {
     class: 'dialog-backdrop',
-    attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dialog-title' },
+    attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dialog-title', ...(describedBy && { 'aria-describedby': describedBy }) },
     on: { click: (e) => { if (e.target === element) close(cancelValue); } },
   }, [el('div', { class: `dialog-box${boxClass ? ` ${boxClass}` : ''}` }, [
     el('h2', { class: 'dialog-title', text: title, attrs: { id: 'dialog-title' } }, [], doc),

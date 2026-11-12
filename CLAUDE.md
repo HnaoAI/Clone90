@@ -27,7 +27,7 @@ L'architecture détaillée est dans `docs/architecture.md`, l'interface dans `do
 2. `systems.json` est la **seule source de vérité** des machines : aucune liste de machines écrite ailleurs.
 3. Une seule couche d'entrée (`js/input/`) pour clavier, manette, tactile et souris.
 4. Seul `js/player/launcher.js` connaît EmulatorJS.
-5. Aucune statistique, aucun compte, aucune donnée envoyée sur le réseau.
+5. Aucune statistique, aucun compte. Aucune donnée de l'utilisateur n'est envoyée sur le réseau. Seule exception : des lectures vers github.com (base libre libretro-thumbnails), déclenchées par le bouton « Télécharger les pochettes » ou par `node scripts/covers.mjs` ; GitHub voit alors l'adresse IP et les noms des jeux cherchés.
 6. Le service worker ne met jamais en cache les ROMs ni les BIOS.
 
 ## Décisions déjà prises (validées par Hicham le 2026-11-09)
@@ -46,3 +46,6 @@ L'architecture détaillée est dans `docs/architecture.md`, l'interface dans `do
 3. PWA, guide local et publication GitHub Pages.
 
 Le spike T0 attend les ROMs et BIOS de test que Hicham fournira : ne pas les lui redemander avant.
+
+## Journal des décisions
+- 2026-11-12 : exception à la règle 5 pour le téléchargement des pochettes depuis github.com, validée par Hicham (« ok pochettes »). Raison : choisir les jeux par leur pochette ; connexion seulement sur action de l'utilisateur, lectures seules.

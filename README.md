@@ -61,6 +61,31 @@ Vos ROMs (et vos BIOS) peuvent rester sur un autre disque ou dans un autre dossi
 - Après le choix, `Lancer Clone90.command` (ou `node scripts/generate-games.mjs`) affiche le dossier des jeux utilisé. Rien ne change dans le navigateur ni sur GitHub Pages.
 - Avec le bouton « Dossiers des jeux », Clone90 prend le nouveau dossier tout de suite : pas besoin de le relancer. Avec le fichier de secours `Choisir le dossier des jeux.command`, si Clone90 est déjà ouvert, fermez sa fenêtre Terminal puis relancez Lancer Clone90.
 
+## Pochettes des jeux (T28)
+
+Les pochettes (jaquettes) s'affichent sur les tuiles de jeux. Deux façons de les avoir.
+
+**1. Automatique (recommandé).** Dans Clone90 (ouvert avec `Clone90.app` ou `Lancer Clone90.command`), cliquez sur **Dossiers des jeux**, puis sur **Télécharger les pochettes**. Clone90 cherche, pour chaque jeu qui n'a pas encore d'image, la pochette dans la base libre [libretro-thumbnails](https://github.com/libretro-thumbnails) et la copie **dans le dossier de vos ROMs, à côté du jeu**. Une barre et un message de progression s'affichent, puis un résumé en quelques lignes : pochettes téléchargées, déjà présentes, introuvables, « plusieurs correspondances, ignorées » (les compteurs à zéro ne sont pas affichés). Vous pouvez fermer le panneau : le téléchargement continue, et un message prévient à la fin. L'accueil se met à jour tout seul. En ligne de commande : `node scripts/covers.mjs` (ou `node scripts/covers.mjs --dry-run` pour voir ce qui serait téléchargé sans rien écrire ; `--refresh` pour relire les listes de GitHub).
+
+- Une pochette **déjà présente n'est jamais remplacée**. Une pochette qui ne vous plaît pas : déposez la vôtre à la main, ou supprimez le fichier image pour qu'une autre soit cherchée.
+- **Région** : Europe d'abord, puis USA, puis World. Quand plusieurs images conviennent aussi bien (par exemple deux versions d'un même jeu d'arcade), Clone90 **ne choisit pas au hasard** : il ne télécharge rien et le dit (« plusieurs correspondances, ignorées »). Déposez alors l'image voulue à la main.
+- Arcade et Neo Geo : le titre cherché est celui de `data/titles.json` (nom du romset vers titre). Un romset absent de ce fichier a pour titre son nom de fichier et sera probablement introuvable : ajoutez-le à `data/titles.json`.
+- **Connexion à Internet** : Clone90 ne se connecte à github.com (api.github.com et raw.githubusercontent.com) que lorsque vous cliquez sur « Télécharger les pochettes » ou lancez `node scripts/covers.mjs`. Ce sont des **lectures** : GitHub voit votre adresse IP et les noms des jeux cherchés (les images demandées portent leurs titres) ; rien d'autre n'est envoyé (ni vos dossiers, ni vos fichiers). La liste des images de chaque machine est gardée une semaine dans `clone90.covers-cache.json` (fichier personnel, ignoré par git) pour ne pas dépasser la limite de requêtes de GitHub (60 par heure sans compte).
+- Les images ne sont qu'un fichier PNG de 2 Mo au plus, vérifié avant d'être écrit. **Elles restent sur ce Mac et ne sont jamais publiées** (`roms/` est ignoré par git, et un dossier de ROMs choisi ailleurs n'est pas dans le projet). Ce sont des images de la base libre libretro-thumbnails, pour un **usage personnel** : leurs droits restent à leurs auteurs.
+- Le bouton n'existe que sur le Mac avec le lanceur, comme « Dossiers des jeux » (ni GitHub Pages, ni téléphone).
+
+**2. À la main.** Déposez une image `.png`, `.jpg`, `.jpeg` ou `.webp` **dans le même dossier que le jeu, avec exactement le même nom que le fichier du jeu, sans l'extension du jeu** :
+
+| Jeu | Fichier du jeu | Image à déposer |
+|---|---|---|
+| Jeu simple | `roms/amiga/Gods.adf` | `roms/amiga/Gods.png` |
+| Arcade, Neo Geo | `roms/neogeo/viewpoin.zip` | `roms/neogeo/viewpoin.png` |
+| Amiga à plusieurs disquettes | `Monkey Island (Disk 1 of 2).adf`, `(Disk 2 of 2).adf` | `Monkey Island (Disk 1 of 2).png` (nom de la première disquette) ou `Monkey Island.png` (nom commun sans le numéro de disquette) |
+| Jeu décrit par un `.m3u` | `Zaxxon.m3u` | `Zaxxon.png` |
+| Mega-CD | `Sonic CD.cue` (et ses `.bin`) | `Sonic CD.png` |
+
+La casse des lettres n'a pas d'importance (`gods.PNG` fonctionne). Si plusieurs formats existent pour un même nom, `png` passe avant `jpg`, `jpeg` puis `webp`. Après un ajout à la main, relancez `node scripts/generate-games.mjs` (ou rechargez la liste par un changement de dossier dans « Dossiers des jeux »). Le téléchargement automatique écrit toujours en `.png`.
+
 ## Où mettre les ROMs et les BIOS
 
 Ces dossiers sont ignorés par git : rien de ce que vous y mettez n'est publié. Créez-les s'ils n'existent pas.
@@ -136,7 +161,7 @@ Le script lit `systems.json`, scanne `roms/<machine>/` (un niveau de sous-dossie
 
 - `--check` : affiche le diagnostic sans écrire `games.json`.
 - Titre : nom du fichier nettoyé (`Lemmings (Europe).adf` donne `Lemmings`), ou, pour les romsets arcade et Neo Geo, la correspondance de `data/titles.json` (`"mslug": "Metal Slug"`). Ajoutez-y vos romsets.
-- Jaquette (facultative) : une image `.png`, `.jpg`, `.jpeg` ou `.webp` de même nom que le jeu, dans le même dossier.
+- Jaquette (facultative) : une image `.png`, `.jpg`, `.jpeg` ou `.webp` de même nom que le jeu, dans le même dossier. Elle peut être téléchargée automatiquement : voir « Pochettes des jeux » plus haut (T28).
 - Amiga multi-disquettes (T10) : déposez toutes les disquettes dans le même dossier (`roms/amiga/`) avec des noms qui ne diffèrent que par le numéro, au format TOSEC/No-Intro : `Leander (1991)(Psygnosis)(Disk 1 of 3)[cr Flashtro].adf`, `(Disk 2 of 3)`, `(Disk 3 of 3)` (aussi `(Disk 1)` ou `Disk 1 of 3`). Les noms simples sont regroupés aussi (T18) : `Jeu_Disk1`, `Jeu Disk 1`, `Jeu-Disk-1`, `Jeu_Disque1`, `Jeu Disc1`, `Jeu_D1` (même dossier, même extension, même nom une fois le numéro retiré, numéros 1, 2, 3... sans trou ; un seul fichier reste un jeu simple, et `Disk Wars` n'est pas une disquette). Le titre est le nom sans le numéro, ou à défaut le nom du dossier (`Leander (1991)(Psygnosis)[0496]/Disk1.adf` donne « Leander »). Après `node scripts/generate-games.mjs`, elles forment UNE tuile (« Leander ») qui se lance avec toutes les disquettes ; le générateur avertit si une disquette manque. Sinon, un `.m3u` écrit à la main reste possible (seul le `.m3u` apparaît alors comme jeu ; non testé avec de vrais fichiers).
 - Changer de disquette en jeu (Amiga) : voir la section « Changer de disquette en jeu » plus bas.
 - Mega-CD (T15) : un `.cue` et les fichiers de ses lignes `FILE` forment UNE tuile ; ces fichiers ne sont pas listés à part (même principe que le `.m3u`).
