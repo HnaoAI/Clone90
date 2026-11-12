@@ -696,3 +696,32 @@ test('T18 performance : un nom de 5000 caractères est analysé en moins de 200 
   }
   assert.ok(Date.now() - started < 200, `trop lent : ${Date.now() - started} ms`);
 });
+
+// --- T30 : PC Engine et PC Engine CD ---
+test('T30 PC Engine : .pce et .sgx (SuperGrafx) listés dans roms/pcengine, sans avertissement', async () => {
+  await withProject({ 'roms/pcengine/Bonk\'s Adventure (USA).pce': 'x', 'roms/pcengine/Daimakaimura (Japan).sgx': 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.deepEqual(result.games.map((g) => [g.system, g.title]), [['pcengine', 'Bonk\'s Adventure'], ['pcengine', 'Daimakaimura']]);
+    assert.deepEqual(result.warnings, []);
+  });
+});
+
+test('T30 PC Engine CD : un .cue et ses .bin donnent UN jeu (extraFiles), BIOS syscard3.pce présent = aucun avertissement', async () => {
+  await withProject({
+    'roms/pcenginecd/Ys (Japan).cue': cueText('Ys (Track 1).bin', 'Ys (Track 2).bin'),
+    'roms/pcenginecd/Ys (Track 1).bin': 'x', 'roms/pcenginecd/Ys (Track 2).bin': 'x', 'bios/syscard3.pce': 'x',
+  }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.deepEqual(result.games.map((g) => g.file), ['roms/pcenginecd/Ys (Japan).cue']);
+    assert.deepEqual(result.games[0].extraFiles.map((e) => e.as), ['Ys (Track 1).bin', 'Ys (Track 2).bin']);
+    assert.deepEqual(result.warnings, []);
+  });
+});
+
+test('T30 PC Engine CD : sans bios/syscard3.pce, le générateur avertit (BIOS requis absent)', async () => {
+  await withProject({ 'roms/pcenginecd/Jeu.chd': 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.equal(result.games.length, 1);
+    assert.ok(result.warnings.some((w) => w.includes('syscard3.pce')), result.warnings.join('\n'));
+  });
+});
