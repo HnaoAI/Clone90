@@ -5,8 +5,10 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { join } from 'node:path';
 import { PROJECT_ROOT } from '../scripts/project-root.mjs';
-import { fetchFolderSettings, requestFolderChoice } from '../js/folders-client.js';
-import { createFoldersPanel, describeFolderLines, describeChoiceResult, FOLDER_CHOICES, PENDING_TEXT } from '../js/ui/folders-panel.js';
+import { fetchFolderSettings, requestFolderChoice, requestCoversDownload, fetchCoversStatus } from '../js/folders-client.js';
+import {
+  createFoldersPanel, describeFolderLines, describeChoiceResult, describeCoversProgress, describeCoversState, FOLDER_CHOICES, PENDING_TEXT, COVERS_LABEL,
+} from '../js/ui/folders-panel.js';
 import { renderHome } from '../js/ui/machine-grid.js';
 import { createDialog, nextButtonIndex, resolveDialogAction } from '../js/ui/dialog.js';
 
@@ -229,6 +231,152 @@ test('dialogue : createDialog résout la valeur transmise à close, valeur d\'an
   b.open(doc.body);
   b.handleAction('back');
   assert.equal(await b.result, 'annulé');
+});
+
+// --- Pochettes (T28) ---
+test('client pochettes : requestCoversDownload envoie POST {} avec X-Clone90 et JSON, adresse relative, sans paramètre', async () => {
+  const calls = [];
+  assert.deepEqual(await requestCoversDownload(fakeFetch(202, { status: 'started' }, calls)), { status: 'started' });
+  assert.equal(calls[0].url, 'api/covers/download');
+  assert.equal(calls[0].init.method, 'POST');
+  assert.equal(calls[0].init.headers['X-Clone90'], '1');
+  assert.equal(calls[0].init.headers['Content-Type'], 'application/json');
+  assert.equal(calls[0].init.body, '{}');
+});
+
+test('client pochettes : déjà en cours (409), refus, réseau coupé ou réponse illisible = statut busy ou error avec message français', async () => {
+  const busy = await requestCoversDownload(fakeFetch(409, { status: 'busy', message: 'Le téléchargement des pochettes est en cours.' }));
+  assert.deepEqual([busy.status, busy.message], ['busy', 'Le téléchargement des pochettes est en cours.']);
+  for (const f of [fakeFetch(403, { message: 'Hôte refusé' }), fakeFetch(200, new Error('réseau')), fakeFetch(500, 'pas du json'), fakeFetch(202, [])]) {
+    const r = await requestCoversDownload(f);
+    assert.equal(r.status, 'error');
+    assert.match(r.message, /\S/);
+  }
+});
+
+test('client pochettes : fetchCoversStatus lit api/covers sans cache ; null si invalide ou injoignable', async () => {
+  const calls = [];
+  const state = { status: 'running', progress: { phase: 'listing', done: 0, total: 3 } };
+  assert.deepEqual(await fetchCoversStatus(fakeFetch(200, state, calls)), state);
+  assert.equal(calls[0].url, 'api/covers');
+  assert.equal(calls[0].init.cache, 'no-store');
+  for (const f of [fakeFetch(404, {}), fakeFetch(200, new Error('x')), fakeFetch(200, { status: 'bizarre' }), fakeFetch(200, [])]) assert.equal(await fetchCoversStatus(f), null);
+});
+
+test('pochettes : describeCoversProgress dit la liste lue, puis « n sur total » ; rien d\'autre ne change', () => {
+  assert.match(describeCoversProgress({ phase: 'listing', system: 'Amiga', done: 0, total: 5 }), /liste.*Amiga/i);
+  assert.match(describeCoversProgress({ phase: 'downloading', done: 12, total: 80 }), /12 sur 80/);
+  assert.match(describeCoversProgress(undefined), /\S/);
+});
+
+test('pochettes : describeCoversState couvre terminé (avec ou sans nouveautés), erreur, inactif', () => {
+  const done = describeCoversState({ status: 'done', found: 3, lines: ['Pochettes téléchargées : 3', 'Déjà présentes : 1'] });
+  assert.equal(done.tone, 'ok');
+  assert.equal(done.finished, true);
+  assert.match(done.text, /Pochettes téléchargées : 3.*Déjà présentes : 1/);
+  assert.equal(describeCoversState({ status: 'done', found: 0, lines: ['Pochettes téléchargées : 0'] }).tone, 'info');
+  assert.deepEqual([describeCoversState({ status: 'error', message: 'Raté' }).text, describeCoversState({ status: 'error', message: 'Raté' }).tone], ['Raté', 'error']);
+  assert.equal(describeCoversState({ status: 'running', progress: { phase: 'downloading', done: 1, total: 2 } }).finished, false);
+});
+
+function openCoversPanel({ states = [], start = async () => ({ status: 'started' }), coversRunning = false, onChanged = () => {} } = {}) {
+  const doc = fakeDoc();
+  const polled = [];
+  const covers = { start, status: async () => { polled.push(1); return states.shift() ?? { status: 'idle' }; } };
+  const panel = createFoldersPanel({ settings: SETTINGS, choose: async () => ({ status: 'cancelled' }), onChanged, covers, coversRunning, wait: async () => {} }, doc);
+  panel.open(doc.body);
+  return { doc, panel, polled };
+}
+const pressCovers = (panel) => { for (let i = 0; i < 4; i += 1) panel.handleAction('down'); panel.handleAction('confirm'); };
+const settle = async () => { for (let i = 0; i < 10; i += 1) await tick(); };
+
+test('panneau pochettes : le bouton « Télécharger les pochettes » est entre les quatre choix et Fermer, seulement si l\'API des pochettes est fournie', () => {
+  assert.equal(COVERS_LABEL, 'Télécharger les pochettes');
+  const { panel } = openCoversPanel();
+  assert.deepEqual(buttonsOf(panel.element).map((b) => b.textContent), [...FOLDER_CHOICES.map((c) => c.label), COVERS_LABEL, 'Fermer']);
+  assert.ok(buttonsOf(panel.element).every((b) => b.dataset.nav === ''));
+  assert.match(textOf(panel.element), /libretro-thumbnails/);
+  assert.match(textOf(panel.element), /usage personnel/);
+  const plain = openPanel({ choose: async () => ({ status: 'cancelled' }) });
+  assert.ok(!buttonsOf(plain.panel.element).some((b) => b.textContent === COVERS_LABEL));
+});
+
+test('panneau pochettes : progression annoncée dans la zone role=status, puis résumé, accueil rechargé une fois si des pochettes sont arrivées', async () => {
+  let changed = 0;
+  const { panel } = openCoversPanel({
+    onChanged: () => { changed += 1; },
+    states: [
+      { status: 'running', progress: { phase: 'listing', system: 'Amiga', done: 0, total: 4 } },
+      { status: 'running', progress: { phase: 'downloading', done: 2, total: 4 } },
+      { status: 'done', found: 2, lines: ['Pochettes téléchargées : 2', 'Déjà présentes : 1', 'Introuvables : 1'] },
+    ],
+  });
+  const status = statusOf(panel.element);
+  pressCovers(panel);
+  assert.match(status.textContent, /\S/, 'message immédiat');
+  await settle();
+  assert.match(status.textContent, /Pochettes téléchargées : 2.*Introuvables : 1/);
+  assert.equal(changed, 1);
+  assert.ok(buttonsOf(panel.element).every((b) => b.attrs['aria-disabled'] !== 'true'), 'boutons réactivés');
+});
+
+test('panneau pochettes : pendant le téléchargement, les autres choix sont désactivés et les appuis ignorés', async () => {
+  const startCalls = [];
+  const { panel } = openCoversPanel({ start: async () => { startCalls.push(1); return { status: 'started' }; }, states: [{ status: 'running', progress: { phase: 'downloading', done: 1, total: 9 } }] });
+  pressCovers(panel);
+  assert.equal(buttonsOf(panel.element)[0].attrs['aria-disabled'], 'true');
+  assert.equal(buttonsOf(panel.element)[4].attrs['aria-disabled'], 'true');
+  panel.handleAction('confirm');
+  await tick();
+  assert.equal(startCalls.length, 1, 'une seule demande');
+});
+
+test('panneau pochettes : aucune pochette nouvelle = accueil non rechargé ; erreur, déjà en cours ou refus = message, rien d\'autre', async () => {
+  for (const [start, states, expected] of [
+    [async () => ({ status: 'started' }), [{ status: 'done', found: 0, lines: ['Pochettes téléchargées : 0'] }], /téléchargées : 0/],
+    [async () => ({ status: 'started' }), [{ status: 'error', message: 'Le téléchargement des pochettes a échoué.' }], /a échoué/],
+    [async () => ({ status: 'busy', message: 'Le téléchargement des pochettes est en cours.' }), [], /est en cours/],
+    [async () => ({ status: 'error', message: 'Impossible de joindre Clone90.' }), [], /Impossible/],
+  ]) {
+    let changed = 0;
+    const { panel } = openCoversPanel({ start, states, onChanged: () => { changed += 1; } });
+    pressCovers(panel);
+    await settle();
+    assert.match(statusOf(panel.element).textContent, expected);
+    assert.equal(changed, 0);
+  }
+});
+
+test('panneau pochettes : le serveur ne répond plus pendant le suivi = message d\'erreur et boutons réactivés (pas de boucle infinie)', async () => {
+  const doc = fakeDoc();
+  const covers = { start: async () => ({ status: 'started' }), status: async () => null };
+  const panel = createFoldersPanel({ settings: SETTINGS, choose: async () => ({ status: 'cancelled' }), onChanged: () => {}, covers, wait: async () => {} }, doc);
+  panel.open(doc.body);
+  pressCovers(panel);
+  await settle();
+  assert.match(statusOf(panel.element).textContent, /Impossible de joindre/);
+  assert.notEqual(buttonsOf(panel.element)[0].attrs['aria-disabled'], 'true');
+});
+
+test('panneau pochettes : rouvert pendant un téléchargement, le suivi reprend sans en relancer un', async () => {
+  const startCalls = [];
+  const { panel, polled } = openCoversPanel({ coversRunning: true, start: async () => { startCalls.push(1); return { status: 'started' }; },
+    states: [{ status: 'done', found: 1, lines: ['Pochettes téléchargées : 1'] }] });
+  await settle();
+  assert.equal(startCalls.length, 0);
+  assert.ok(polled.length >= 1);
+  assert.match(statusOf(panel.element).textContent, /téléchargées : 1/);
+});
+
+test('panneau pochettes : fermer le panneau arrête le suivi (plus de requêtes)', async () => {
+  const { panel, polled } = openCoversPanel({ states: Array.from({ length: 50 }, () => ({ status: 'running', progress: { phase: 'downloading', done: 1, total: 9 } })) });
+  pressCovers(panel);
+  await tick();
+  panel.handleAction('back');
+  await panel.result;
+  const before = polled.length;
+  await settle();
+  assert.ok(polled.length <= before + 1);
 });
 
 // --- Service worker ---
