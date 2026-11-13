@@ -6,7 +6,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROJECT_ROOT } from '../scripts/project-root.mjs';
 import { createMacLinkSource, createBrowserLinkSource, BLOCKED_TEXT } from '../js/link-download.js';
-import { machineOptions, initialChoices, selectedItems, missingMachines, downloadLabel, describeFound, describeLinksProgress, describePrivacy, WARNING_TEXT } from '../js/ui/link-screen.js';
+import { machineOptions, initialChoices, selectedItems, missingMachines, downloadLabel, describeFound, describeLinksProgress, describePrivacy, WARNING_TEXT,
+  describeScanResult, describeSourcePage, DEFAULT_DEPTH } from '../js/ui/link-screen.js';
 import { parseHash, buildHash, LINKS_SEGMENT } from '../js/router.js';
 import { resolveRoute } from '../js/screens.js';
 
@@ -50,21 +51,44 @@ test('T34 sélection : cochés d\'avance seulement si la machine est connue ; sa
   assert.equal(describeLinksProgress({ done: 0, total: 2, name: 'amiga/a.adf' }), 'Téléchargement : 1 sur 2 (amiga/a.adf)...');
 });
 
-test('T34 source Mac : analyse par api/links/scan (en-tête X-Clone90, adresse seule), message d\'erreur du serveur repris', async () => {
+test('T34/T36 source Mac : analyse lancée par api/links/scan (en-tête X-Clone90, adresse et profondeur), suivie jusqu\'à la fin, erreur reprise', async () => {
   const calls = [];
+  let states = [];
   const fetchFn = async (url, init) => {
     calls.push({ url, init });
-    const { url: page } = JSON.parse(init.body);
-    return page.includes('prive') ? response(200, { status: 'error', message: 'refusé' }) : response(200, { status: 'ok', url: page, files: [], truncated: false });
+    if (url === 'api/links/scan') return response(202, { status: 'started' });
+    return response(200, states.shift());
   };
-  const source = createMacLinkSource({ fetchFn });
-  assert.equal((await source.scan('https://a.org/')).status, 'ok');
-  assert.deepEqual(await source.scan('http://prive/'), { status: 'error', message: 'refusé' });
-  assert.equal(calls[0].url, 'api/links/scan');
+  const source = createMacLinkSource({ fetchFn, wait: async () => {} });
+  states = [{ status: 'running', progress: { pages: 1, queued: 3, files: 0 } }, { status: 'done', url: 'https://a.org/', files: [], stats: { pages: 3, links: 9 } }];
+  const progress = [];
+  const ok = await source.scan('https://a.org/', { depth: 1, onProgress: (p) => progress.push(p) });
+  assert.equal(ok.status, 'ok');
+  assert.deepEqual(ok.stats, { pages: 3, links: 9 });
+  assert.deepEqual(progress, [{ pages: 1, queued: 3, files: 0 }]);
   assert.equal(calls[0].init.headers['X-Clone90'], '1');
-  assert.deepEqual(JSON.parse(calls[0].init.body), { url: 'https://a.org/' });
+  assert.deepEqual(JSON.parse(calls[0].init.body), { url: 'https://a.org/', depth: 1 });
+  states = [{ status: 'error', message: 'refusé' }];
+  assert.deepEqual(await source.scan('http://prive/'), { status: 'error', message: 'refusé' });
   const down = createMacLinkSource({ fetchFn: async () => { throw new TypeError('x'); } });
   assert.match((await down.scan('https://a.org/')).message, /Impossible de joindre Clone90/);
+});
+
+test('T36 source Mac : « Arrêter » envoie api/links/scan/stop', async () => {
+  const calls = [];
+  const stop = new AbortController();
+  let n = 0;
+  const fetchFn = async (url, init) => {
+    calls.push(url);
+    if (url === 'api/links/scan') return response(202, { status: 'started' });
+    if (url === 'api/links/scan/stop') return response(200, { status: 'stopping' });
+    n += 1;
+    if (n === 2) stop.abort();
+    return response(200, n < 3 ? { status: 'running', progress: {} } : { status: 'done', files: [], stopped: true });
+  };
+  const r = await createMacLinkSource({ fetchFn, wait: async () => {} }).scan('https://a.org/', { signal: stop.signal });
+  assert.equal(r.stopped, true);
+  assert.ok(calls.includes('api/links/scan/stop'));
 });
 
 test('T34 source Mac : téléchargement lancé puis suivi jusqu\'à la fin, avancement transmis', async () => {
@@ -104,4 +128,21 @@ test('T34 téléphone : page lisible : fichiers trouvés, puis rangés dans « M
   assert.match(result.lines[3], /refuse la lecture depuis un navigateur/);
   assert.ok(stored.has('roms/amiga/a.adf') && stored.has('bios/neogeo.zip'));
   assert.ok(sent.every((i) => i.credentials === 'omit' && i.referrerPolicy === 'no-referrer'), 'aucun cookie ni référent');
+});
+
+test('T36 écran : profondeur 1 par défaut, fin d\'analyse expliquée (vide, arrêtée, plusieurs pages), page d\'origine, nom transmis', () => {
+  assert.equal(DEFAULT_DEPTH, '1');
+  assert.match(describeScanResult({ files: [], stats: { pages: 4, links: 20 } }).text, /^20 liens lus sur 4 pages, aucun fichier/);
+  assert.equal(describeScanResult({ files: [], stats: { pages: 4, links: 20 } }).tone, 'error');
+  assert.match(describeScanResult({ files: [{}, {}], stopped: true, stats: { pages: 5 } }).text, /^Analyse arrêtée\. 2 fichiers trouvés sur 5 pages\./);
+  assert.equal(describeSourcePage('https://exemple.org/jeux/Mon%20jeu?id=3'), 'exemple.org/jeux/Mon jeu?id=3');
+  const files = [{ url: 'https://a.org/download?id=1', name: 'x.adf', target: 'amiga', named: true }];
+  assert.deepEqual(selectedItems(files, initialChoices(files)), [{ url: 'https://a.org/download?id=1', target: 'amiga', name: 'x.adf' }]);
+});
+
+test('T36 téléphone : sous-pages lues par le navigateur quand le site l\'autorise', async () => {
+  const pages = { 'https://a.org/': '<a href="/jeu">j</a>', 'https://a.org/jeu': '<a href="/f/z.sms">z</a>' };
+  const fetchFn = async (url) => (url in pages ? response(200, pages[url], { url }) : response(404, ''));
+  const r = await createBrowserLinkSource({ systems, openLibrary: async () => ({}), fetchFn }).scan('https://a.org/', { depth: 1 });
+  assert.deepEqual(r.files.map((f) => f.name), ['z.sms']);
 });

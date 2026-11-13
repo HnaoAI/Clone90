@@ -41,9 +41,11 @@ export function checkPageAddress(text) {
 }
 
 /**
- * Liens absolus http(s) d'une page : attributs href et src (guillemets doubles, simples ou sans), balise <base> respectée, sans ancre, sans doublon.
+ * Liens absolus http(s) d'une page, sans ancre, sans doublon, balise <base> respectée. Lus dans (T36) : attributs href et src, attributs data-*
+ * dont le nom parle d'adresse ou de fichier (data-url, data-href, data-file, data-download...), redirection <meta refresh>, et adresses
+ * absolues écrites en clair dans le texte ou les scripts (y compris `https:\/\/` échappé en JSON).
  * @param {string} html @param {string} pageUrl adresse finale de la page (après redirections)
- * @returns {string[]} dans l'ordre de la page
+ * @returns {string[]} attributs d'abord (ordre de la page), puis adresses en clair
  */
 export function extractLinks(html, pageUrl) {
   const text = String(html ?? '');
@@ -52,16 +54,20 @@ export function extractLinks(html, pageUrl) {
   if (baseTag) { try { base = new URL(decodeEntities(baseTag[1] ?? baseTag[2] ?? baseTag[3]), pageUrl).href; } catch { /* base illisible : on garde la page */ } }
   const seen = new Set();
   const links = [];
-  const attr = /\b(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'<>`]+))/gi;
-  for (const m of text.replace(/<base\b[^>]*>/gi, '').matchAll(attr)) {
-    const value = decodeEntities((m[1] ?? m[2] ?? m[3]).trim());
-    if (!value) continue;
+  const add = (raw) => {
+    const value = decodeEntities(raw.trim());
+    if (!value) return;
     let url;
-    try { url = new URL(value, base); } catch { continue; }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
+    try { url = new URL(value, base); } catch { return; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
     url.hash = '';
     if (!seen.has(url.href)) { seen.add(url.href); links.push(url.href); }
-  }
+  };
+  const body = text.replace(/<base\b[^>]*>/gi, '');
+  const attr = /\s(?:href|src|data-[\w-]*(?:url|href|src|file|download|link)[\w-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'<>`]+))/gi;
+  for (const m of body.matchAll(attr)) add(m[1] ?? m[2] ?? m[3]);
+  for (const m of body.matchAll(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh[^>]*content\s*=\s*["'][^"']*?url\s*=\s*([^"'>\s]+)/gi)) add(m[1]);
+  for (const m of body.replace(/\\\//g, '/').matchAll(/https?:\/\/[^\s"'<>()\\`]+/gi)) add(m[0].replace(/[.,;:!?]+$/, ''));
   return links;
 }
 
@@ -110,12 +116,11 @@ export function guessSystemFromPath(url, candidates) {
 /**
  * Nature d'un fichier pour Clone90.
  * Un nom de BIOS déclaré dans systems.json (sans tenir compte de la casse) est un BIOS, même si son extension est aussi celle d'un jeu (neogeo.zip).
- * @param {string} url @param {object[]} systems
+ * @param {string} url @param {object[]} systems @param {string|null} [name] nom du fichier, si l'adresse ne le donne pas (T36 : Content-Disposition)
  * @returns {{name: string, kind: 'bios', target: 'bios', candidates: []} | {name: string, kind: 'rom', target: string|null, candidates: string[]} | null}
  *   `target` : machine devinée (null : à choisir) ; `candidates` : machines qui acceptent cette extension ; null si le type n'est pas reconnu
  */
-export function classifyFile(url, systems) {
-  const name = fileNameFromUrl(url);
+export function classifyFile(url, systems, name = fileNameFromUrl(url)) {
   if (!name) return null;
   const declared = systems.flatMap((s) => s.bios ?? []).map((b) => b.file).filter((f) => typeof f === 'string');
   const bios = declared.find((f) => f.toLowerCase() === name.toLowerCase());
@@ -126,6 +131,52 @@ export function classifyFile(url, systems) {
   if (!candidates.length) return null;
   const target = candidates.length === 1 ? candidates[0].id : guessSystemFromPath(url, candidates);
   return { name, kind: 'rom', target, candidates: candidates.map((s) => s.id) };
+}
+
+/** Nettoie un nom de fichier venu d'un site : dernier segment, sans caractère de contrôle ni point initial. @returns {string|null} */
+export function sanitizeName(name) {
+  // eslint-disable-next-line no-control-regex
+  const cleaned = String(name ?? '').split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, '').trim().replace(/^\.+/, '');
+  return cleaned && cleaned.length <= 255 ? cleaned : null;
+}
+
+/**
+ * Nom de fichier d'un en-tête Content-Disposition (T36) : `filename*=UTF-8''...` d'abord, sinon `filename="..."`.
+ * @param {string|undefined} header @returns {string|null} nom nettoyé, ou null
+ */
+export function fileNameFromDisposition(header) {
+  const text = String(header ?? '');
+  const star = /filename\*\s*=\s*(?:[\w-]+)?'[^']*'([^;]+)/i.exec(text);
+  if (star) { try { return sanitizeName(decodeURIComponent(star[1].trim().replace(/^"|"$/g, ''))); } catch { /* encodage illisible : on essaie filename= */ } }
+  const plain = /filename\s*=\s*(?:"([^"]*)"|([^;]+))/i.exec(text);
+  return plain ? sanitizeName((plain[1] ?? plain[2]).trim()) : null;
+}
+
+/** Extensions des pages web (liens à explorer, T36). Un dernier segment sans point est aussi une page. */
+const PAGE_EXTENSIONS = ['html', 'htm', 'shtml', 'php', 'asp', 'aspx', 'jsp', 'cgi'];
+const sameSite = (a, b) => a.replace(/^www\./, '') === b.replace(/^www\./, '');
+
+/**
+ * Vrai si le lien mène sans doute à une autre page du même site (à explorer, T36) : même site (www. ignoré), dernier segment sans extension ou
+ * d'une extension de page. Les fichiers (images, styles, scripts, documents) ne sont jamais explorés.
+ * @param {string} url @param {string} startUrl adresse donnée par la personne
+ */
+export function isPageLink(url, startUrl) {
+  let u; let s;
+  try { u = new URL(url); s = new URL(startUrl); } catch { return false; }
+  if (!sameSite(u.hostname, s.hostname)) return false;
+  const last = u.pathname.split('/').pop() ?? '';
+  return !last.includes('.') || PAGE_EXTENSIONS.includes(extensionOf(last));
+}
+
+/**
+ * Vrai si le lien ressemble à un téléchargement sans nom de fichier (`/download?id=12`, `/get/34`, `/dl/...`) : à interroger pour lire le nom (T36).
+ * @param {string} url
+ */
+export function isDownloadLike(url) {
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  return /(^|[^a-z])(download|downloads|dl|get|getfile|file|files|fetch|telecharger|telechargement)([^a-z]|$)/i.test(`${u.pathname}?${u.search}`);
 }
 
 /**
@@ -144,7 +195,8 @@ export function findDownloadableFiles(html, pageUrl, systems) {
 
 /**
  * Vérifie un choix de téléchargement (relais du Mac et téléphone) : la machine accepte l'extension, ou le nom est un BIOS déclaré.
- * @param {{url: string, target: string}} item `target` : id de machine ou 'bios'
+ * @param {{url: string, target: string, name?: string}} item `target` : id de machine ou 'bios' ; `name` (T36) : nom lu dans Content-Disposition,
+ *   pour un lien sans nom de fichier (revérifié ici comme un nom d'adresse)
  * @param {object[]} systems
  * @returns {{ok: true, url: string, name: string, target: string} | {ok: false, message: string}} `name` : nom à écrire (nom exact déclaré pour un BIOS)
  */
@@ -152,16 +204,18 @@ export function checkDownloadItem(item, systems) {
   if (!item || typeof item.url !== 'string' || typeof item.target !== 'string') return { ok: false, message: 'Choix invalide.' };
   const address = checkPageAddress(item.url);
   if (!address.ok || !/^https?:\/\//i.test(item.url.trim())) return { ok: false, message: 'Adresse refusée.' };
-  const info = classifyFile(address.url, systems);
+  if (item.name !== undefined && (typeof item.name !== 'string' || !sanitizeName(item.name))) return { ok: false, message: 'Nom de fichier illisible.' };
+  const name = item.name !== undefined ? sanitizeName(item.name) : fileNameFromUrl(address.url);
+  const info = classifyFile(address.url, systems, name);
   if (!info) return { ok: false, message: 'Type de fichier non reconnu.' };
   if (item.target === 'bios') {
     return info.kind === 'bios' ? { ok: true, url: address.url, name: info.name, target: 'bios' } : { ok: false, message: 'Ce nom n\'est pas celui d\'un BIOS attendu.' };
   }
   const system = systems.find((s) => s.id === item.target);
   if (!system) return { ok: false, message: 'Machine inconnue.' };
-  const ext = extensionOf(fileNameFromUrl(address.url));
+  const ext = extensionOf(info.name);
   if (!(system.extensions ?? []).some((e) => e.toLowerCase() === ext)) return { ok: false, message: `${system.name} n'accepte pas les fichiers .${ext}.` };
-  return { ok: true, url: address.url, name: fileNameFromUrl(address.url), target: system.id };
+  return { ok: true, url: address.url, name: info.name, target: system.id };
 }
 
 /**

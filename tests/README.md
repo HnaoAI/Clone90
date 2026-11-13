@@ -47,4 +47,5 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `link-finder.test.mjs` : analyse d'une page (adresse saisie, liens, extensions de systems.json, BIOS, machine devinée, contrôle d'un choix) (T34).
 - `link-relay.test.mjs` : relais du Mac (adresses locales et privées refusées, DNS figé, redirections, tailles, écriture sûre) (T34).
 - `links-api.test.mjs` : API `api/links...` (sécurité T25, corps validé, suivi, verrou partagé) (T34).
+- `link-explorer.test.mjs` : analyse améliorée (data-*, meta refresh, adresses en clair, Content-Disposition, exploration et limites, faux site à deux niveaux par le relais) (T34b).
 - `link-download.test.mjs` : sources Mac et navigateur (CORS refusé, « Mes fichiers »), aides de l'écran, route `#/telecharger` (T34).

@@ -28,6 +28,11 @@ const page = (prefix) => `<html><body><h1>Mes jeux libres</h1><ul>
   <li><a href="notice.pdf">Notice</a></li><li><a href="photo.png">Photo</a></li></ul></body></html>`;
 const site = http.createServer((req, res) => {
   const cors = req.url.startsWith('/ouvert/') ? { 'Access-Control-Allow-Origin': '*' } : {};
+  // T36 : site à deux niveaux, lien sans nom de fichier (Content-Disposition).
+  if (req.url === '/categorie/') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<a href="/jeu/1">Jeu libre</a><a href="/aide.html">aide</a>'); }
+  if (req.url === '/jeu/1') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<a href="/download?id=7">Télécharger</a>'); }
+  if (req.url === '/aide.html') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<p>Rien ici</p>'); }
+  if (req.url === '/download?id=7') { res.writeHead(200, { 'Content-Disposition': 'attachment; filename="Sous Page.adf"' }); return res.end('ADF'); }
   if (req.url === '/jeux/' || req.url === '/ouvert/') { res.writeHead(200, { 'Content-Type': 'text/html', ...cors }); return res.end(page('')); }
   if (/\.(adf|zip|nes|pce)$/.test(req.url)) { res.writeHead(200, { 'Content-Type': 'application/octet-stream', ...cors }); return res.end(`FICHIER ${req.url}`); }
   res.writeHead(404); res.end();
@@ -40,7 +45,7 @@ let macServer;
 const api = createSettingsApi({
   root, enabled: true, getPort: () => macServer.address().port, applyFolders: (f) => macServer.setFolders(f), chooseFolder: async () => null,
   regenerate: () => runGenerate({ root, log: () => {}, logError: () => {} }),
-  scanLinks: (url, systems) => scanPage(url, systems, relay),
+  scanLinks: (url, systems, options) => scanPage(url, systems, { ...options, ...relay }),
   fetchLinks: (items, options) => downloadLinks(items, { ...options, ...relay }),
 });
 macServer = createStaticServer({ root, api });
@@ -100,6 +105,27 @@ try {
   await mac.locator('[data-nav-id="link-download"]').click();
   await mac.waitForFunction(() => /Déjà présents : 3/.test(document.querySelector('.link-status')?.textContent ?? ''), null, { timeout: 10000 });
   verdict('T34-deja-presents', true, await mac.locator('.link-status').textContent());
+  // T36 : 2 niveaux, fichier trouvé sur une sous-page, sans nom dans l'adresse
+  await mac.fill('#link-url', `${SITE}/categorie/`);
+  await mac.selectOption('#link-depth', '2');
+  await mac.getByRole('button', { name: 'Analyser' }).click();
+  await mac.locator('.link-file').first().waitFor({ timeout: 10000 });
+  const sub = await mac.locator('.link-toggle').allTextContents();
+  verdict('T36-sous-page', JSON.stringify(sub) === JSON.stringify(['Sous Page.adf']), sub.join(', '));
+  verdict('T36-page-origine', /\/jeu\/1/.test(await mac.locator('.link-file-page').first().textContent()), await mac.locator('.link-file-page').first().textContent());
+  verdict('T36-message', /sur 3 pages/.test(await mac.locator('.link-status').textContent()), await mac.locator('.link-status').textContent());
+  await shot(mac, 'mac-4-sous-page');
+  await mac.locator('[data-nav-id="link-download"]').click();
+  await mac.locator('.link-status.is-ok').waitFor({ timeout: 10000 });
+  verdict('T36-telecharge-nom', (await readdir(join(root, 'roms', 'amiga'))).includes('Sous Page.adf'));
+  await mac.fill('#link-url', `${SITE}/categorie/`);
+  await mac.selectOption('#link-depth', '0');
+  await mac.getByRole('button', { name: 'Analyser' }).click();
+  await mac.locator('.link-status.is-error').waitFor({ timeout: 10000 });
+  const empty = await mac.locator('.link-status').textContent();
+  verdict('T36-analyse-vide-expliquee', /2 liens lus sur 1 page, aucun fichier/.test(empty), empty);
+  await shot(mac, 'mac-5-vide');
+  await mac.locator('[data-nav-id="link-scan"]').focus(); // Échap dans le champ d'adresse appartient au champ (couche d'entrée)
   await mac.keyboard.press('Escape');
   await mac.locator('.links-button').waitFor();
   verdict('T34-retour-accueil', true);

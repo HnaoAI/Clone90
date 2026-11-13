@@ -38,12 +38,12 @@ button[disabled], .back-button[disabled] { opacity: 0.5; cursor: not-allowed; }
 .link-form { margin: 24px 4px 16px; }
 .link-label { display: block; margin: 0 0 8px; font-weight: 700; }
 .link-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
-.link-input, .link-machine {
+.link-input, .link-machine, .link-depth {
   min-height: 44px; padding: 8px 12px; font: inherit; color: var(--text); background: var(--panel); border: 0; box-shadow: var(--frame);
 }
 .link-input { flex: 1 1 16rem; min-width: 0; }
 .link-input::placeholder { color: var(--text-muted); }
-.link-input:focus-visible, .link-machine:focus-visible { outline: 4px solid var(--focus); outline-offset: 4px; }
+.link-input:focus-visible, .link-machine:focus-visible, .link-depth:focus-visible { outline: 4px solid var(--focus); outline-offset: 4px; }
 .link-screen .link-status { margin: 0 4px 16px; }
 .link-bulk { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 4px 16px; }
 .link-file { gap: 12px; }
@@ -60,3 +60,10 @@ button[disabled], .back-button[disabled] { opacity: 0.5; cursor: not-allowed; }
   .link-row .button, .link-results > .button { width: 100%; justify-content: center; }
   .link-machine { flex: 1 1 100%; }
 }
+/* T36 : profondeur d'analyse, bouton Arrêter, page d'origine sous chaque fichier. */
+.link-depth-row { margin-top: 16px; }
+.link-depth-row .link-label { margin: 0; }
+.link-file-label { flex: 1 1 14rem; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.link-file-page { padding-left: 36px; font-size: 0.8125rem; overflow-wrap: anywhere; }
+.link-stop[hidden] { display: none; }
+.link-file-label .link-toggle { flex: 0 0 auto; }
