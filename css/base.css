@@ -262,6 +262,7 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
 .covers-progress::-webkit-progress-value { background: var(--accent); }
 .covers-progress::-moz-progress-bar { background: var(--accent); }
 .covers-progress[hidden] { display: none; }
+.dialog-button[hidden] { display: none; } /* T35 : boutons cachés pendant la mise à jour (js/ui/update-dialog.js) */
 
 /* Marge de défilement : scrollIntoView (js/input/focus-nav.js) garde visibles le cadre (4 px), l'anneau de focus (4 px + décalage) et la mise à l'échelle 1.05 (CA-N6). */
 [data-nav] { scroll-margin: 32px; }

@@ -1,6 +1,7 @@
 // Serveur statique local de Clone90, sans dépendance (Node 18+). Voir docs/architecture.md section 9.
 // Usage : node scripts/serve.mjs [--port 8080]   (ou PORT=8080). Sert la racine du projet (liste blanche).
 import http from 'node:http';
+import { spawn } from 'node:child_process';
 import { createReadStream } from 'node:fs';
 import { stat, realpath } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
@@ -252,6 +253,27 @@ export function createStaticServer({ root, romsDir, biosDir, api }) {
   return server;
 }
 
+/**
+ * Relance du serveur après une mise à jour (T35) : ferme l'écoute (port libéré), puis lance un nouveau `node scripts/serve.mjs` avec les mêmes options.
+ * INVARIANT : ce processus reste en vie et relaie les signaux au nouveau serveur, puis quitte avec lui : les lanceurs du Mac (Lancer Clone90.command,
+ *   Clone90.app) suivent le pid du serveur qu'ils ont démarré, l'arrêt (fenêtre fermée, Quitter) arrête donc aussi le nouveau serveur.
+ * @param {{server: http.Server, spawnFn?: typeof spawn, proc?: NodeJS.Process}} options injectables pour les tests
+ * @returns {() => void}
+ */
+export function createRestarter({ server, spawnFn = spawn, proc = process }) {
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    server.close(() => {
+      const child = spawnFn(proc.execPath, proc.argv.slice(1), { stdio: 'inherit', cwd: PROJECT_ROOT });
+      for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) proc.on(sig, () => child.kill(sig));
+      child.on('exit', (code, signal) => proc.exit(code ?? (signal ? 1 : 0)));
+    });
+    server.closeAllConnections?.();
+  };
+}
+
 /** Adresses IPv4 non locales de la machine, pour jouer depuis un téléphone du même réseau. */
 function networkUrls(port) {
   return Object.values(networkInterfaces()).flat()
@@ -273,8 +295,10 @@ async function main() {
   const api = createSettingsApi({
     root: PROJECT_ROOT, enabled: isSettingsApiEnabled(host), getPort: () => server.address().port,
     applyFolders: (folders) => server.setFolders(folders), chooseFolder: chooseFolderOnMac, baseHeaders: SECURITY_HEADERS,
+    restart: () => restart(),
   });
   const server = createStaticServer({ root: PROJECT_ROOT, romsDir: settings.romsDir, biosDir: settings.biosDir, api });
+  const restart = createRestarter({ server });
   server.on('error', (err) => {
     console.error(err.code === 'EADDRINUSE'
       ? `Le port ${port} est déjà utilisé. Essayez : node scripts/serve.mjs --port ${port + 1}`

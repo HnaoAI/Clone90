@@ -3,6 +3,7 @@
 // Contrat d'un écran : il rend dans #screen des éléments `data-nav` ; `current.onBack` (facultatif) traite l'action retour.
 // T27 : écran « Mes fichiers » (#/fichiers) ; après un ajout ou une suppression, les données sont rechargées (reload) sans recharger la page.
 // T34 : écran « Depuis une page web » (#/telecharger), source Mac (API locale) si elle répond, sinon navigateur (bibliothèque locale).
+// T35 : vérification des mises à jour 5 s après l'ouverture, fenêtre js/ui/update-dialog.js.
 import { loadData, groupGamesBySystem } from './data.js';
 import { loadLocalGames } from './local-games.js';
 import { openLocalLibrary, canUseLocalLibrary, romStoragePath, biosStoragePath, requestPersistentStorage } from './local-library.js';
@@ -16,6 +17,8 @@ import { fetchFolderSettings, requestFolderChoice, requestCoversDownload, fetchC
 import { createFoldersPanel } from './ui/folders-panel.js';
 import { createLinkScreen, LINK_INPUT_NAV_ID } from './ui/link-screen.js';
 import { createMacLinkSource, createBrowserLinkSource } from './link-download.js';
+import { createMacUpdateSource, createBrowserUpdateSource } from './update-check.js';
+import { openUpdateDialog } from './ui/update-dialog.js';
 import { renderGameGrid, initialFocusId, EMPTY_NAV_ID, ADD_LOCAL_NAV_ID } from './ui/game-grid.js';
 import { renderFatalError } from './ui/error-screen.js';
 import { createToast } from './ui/toast.js';
@@ -29,6 +32,9 @@ const toast = createToast(document.getElementById('toast'));
 watchPointer();
 
 const localSupported = canUseLocalLibrary(window);
+/** T35 : délai avant la vérification des mises à jour, et marque « déjà vérifié dans cet onglet ». */
+const UPDATE_CHECK_DELAY_MS = 5000;
+const UPDATE_CHECKED_KEY = 'clone90-update-checked';
 const loadAll = () => loadData(undefined, localSupported ? (systems) => loadLocalGames(systems) : null);
 
 async function main() {
@@ -52,6 +58,7 @@ async function main() {
   // T25 : le bouton « Dossiers des jeux » n'existe que si l'API locale répond (jamais sur GitHub Pages ni en mode réseau).
   let folderSettings = await fetchFolderSettings();
   let foldersPanel = null;
+  let updateDialog = null;
   const nav = createFocusNavigator({ getRoot: () => screen });
   const router = createRouter(window);
   let current = {};
@@ -209,11 +216,34 @@ async function main() {
   });
   actions.start((action, source) => {
     setGamepadMode(source === 'gamepad');
+    if (updateDialog?.handleAction(action)) return; // T35 : la fenêtre de mise à jour ouverte capte toutes les actions
     if (foldersPanel?.handleAction(action)) return; // le panneau ouvert capte toutes les actions
     if (action === 'back') current.onBack?.();
     else nav.handleAction(action);
   });
   router.start(onRoute);
+  scheduleUpdateCheck();
+
+  /**
+   * T35 : vérification des mises à jour à chaque ouverture de Clone90, 5 s après le lancement (règle de Hicham, 2026-11-13).
+   * Mac (API locale) : le serveur lit la dernière version sur github.com ; sinon (site, téléphone) : version du site relue au réseau.
+   * Une fois par onglet (sessionStorage) : revenir d'un jeu recharge index.html, ce n'est pas une nouvelle ouverture.
+   */
+  function scheduleUpdateCheck() {
+    try {
+      if (sessionStorage.getItem(UPDATE_CHECKED_KEY)) return;
+      sessionStorage.setItem(UPDATE_CHECKED_KEY, '1');
+    } catch { /* stockage refusé : on vérifie quand même */ }
+    setTimeout(async () => {
+      const source = folderSettings ? createMacUpdateSource() : createBrowserUpdateSource();
+      const update = await source.check();
+      if (update.status !== 'available' || foldersPanel) return;
+      const { dialog, done } = openUpdateDialog({ update, source, parent: document.body });
+      updateDialog = dialog;
+      await done;
+      updateDialog = null;
+    }, UPDATE_CHECK_DELAY_MS);
+  }
 }
 
 main();

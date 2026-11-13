@@ -1,7 +1,8 @@
 // API locale des dossiers de jeux (T25), des pochettes (T28) et des logos des machines (T29) : GET /api/settings, POST /api/settings/choose,
 // GET /api/covers, POST /api/covers/download, GET /api/logos, POST /api/logos/download,
 // et (T34, « Télécharger depuis une page ») POST /api/links/scan, GET /api/links/scan/state, POST /api/links/scan/stop (T36 : analyse en
-// arrière-plan, exploration du site), POST /api/links/download, GET /api/links.
+// arrière-plan, exploration du site), POST /api/links/download, GET /api/links,
+// et (T35, mises à jour) POST /api/update/check, POST /api/update/apply, GET /api/update.
 // Branchée par serve.mjs. Dépend de local-settings.mjs, generate-games.mjs (régénération), covers.mjs et machine-logos.mjs, sans les dupliquer.
 // INVARIANT (sécurité) : active seulement si le serveur n'écoute que sur ce Mac (serve.mjs, isSettingsApiEnabled). Chaque requête doit
 //   avoir un en-tête Host localhost:<port> ou 127.0.0.1:<port> (anti DNS rebinding), une Origin identique (ou aucune avec X-Clone90: 1),
@@ -12,11 +13,13 @@
 //   T34 : les liens aussi (même verrou). Seul ce travail reçoit des paramètres : `{items: [{url, target}]}` (64 Ko au plus), chaque choix est revérifié
 //   par link-relay.mjs (adresse publique, extension acceptée par la machine, nom de BIOS déclaré). T36 : l'analyse est un travail à part (pas le verrou des
 //   téléchargements, elle n'écrit rien), une à la fois, arrêtable ; corps `{url, depth?}` (depth 0 à 2).
+//   T35 : la mise à jour (updater.mjs) est un travail de plus (corps `{}`, même verrou) ; une fois faite, `restart` (serve.mjs) relance le serveur.
 import { readLocalSettings, updateLocalSettings, folderProblemKind } from './local-settings.mjs';
 import { runGenerate } from './generate-games.mjs';
 import { runCovers, formatSummary } from './covers.mjs';
 import { runLogos, formatLogosSummary } from './machine-logos.mjs';
 import { scanPage, downloadLinks, formatLinksSummary, RelayError, MAX_ITEMS } from './link-relay.mjs';
+import { checkForUpdate, applyUpdate } from './updater.mjs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -47,12 +50,17 @@ const ERROR_TEXT = {
   linksFailed: 'Le téléchargement des fichiers a échoué. Vérifiez votre connexion à Internet.',
   scanBusy: 'Une analyse de page est déjà en cours.',
   scanFailed: 'La page n\'a pas pu être analysée.',
+  updateBusy: 'Une mise à jour est en cours.',
+  updateFailed: 'La mise à jour a échoué. Rien n\'a été changé.',
 };
 /** Routes connues : chemin -> méthode attendue. */
 const ROUTES = { '/api/settings': 'GET', '/api/settings/choose': 'POST', '/api/covers': 'GET', '/api/covers/download': 'POST', '/api/logos': 'GET', '/api/logos/download': 'POST',
-  '/api/links': 'GET', '/api/links/download': 'POST', '/api/links/scan': 'POST', '/api/links/scan/state': 'GET', '/api/links/scan/stop': 'POST' };
+  '/api/links': 'GET', '/api/links/download': 'POST', '/api/links/scan': 'POST', '/api/links/scan/state': 'GET', '/api/links/scan/stop': 'POST',
+  '/api/update': 'GET', '/api/update/apply': 'POST', '/api/update/check': 'POST' };
 /** Téléchargements en arrière-plan (T28, T29) : état lu par GET /api/<nom>, lancé par POST /api/<nom>/download. */
-const JOB_NAMES = ['covers', 'logos', 'links'];
+const JOB_NAMES = ['covers', 'logos', 'links', 'update'];
+/** Route de lancement d'un travail (`/api/<nom>/download`, sauf la mise à jour : `/api/update/apply`). */
+const startPath = (name) => `/api/${name}/${name === 'update' ? 'apply' : 'download'}`;
 
 /** Corps vide `{}` exigé (pochettes, logos : le serveur décide de tout). @returns {object|null} */
 const parseEmpty = (data) => (Object.keys(data).length ? null : {});
@@ -128,6 +136,9 @@ function parseKind(text) {
  * @param {(url: string, systems: object[], options: {depth: number, signal: AbortSignal, onProgress: Function}) => Promise<object>} [options.scanLinks]
  *   analyse d'une page et de son site (T34, T36, `scanPage` par défaut), injectable
  * @param {(items: object[], options: object) => Promise<object>} [options.fetchLinks] téléchargement des fichiers choisis (T34, `downloadLinks`), injectable
+ * @param {() => Promise<object>} [options.checkUpdate] vérification de mise à jour (T35, `checkForUpdate` par défaut), injectable
+ * @param {() => Promise<{ok: boolean, version?: string, message?: string}>} [options.runUpdate] application de la mise à jour (T35, `applyUpdate`)
+ * @param {() => void} [options.restart] relance du serveur après une mise à jour réussie (T35, fourni par serve.mjs ; sans lui, rien)
  * @param {Record<string, string>} [options.baseHeaders] en-têtes de toutes les réponses (nosniff)
  */
 export function createSettingsApi({ root, enabled, getPort, applyFolders, chooseFolder, baseHeaders = { 'X-Content-Type-Options': 'nosniff' },
@@ -135,10 +146,22 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
   downloadCovers = (options) => runCovers({ root, ...options }),
   downloadLogos = (options) => runLogos({ root, ...options }),
   scanLinks = (url, systems, options) => scanPage(url, systems, options),
-  fetchLinks = (items, options) => downloadLinks(items, options) }) {
+  fetchLinks = (items, options) => downloadLinks(items, options),
+  checkUpdate = () => checkForUpdate({ root }),
+  runUpdate = () => applyUpdate({ root }),
+  restart = () => {} }) {
   let busy = false;
   // Par travail : idle | running (progress) | done (found, lines) | error (message) ; `id` = numéro du travail, pour que le client ne traite qu'une fois sa fin
-  const jobs = { covers: { status: 'idle' }, logos: { status: 'idle' }, links: { status: 'idle' } };
+  const jobs = { covers: { status: 'idle' }, logos: { status: 'idle' }, links: { status: 'idle' }, update: { status: 'idle' } };
+  let checking = false;
+  /** Travail de mise à jour (T35) : pull, puis régénération de games.json (un nouveau générateur peut lister autrement). L'échec porte son message. */
+  async function runUpdateJob({ onProgress }) {
+    onProgress({ phase: 'updating' });
+    const result = await runUpdate();
+    if (!result.ok) throw Object.assign(new Error('mise à jour refusée'), { userMessage: result.message });
+    await regenerate().catch(() => {});
+    return { exitCode: 0, summary: { found: [result.version] }, version: result.version };
+  }
   // T36 : état de l'analyse en cours ou finie : idle | running (progress) | done (url, files, truncated, stopped, stats) | error (message)
   let scanJob = { status: 'idle' };
   let scanAbort = null;
@@ -155,6 +178,8 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
     logos: { run: downloadLogos, summary: (r) => formatLogosSummary(r, { details: false }), busy: ERROR_TEXT.logosBusy, failed: ERROR_TEXT.logosFailed, what: 'logos' },
     links: { run: runLinks, summary: (r) => formatLinksSummary(r.summary), busy: ERROR_TEXT.linksBusy, failed: ERROR_TEXT.linksFailed, what: 'fichiers',
       parse: parseLinkItems, maxBody: MAX_LINKS_BODY_BYTES },
+    update: { run: runUpdateJob, summary: (r) => [`Clone90 est passé en v${r.version}. Redémarrage...`], busy: ERROR_TEXT.updateBusy, failed: ERROR_TEXT.updateFailed,
+      what: 'mises à jour', after: () => setTimeout(restart, 300) },
   };
   let jobCounter = 0;
 
@@ -277,16 +302,30 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
     return send(res, 200, { status: scanJob.status === 'running' ? 'stopping' : scanJob.status });
   }
 
+  /** POST /api/update/check (T35) : corps `{}` -> résultat de checkForUpdate (uptodate, available, error). Une vérification à la fois. */
+  async function handleUpdateCheck(req, res) {
+    const data = await readJson(req, res, MAX_BODY_BYTES);
+    if (data === undefined) return undefined;
+    if (Object.keys(data).length) return send(res, 400, { message: 'Requête invalide' });
+    if (checking) return send(res, 409, { status: 'busy', message: 'Vérification déjà en cours.' });
+    checking = true;
+    try { return send(res, 200, await checkUpdate()); } catch (err) {
+      console.error('Vérification de mise à jour impossible :', err.message);
+      return send(res, 200, { status: 'error', message: 'Impossible de vérifier les mises à jour.' });
+    } finally { checking = false; }
+  }
+
   async function runJob(name, id, params) {
     const spec = jobSpecs[name];
     try {
       const result = await spec.run({ params, onProgress: (progress) => { jobs[name] = { id, status: 'running', progress }; } });
       jobs[name] = result.exitCode === 0
-        ? { id, status: 'done', found: result.summary.found.length, lines: spec.summary(result) }
+        ? { id, status: 'done', found: result.summary.found.length, lines: spec.summary(result), ...(result.version && { version: result.version }) }
         : { id, status: 'error', message: ERROR_TEXT.generate };
+      if (result.exitCode === 0) spec.after?.();
     } catch (err) {
       console.error(`Téléchargement des ${spec.what} impossible :`, err.message);
-      jobs[name] = { id, status: 'error', message: spec.failed };
+      jobs[name] = { id, status: 'error', message: err.userMessage ?? spec.failed };
     }
   }
 
@@ -304,7 +343,8 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
         if (path === '/api/links/scan') return await handleScan(req, res);
         if (path === '/api/links/scan/state') return send(res, 200, scanJob);
         if (path === '/api/links/scan/stop') return await handleScanStop(req, res);
-        const job = JOB_NAMES.find((n) => path === `/api/${n}` || path === `/api/${n}/download`);
+        if (path === '/api/update/check') return await handleUpdateCheck(req, res);
+        const job = JOB_NAMES.find((n) => path === `/api/${n}` || path === startPath(n));
         if (job && method === 'GET') return send(res, 200, jobs[job]);
         if (job) return await handleJobStart(job, req, res);
         if (method === 'GET') return send(res, 200, await currentSettings());
