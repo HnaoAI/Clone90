@@ -678,3 +678,20 @@ test('T30 buildLaunchPlan PC Engine CD (vrai systems.json) : cœur pce, syscard3
   assert.equal(card.globals.EJS_core, 'pce');
   assert.equal('EJS_biosUrl' in card.globals, false);
 });
+
+test('loadEmulator (T32) : nipplejs posé ensuite sur window par EmulatorJS est enveloppé (joystick tactile), sauf pour le schéma N64', async () => {
+  const { win, doc } = fakeEnv();
+  await loadEmulator(buildLaunchPlan({ system: neogeo, game: mslug }), { win, doc, getBytes });
+  const original = { create: () => ({ on: () => {} }) };
+  const create = original.create;
+  win.nipplejs = original; // comme l'enveloppe UMD de nipplejs (window.nipplejs = ...)
+  assert.equal(win.nipplejs, original);
+  assert.notEqual(win.nipplejs.create, create);
+  assert.equal(win.nipplejs.create.clone90Stick, true);
+
+  const n64 = fakeEnv();
+  const plan = buildLaunchPlan({ system: neogeo, game: mslug });
+  await loadEmulator({ ...plan, globals: { ...plan.globals, EJS_core: 'n64' } }, { win: n64.win, doc: n64.doc, getBytes });
+  n64.win.nipplejs = { create };
+  assert.equal(n64.win.nipplejs.create, create);
+});

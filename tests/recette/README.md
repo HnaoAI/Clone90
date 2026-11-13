@@ -12,6 +12,7 @@ Playwright est cherché dans `PLAYWRIGHT_PATH` (défaut : `~/node_modules/playwr
 - `robustesse.mjs` : games.json corrompu, systems.json illisible, noms spéciaux, ROM manquante.
 - `mobile-menu.mjs` : Pixel 7 portrait et paysage avec le VRAI EmulatorJS (paquets npm dépaquetés, `EJS_DATA` et `EJS_CORE`) et une ROM NES homebrew : bouton Menu et ☰ hors de l'image du jeu, 48 px, ☰ toujours actif (T28).
 - `manette-tactile.mjs` : même montage que `mobile-menu.mjs` (schéma de manette par défaut forcé par `EJS_controlScheme`, et schéma NES) : joystick gris clair, Select / Start / Slow / Fast hors de l'image et sous le joystick en paysage, toujours actifs ; `CAPTURES=<dossier>` pour les captures (T31).
+- `joystick-tactile.mjs` : même montage, vrais évènements tactiles (CDP) sur le joystick du schéma par défaut : direction envoyée au cœur (`simulateInput`) rejouée ; jamais « gauche » en allant à droite, zone morte, jamais deux directions opposées, 8 directions (T32).
 - `mobile-menu-lib.mjs` : outils de ces deux recettes (CDN EmulatorJS servi en local, mesure de l'image du jeu, recouvrement).
 - `subpath-server.mjs` : serveur statique minimal qui imite GitHub Pages (sous-chemin, pas de roms/, bios/, games.json).
 

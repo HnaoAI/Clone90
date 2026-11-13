@@ -29,7 +29,7 @@ const SHELL_FILES = [
   'js/input/actions.js', 'js/input/focus-nav.js',
   'js/ui/dialog.js', 'js/ui/dom.js', 'js/ui/error-screen.js', 'js/ui/folders-panel.js', 'js/ui/format.js', 'js/ui/game-grid.js',
   'js/ui/input-mode.js', 'js/ui/library-screen.js', 'js/ui/logo.js', 'js/ui/machine-grid.js', 'js/ui/toast.js',
-  'js/player/diagnostic-log.js', 'js/player/diagnostic-panel.js', 'js/player/disk-shortcut.js', 'js/player/ejs-start-watch.js', 'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js', 'js/player/retroarch-cfg.js',
+  'js/player/diagnostic-log.js', 'js/player/diagnostic-panel.js', 'js/player/disk-shortcut.js', 'js/player/ejs-start-watch.js', 'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js', 'js/player/retroarch-cfg.js', 'js/player/virtual-stick.js',
   'js/pwa.js',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/icon-192-maskable.png', 'assets/icons/icon-512-maskable.png',
   'assets/fonts/PressStart2P-Regular.ttf', 'assets/fonts/OFL.txt',
