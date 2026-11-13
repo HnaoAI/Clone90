@@ -104,3 +104,53 @@ test('Boutons en portrait : pas touchés (ils sont déjà sous l\'image du jeu)'
   assert.doesNotMatch(mediaBlock('orientation: portrait'), /ejs_virtualGamepad_bottom/);
   assert.equal(rule(css.replace(/@media[^{]*\{[\s\S]*?\}\s*\}/g, ''), '.player-body .ejs_virtualGamepad_bottom'), null);
 });
+
+// T33 : téléphone en paysage (Hicham, 2026-11-13 : « je ne peux pas lancer de jeu car le bouton disparaît »). Avis ux : écran Jouer en
+// 2 colonnes, bandes de 160 px réservées aux commandes en jeu. Vérification en navigateur réel : tests/recette/paysage.mjs.
+/** Bloc @media de l'écran Jouer en paysage bas (téléphone couché). */
+const lowLandscape = () => mediaBlock('max-height: 500px');
+
+test('Bouton Jouer visible en paysage : bloc paysage bas (téléphone couché, 500 px de haut ou moins)', () => {
+  assert.match(lowLandscape(), /@media\s*\(orientation: landscape\)\s*and\s*\(max-height: 500px\)/);
+});
+
+test('Bouton Jouer visible en paysage : centrage « safe » (le haut de la jaquette n\'est jamais coupé), défilement de secours', () => {
+  const r = rule(lowLandscape(), '.player-screen');
+  assert.ok(r, '.player-screen absent du bloc paysage bas');
+  assert.match(r, /place-items:\s*safe center/);
+  // Marge gauche : le bouton Menu (16 px + ~110 px) ne recouvre ni la jaquette ni le bouton Jouer.
+  assert.match(r, /padding:[^;]*calc\(\s*140px\s*\+\s*env\(safe-area-inset-left/);
+  assert.match(rule(css, '.player-screen'), /overflow-y:\s*auto/);
+});
+
+test('Bouton Jouer visible en paysage : jaquette à gauche, titre, machine, PRÊT ? et Jouer à droite (2 colonnes)', () => {
+  const block = lowLandscape();
+  const screen = rule(block, '.play-screen:not(.play-message)');
+  assert.ok(screen, 'écran Jouer absent du bloc paysage bas (les messages d\'erreur gardent leur pile)');
+  assert.match(screen, /display:\s*grid/);
+  assert.match(screen, /grid-template-columns:/);
+  const cover = rule(block, '.play-screen:not(.play-message) .play-cover');
+  assert.match(cover, /grid-row:\s*1\s*\/\s*span\s*4/);
+  // Taille de la jaquette réglée sur la hauteur visible (dvh : barre d'adresse comprise), plafonnée.
+  assert.match(cover, /width:\s*calc\(\s*min\(\s*100dvh\s*-\s*\d+px\s*,\s*\d+px\s*\)\s*\*\s*0?\.75\s*\)/);
+});
+
+test('Commandes hors de l\'image en paysage : 160 px réservés de chaque côté, l\'image n\'est réduite que si les bandes noires sont plus étroites', () => {
+  const r = rule(landscape(), '.player-body #game .ejs_canvas_parent');
+  assert.ok(r, '.ejs_canvas_parent absent du bloc paysage');
+  // Image 4:3 (ou autre) dessinée par le cœur au centre de la toile, bandes noires comprises : réduire la largeur de la toile ne change
+  // l'image que si elle était plus large que 100 % - 320 px.
+  assert.match(r, /width:\s*calc\(100%\s*-\s*320px\)/);
+  assert.match(r, /margin:\s*0 auto/);
+});
+
+test('Boutons Select, Start, Slow et Fast sous le joystick en paysage : cibles de 40 px de haut (2 rangées dans les 100 px libres sous le joystick)', () => {
+  const block = landscape();
+  assert.match(rule(block, '.player-body .ejs_virtualGamepad_bottom .ejs_virtualGamepad_button') ?? '', /height:\s*40px/);
+  const r = rule(block, '.player-body .ejs_virtualGamepad_bottom');
+  const bottom = -Number(/bottom:\s*-(\d+)px/.exec(r)[1]);
+  const gap = Number(/row-gap:\s*(\d+)px/.exec(r)[1]);
+  // Conteneur à 50 px du bas de l'écran, joystick de 50 à 175 px au-dessus du conteneur : 2 rangées + écart entre 4 px du bas et le joystick.
+  assert.ok(50 + bottom >= 4, 'rangée du bas collée au bord de l\'écran');
+  assert.ok(50 + bottom + 2 * 40 + gap <= 50 + 50 - 4, 'rangée du haut touche le joystick');
+});
