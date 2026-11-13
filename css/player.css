@@ -28,6 +28,10 @@ body.is-playing .player-screen, body.is-playing .player-screen > * { pointer-eve
 
 /* T28 : largeur et hauteur écrites ici car .ejs_parent (emulator.css) impose 100 % : sans elles, le bas des contrôles virtuels sortirait de l'écran. */
 #game { position: fixed; top: var(--player-bar); left: 0; z-index: 1; width: 100%; height: calc(100% - var(--player-bar)); background: var(--line); }
+/* T37 : avec la réglette (ordinateur, js/player/game-scale.js), --game-scale réduit toute la zone du jeu autour de son centre.
+   Une réduction (transform) et non un changement de taille : le lecteur ne recalcule pas son image quand sa zone change de taille
+   (vu à la recette : image décalée vers le haut et trop petite). Sans réglette (téléphone), rien ne change. */
+body.has-game-scale #game { transform: scale(var(--game-scale)); transform-origin: 50% 50%; }
 #game[hidden] { display: none; }
 
 .play-screen {
@@ -231,3 +235,35 @@ body.is-playing .menu-wrap { opacity: 0.6; }
 .diag-body[hidden] { display: none; }
 .diag pre { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
 .diag-title { margin: 8px 0 4px; font: 700 0.75rem/1.4 var(--font-mono); color: var(--accent); }
+
+/* T37 : réglette de taille de l'image, bord droit à mi-hauteur, ordinateur à souris seulement (ajoutée par player-main.js).
+   Comme le bouton Menu : discrète pendant le jeu, cachée après 3 s sans mouvement de souris (.is-idle sur #chrome). Tour noir quand l'image est réduite. */
+body.has-game-scale { background: var(--line); }
+.scale-wrap {
+  position: absolute;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border: 2px solid var(--line);
+  background: var(--bg-deep);
+  pointer-events: auto;
+  opacity: 0.6;
+  transition: opacity 200ms;
+}
+.scale-wrap:hover, .scale-wrap:focus-within { opacity: 1; }
+.is-idle .scale-wrap:not(:focus-within):not(:hover) { opacity: 0; }
+.scale-value { font-family: var(--font-pixel); font-size: 0.625rem; color: var(--text); min-width: 4ch; text-align: center; }
+.scale-input {
+  writing-mode: vertical-lr;
+  direction: rtl; /* haut = 100 % */
+  width: 24px;
+  height: min(40vh, 240px);
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
