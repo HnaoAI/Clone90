@@ -113,6 +113,43 @@ body.is-playing .menu-wrap { opacity: 0.6; }
   box-sizing: border-box;
 }
 
+/* T31 (Hicham, 2026-11-13) : joystick tactile gris clair au lieu du rouge. C'est la zone nipplejs du schéma de manette par défaut
+   d'EmulatorJS (Amiga, arcade, Neo Geo...) ; nipplejs écrit sa couleur dans l'attribut style, d'où !important.
+   Classes créées par src/nipplejs.js de la 4.2.3 : à revérifier si la version d'EmulatorJS change. */
+.player-body .ejs_virtualGamepad_parent .nipple .front,
+.player-body .ejs_virtualGamepad_parent .nipple .back { background: lightgray !important; }
+/* nipplejs pose aussi des opacités (0,5 au repos sur .nipple, 0,5 sur chaque disque) : sur fond noir, le gris clair paraissait gris
+   foncé. Opacité pleine au repos (le disque suit déjà le doigt, pas besoin du passage à 1 au toucher), bouton plus opaque que son socle. */
+.player-body .ejs_virtualGamepad_parent .nipple { opacity: 1 !important; }
+.player-body .ejs_virtualGamepad_parent .nipple .front { opacity: 0.8 !important; }
+.player-body .ejs_virtualGamepad_parent .nipple .back { opacity: 0.5 !important; }
+
+/* T31 : en paysage de téléphone, l'image du jeu est centrée et prend toute la hauteur : EmulatorJS posait les boutons du centre
+   (Select, Start, Slow, Fast...) dessus. On les range en grille de 2 colonnes sous le joystick (bande libre de gauche).
+   Mesures d'emulator.css 4.2.3 : conteneur des contrôles à 50 px du bas (hauteur nulle), joystick left 10 px, 125 x 125 px, bas à
+   50 px du conteneur, donc 100 px libres dessous. bottom -42 px : 2 rangées de 31 px (+ 8 px) entre 8 et 78 px du bas de l'écran.
+   Plus de 4 boutons (aucune machine de Clone90 aujourd'hui) : une 3e rangée toucherait le joystick.
+   Mêmes classes d'EmulatorJS que ci-dessus. Vérifié par tests/recette/manette-tactile.mjs. */
+@media (orientation: landscape) and (min-aspect-ratio: 3/2) {
+  .player-body .ejs_virtualGamepad_bottom {
+    left: 10px;
+    bottom: -42px;
+    width: 125px;
+    height: auto;
+    margin-left: 0;
+    display: grid;
+    grid-template-columns: 50px 50px;
+    justify-content: space-between;
+    row-gap: 8px;
+  }
+  .player-body .ejs_virtualGamepad_bottom .ejs_virtualGamepad_button { position: static; order: 1; }
+  .player-body .ejs_virtualGamepad_bottom .b_select { order: 0; }
+  .player-body .ejs_virtualGamepad_bottom .b_start { order: 2; }
+  .player-body .ejs_virtualGamepad_bottom .b_speed_slow { order: 3; }
+  .player-body .ejs_virtualGamepad_bottom .b_speed_fast { order: 4; }
+  .player-body .ejs_virtualGamepad_bottom .b_speed_rewind { order: 5; }
+}
+
 /* Toast du player (T12, "Disquette 2 / 3") : au-dessus du lecteur (#game z-index 1), sous le bouton Menu en haut ; en bas au centre. */
 .player-body .toast { z-index: 60; }
 
