@@ -16,7 +16,7 @@ export const LATER_LABEL = 'Plus tard';
 export function describeUpdate(update, kind) {
   if (!update.canApply) return `Une nouvelle version de Clone90 existe (v${update.latest}, tu as la v${update.current}), mais Clone90 ne peut pas se mettre à jour tout seul. ${update.message ?? ''}`.trim();
   return kind === 'mac'
-    ? `Mise à jour disponible : Clone90 v${update.latest} (tu as la v${update.current}). Clone90 va télécharger la nouvelle version puis redémarrer, en 30 secondes environ. Tes jeux, BIOS et réglages ne sont pas touchés.`
+    ? `La version v${update.latest} de Clone90 est prête (tu as la v${update.current}). Clone90 va télécharger la nouvelle version puis redémarrer, en 30 secondes environ. Tes jeux, BIOS et réglages ne sont pas touchés.`
     : `Une nouvelle version de Clone90 arrive (v${update.latest}, tu as la v${update.current}). Tes jeux et BIOS de « Mes fichiers » ne sont pas touchés.`;
 }
 
