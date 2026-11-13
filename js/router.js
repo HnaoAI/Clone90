@@ -1,4 +1,4 @@
-// Routes hash `#/`, `#/<machine>?focus=<idJeu>` (T3) et `#/fichiers?machine=<id>` (écran « Mes fichiers », T27). Aucune logique d'écran, aucune liste de machines :
+// Routes hash `#/`, `#/<machine>?focus=<idJeu>` (T3), `#/fichiers?machine=<id>` (écran « Mes fichiers », T27) et `#/telecharger` (T34). Aucune logique d'écran, aucune liste de machines :
 // savoir si la machine existe est l'affaire de l'appelant (app.js). Le jeu est une page (player.html), pas une route.
 import { PLAYER_PAGE, HOME_PAGE } from './config.js';
 import { encodeGameId } from './data.js';
@@ -7,11 +7,13 @@ const SYSTEM_SEGMENT = /^[a-z0-9]+$/;
 
 /** Segment de l'écran « Mes fichiers » (T27). INVARIANT : aucune machine de systems.json ne porte cet id (tests/router.test.mjs). */
 export const LIBRARY_SEGMENT = 'fichiers';
+/** Segment de l'écran « Télécharger depuis une page » (T34). INVARIANT : aucune machine de systems.json ne porte cet id. */
+export const LINKS_SEGMENT = 'telecharger';
 
 /**
  * Lit un hash. Formes : '', '#', '#/' (accueil) ; '#/fichiers[?machine=<id>]' (T27) ; '#/<machine>[?focus=<id>]' ; sinon notfound.
  * @param {string} [hash] valeur de location.hash
- * @returns {{name: 'home'} | {name: 'library', machine: string|null} | {name: 'system', system: string, focus: string|null} | {name: 'notfound'}}
+ * @returns {{name: 'home'} | {name: 'library', machine: string|null} | {name: 'links'} | {name: 'system', system: string, focus: string|null} | {name: 'notfound'}}
  */
 export function parseHash(hash = '') {
   const [path, query = ''] = hash.replace(/^#/, '').split('?', 2);
@@ -22,6 +24,7 @@ export function parseHash(hash = '') {
     const machine = readParam(query, 'machine');
     return { name: 'library', machine: machine && SYSTEM_SEGMENT.test(machine) ? machine : null };
   }
+  if (segments[0] === LINKS_SEGMENT) return { name: 'links' };
   return { name: 'system', system: segments[0], focus: readParam(query, 'focus') };
 }
 
@@ -37,6 +40,7 @@ function readParam(query, name) {
  * @param {{name: string, system?: string, focus?: string|null}} route
  */
 export function buildHash(route) {
+  if (route.name === 'links') return `#/${LINKS_SEGMENT}`;
   if (route.name === 'library') return `#/${LIBRARY_SEGMENT}${route.machine ? `?machine=${route.machine}` : ''}`;
   if (route.name !== 'system') return '#/';
   const focus = route.focus ? `?focus=${encodeGameId(route.focus)}` : '';

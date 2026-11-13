@@ -32,3 +32,31 @@ button[disabled], .back-button[disabled] { opacity: 0.5; cursor: not-allowed; }
   .library-machines li { flex: 1 1 calc(50% - 16px); }
   .library-machines li .back-button { width: 100%; }
 }
+
+/* Écran « Depuis une page web » (T34) : champ d'adresse, cases (boutons aria-pressed) et choix de machine par fichier. */
+.home-tools { flex-wrap: wrap; gap: 16px; }
+.link-form { margin: 24px 4px 16px; }
+.link-label { display: block; margin: 0 0 8px; font-weight: 700; }
+.link-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.link-input, .link-machine {
+  min-height: 44px; padding: 8px 12px; font: inherit; color: var(--text); background: var(--panel); border: 0; box-shadow: var(--frame);
+}
+.link-input { flex: 1 1 16rem; min-width: 0; }
+.link-input::placeholder { color: var(--text-muted); }
+.link-input:focus-visible, .link-machine:focus-visible { outline: 4px solid var(--focus); outline-offset: 4px; }
+.link-screen .link-status { margin: 0 4px 16px; }
+.link-bulk { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 4px 16px; }
+.link-file { gap: 12px; }
+.link-toggle {
+  flex: 1 1 14rem; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 4px; text-align: left; font: inherit; color: var(--text);
+  background: none; border: 0; overflow-wrap: anywhere; cursor: pointer;
+}
+.link-toggle::before { content: ''; flex: 0 0 auto; width: 20px; height: 20px; background: var(--panel-3); box-shadow: 0 0 0 3px var(--line); }
+.link-toggle[aria-pressed="true"]::before { background: var(--accent); box-shadow: 0 0 0 3px var(--line), inset 0 0 0 4px var(--panel-3); }
+.link-toggle:focus-visible, .input-gamepad .link-toggle:focus { outline: 4px solid var(--focus); outline-offset: 2px; }
+.link-machine { flex: 0 1 14rem; max-width: 100%; }
+.library-links .back-button { margin-left: 8px; }
+@media (max-width: 599px) {
+  .link-row .button, .link-results > .button { width: 100%; justify-content: center; }
+  .link-machine { flex: 1 1 100%; }
+}

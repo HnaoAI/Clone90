@@ -1,5 +1,6 @@
 // API locale des dossiers de jeux (T25), des pochettes (T28) et des logos des machines (T29) : GET /api/settings, POST /api/settings/choose,
-// GET /api/covers, POST /api/covers/download, GET /api/logos, POST /api/logos/download.
+// GET /api/covers, POST /api/covers/download, GET /api/logos, POST /api/logos/download,
+// et (T34, « Télécharger depuis une page ») POST /api/links/scan, POST /api/links/download, GET /api/links.
 // Branchée par serve.mjs. Dépend de local-settings.mjs, generate-games.mjs (régénération), covers.mjs et machine-logos.mjs, sans les dupliquer.
 // INVARIANT (sécurité) : active seulement si le serveur n'écoute que sur ce Mac (serve.mjs, isSettingsApiEnabled). Chaque requête doit
 //   avoir un en-tête Host localhost:<port> ou 127.0.0.1:<port> (anti DNS rebinding), une Origin identique (ou aucune avec X-Clone90: 1),
@@ -7,12 +8,20 @@
 //   ('roms', 'bios', 'roms-default', 'bios-default'), c'est la boîte du Mac qui choisit le dossier. Une seule boîte ouverte à la fois (verrou).
 //   T28 : le téléchargement des pochettes n'accepte que le corps `{}` (aucun paramètre) et partage le même verrou : jamais une boîte de choix pendant un téléchargement.
 //   T29 : les logos suivent exactement le même mécanisme (même travail en arrière-plan, même verrou) : un seul téléchargement à la fois, pochettes ou logos.
+//   T34 : les liens aussi (même verrou). Seul ce travail reçoit des paramètres : `{items: [{url, target}]}` (64 Ko au plus), chaque choix est revérifié
+//   par link-relay.mjs (adresse publique, extension acceptée par la machine, nom de BIOS déclaré). L'analyse (scan) répond directement, une à la fois.
 import { readLocalSettings, updateLocalSettings, folderProblemKind } from './local-settings.mjs';
 import { runGenerate } from './generate-games.mjs';
 import { runCovers, formatSummary } from './covers.mjs';
 import { runLogos, formatLogosSummary } from './machine-logos.mjs';
+import { scanPage, downloadLinks, formatLinksSummary, RelayError, MAX_ITEMS } from './link-relay.mjs';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 export const MAX_BODY_BYTES = 1024;
+/** Corps maximal d'une analyse (adresse de 2048 caractères au plus) et d'une liste de fichiers choisis (T34). */
+export const MAX_SCAN_BODY_BYTES = 4096;
+export const MAX_LINKS_BODY_BYTES = 64 * 1024;
 /** Types de choix acceptés et réglage visé (null : retour au dossier du projet, sans boîte). */
 const KINDS = { roms: 'romsDir', bios: 'biosDir', 'roms-default': 'romsDir', 'bios-default': 'biosDir' };
 const isDefaultKind = (kind) => kind.endsWith('-default');
@@ -32,11 +41,27 @@ const ERROR_TEXT = {
   coversFailed: 'Le téléchargement des pochettes a échoué. Vérifiez votre connexion à Internet.',
   logosBusy: 'Le téléchargement des logos est en cours.',
   logosFailed: 'Le téléchargement des logos a échoué. Vérifiez votre connexion à Internet.',
+  linksBusy: 'Un téléchargement de fichiers est en cours.',
+  linksFailed: 'Le téléchargement des fichiers a échoué. Vérifiez votre connexion à Internet.',
+  scanBusy: 'Une analyse de page est déjà en cours.',
+  scanFailed: 'La page n\'a pas pu être analysée.',
 };
 /** Routes connues : chemin -> méthode attendue. */
-const ROUTES = { '/api/settings': 'GET', '/api/settings/choose': 'POST', '/api/covers': 'GET', '/api/covers/download': 'POST', '/api/logos': 'GET', '/api/logos/download': 'POST' };
+const ROUTES = { '/api/settings': 'GET', '/api/settings/choose': 'POST', '/api/covers': 'GET', '/api/covers/download': 'POST', '/api/logos': 'GET', '/api/logos/download': 'POST',
+  '/api/links': 'GET', '/api/links/download': 'POST', '/api/links/scan': 'POST' };
 /** Téléchargements en arrière-plan (T28, T29) : état lu par GET /api/<nom>, lancé par POST /api/<nom>/download. */
-const JOB_NAMES = ['covers', 'logos'];
+const JOB_NAMES = ['covers', 'logos', 'links'];
+
+/** Corps vide `{}` exigé (pochettes, logos : le serveur décide de tout). @returns {object|null} */
+const parseEmpty = (data) => (Object.keys(data).length ? null : {});
+/** Corps `{items: [{url, target}]}` (T34) : 1 à MAX_ITEMS choix de deux chaînes, aucune autre clé. Le contenu est revérifié par link-relay.mjs. */
+export function parseLinkItems(data) {
+  const keys = Object.keys(data);
+  if (keys.length !== 1 || keys[0] !== 'items' || !Array.isArray(data.items) || !data.items.length || data.items.length > MAX_ITEMS) return null;
+  const ok = data.items.every((i) => i && typeof i === 'object' && !Array.isArray(i) && Object.keys(i).length === 2
+    && typeof i.url === 'string' && typeof i.target === 'string' && i.url.length <= 2048 && i.target.length <= 32);
+  return ok ? { items: data.items.map(({ url, target }) => ({ url, target })) } : null;
+}
 
 /** Hôtes acceptés pour ce port (le nom de domaine d'une page piégée, même résolu vers 127.0.0.1, est refusé). */
 const allowedHosts = (port) => [`localhost:${port}`, `127.0.0.1:${port}`];
@@ -95,18 +120,33 @@ function parseKind(text) {
  *   téléchargement des pochettes (T28, `runCovers` par défaut), injectable pour les tests ; il régénère games.json lui-même
  * @param {(options: {onProgress: Function}) => Promise<{exitCode: number, summary: object}>} [options.downloadLogos]
  *   téléchargement des logos des machines (T29, `runLogos` par défaut), injectable ; il régénère games.json lui-même
+ * @param {(url: string, systems: object[]) => Promise<object>} [options.scanLinks] analyse d'une page (T34, `scanPage` par défaut), injectable
+ * @param {(items: object[], options: object) => Promise<object>} [options.fetchLinks] téléchargement des fichiers choisis (T34, `downloadLinks`), injectable
  * @param {Record<string, string>} [options.baseHeaders] en-têtes de toutes les réponses (nosniff)
  */
 export function createSettingsApi({ root, enabled, getPort, applyFolders, chooseFolder, baseHeaders = { 'X-Content-Type-Options': 'nosniff' },
   regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }),
   downloadCovers = (options) => runCovers({ root, ...options }),
-  downloadLogos = (options) => runLogos({ root, ...options }) }) {
+  downloadLogos = (options) => runLogos({ root, ...options }),
+  scanLinks = (url, systems) => scanPage(url, systems),
+  fetchLinks = (items, options) => downloadLinks(items, options) }) {
   let busy = false;
   // Par travail : idle | running (progress) | done (found, lines) | error (message) ; `id` = numéro du travail, pour que le client ne traite qu'une fois sa fin
-  const jobs = { covers: { status: 'idle' }, logos: { status: 'idle' } };
+  const jobs = { covers: { status: 'idle' }, logos: { status: 'idle' }, links: { status: 'idle' } };
+  let scanning = false;
+  const readSystems = async () => JSON.parse(await readFile(join(root, 'systems.json'), 'utf8')).systems;
+  /** Travail des liens (T34) : télécharge dans les dossiers utilisés, puis régénère games.json (même si rien n'a été téléchargé : sans effet). */
+  async function runLinks({ onProgress, params }) {
+    const s = await readLocalSettings(root);
+    const summary = await fetchLinks(params.items, { romsDir: s.romsDir, biosDir: s.biosDir, systems: await readSystems(), onProgress });
+    const { exitCode } = summary.downloaded.length ? await regenerate() : { exitCode: 0 };
+    return { exitCode, summary: { ...summary, found: summary.downloaded } };
+  }
   const jobSpecs = {
     covers: { run: downloadCovers, summary: (r) => formatSummary(r, { details: false }), busy: ERROR_TEXT.coversBusy, failed: ERROR_TEXT.coversFailed, what: 'pochettes' },
     logos: { run: downloadLogos, summary: (r) => formatLogosSummary(r, { details: false }), busy: ERROR_TEXT.logosBusy, failed: ERROR_TEXT.logosFailed, what: 'logos' },
+    links: { run: runLinks, summary: (r) => formatLinksSummary(r.summary), busy: ERROR_TEXT.linksBusy, failed: ERROR_TEXT.linksFailed, what: 'fichiers',
+      parse: parseLinkItems, maxBody: MAX_LINKS_BODY_BYTES },
   };
   let jobCounter = 0;
 
@@ -169,24 +209,50 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
 
   /** POST /api/<nom>/download : lance le téléchargement en arrière-plan et répond tout de suite ; l'avancement se lit par GET /api/<nom>. */
   async function handleJobStart(name, req, res) {
-    if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] ?? '')) return send(res, 415, { message: 'Type de contenu refusé' });
-    const text = await readBody(req, MAX_BODY_BYTES);
-    if (text === null) return send(res, 413, { message: 'Requête trop grande' }, { Connection: 'close' });
-    let data;
-    try { data = JSON.parse(text); } catch { data = null; }
-    if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length) return send(res, 400, { message: 'Requête invalide' });
+    const spec = jobSpecs[name];
+    const data = await readJson(req, res, spec.maxBody ?? MAX_BODY_BYTES);
+    if (data === undefined) return undefined;
+    const params = (spec.parse ?? parseEmpty)(data);
+    if (params === null) return send(res, 400, { message: 'Requête invalide' });
     if (busy) return send(res, 409, { status: 'busy', message: busyMessage() });
     busy = true;
     jobCounter += 1;
     jobs[name] = { id: jobCounter, status: 'running', progress: { phase: name === 'covers' ? 'listing' : 'downloading', done: 0, total: 0 } };
-    runJob(name, jobCounter).finally(() => { busy = false; });
+    runJob(name, jobCounter, params).finally(() => { busy = false; });
     return send(res, 202, { status: 'started' });
   }
 
-  async function runJob(name, id) {
+  /** Lit un corps JSON objet. @returns {Promise<object|undefined>} undefined si la réponse d'erreur est déjà envoyée */
+  async function readJson(req, res, limit) {
+    if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] ?? '')) { send(res, 415, { message: 'Type de contenu refusé' }); return undefined; }
+    const text = await readBody(req, limit);
+    if (text === null) { send(res, 413, { message: 'Requête trop grande' }, { Connection: 'close' }); return undefined; }
+    let data;
+    try { data = JSON.parse(text); } catch { data = null; }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) { send(res, 400, { message: 'Requête invalide' }); return undefined; }
+    return data;
+  }
+
+  /** POST /api/links/scan (T34) : `{url}` -> `{status: 'ok', url, files, truncated}` ou `{status: 'error', message}`. Une analyse à la fois. */
+  async function handleScan(req, res) {
+    const data = await readJson(req, res, MAX_SCAN_BODY_BYTES);
+    if (data === undefined) return undefined;
+    if (Object.keys(data).length !== 1 || typeof data.url !== 'string') return send(res, 400, { message: 'Requête invalide' });
+    if (scanning) return send(res, 409, { status: 'busy', message: ERROR_TEXT.scanBusy });
+    scanning = true;
+    try {
+      const result = await scanLinks(data.url, await readSystems());
+      return send(res, 200, { status: 'ok', ...result });
+    } catch (err) {
+      if (!(err instanceof RelayError)) console.error('Analyse de page impossible :', err.message);
+      return send(res, 200, { status: 'error', message: err instanceof RelayError ? err.message : ERROR_TEXT.scanFailed });
+    } finally { scanning = false; }
+  }
+
+  async function runJob(name, id, params) {
     const spec = jobSpecs[name];
     try {
-      const result = await spec.run({ onProgress: (progress) => { jobs[name] = { id, status: 'running', progress }; } });
+      const result = await spec.run({ params, onProgress: (progress) => { jobs[name] = { id, status: 'running', progress }; } });
       jobs[name] = result.exitCode === 0
         ? { id, status: 'done', found: result.summary.found.length, lines: spec.summary(result) }
         : { id, status: 'error', message: ERROR_TEXT.generate };
@@ -207,6 +273,7 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
         if (refused) return send(res, refused.status, { message: refused.message });
         const method = ROUTES[path];
         if (req.method !== method) return send(res, 405, { message: 'Méthode non autorisée' }, { Allow: method });
+        if (path === '/api/links/scan') return await handleScan(req, res);
         const job = JOB_NAMES.find((n) => path === `/api/${n}` || path === `/api/${n}/download`);
         if (job && method === 'GET') return send(res, 200, jobs[job]);
         if (job) return await handleJobStart(job, req, res);
