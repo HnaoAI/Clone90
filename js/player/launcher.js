@@ -14,6 +14,7 @@ import { ejsDataUrl, BIOS_DIR } from '../config.js';
 import { buildRetroArchCfgExtra, appendRetroArchCfg } from './retroarch-cfg.js';
 import { createStartFailureWatch, hookCoreOutput } from './ejs-start-watch.js';
 import { assetUrl, assetPathFromUrl, isRelativePath } from '../data.js';
+import { stickDirections, RELEASED } from './virtual-stick.js';
 
 /** Délai (ms) après EJS_onGameStart pendant lequel le menu des disques peut encore "sélectionner" le disque courant tout seul (voir guardDiskMenuStartup). */
 export const STARTUP_GRACE_MS = 2000;
@@ -230,6 +231,62 @@ function onEmulatorCreated(win, hooks) {
   });
 }
 
+/** Codes d'entrée d'EmulatorJS de la zone joystick du schéma par défaut (`inputValues` [4, 5, 6, 7] : haut, bas, gauche, droite). */
+const STICK_CODES = { up: 4, down: 5, left: 6, right: 7 };
+
+/**
+ * T32 : joystick tactile. EmulatorJS (4.2.1 et 4.2.3, même code) crée sa zone joystick avec `nipplejs.create` (global de nipplejs, aussi
+ * dans emulator.min.js du CDN) et calcule lui-même les directions à chaque « move » : sans zone morte, et avec des relâchements envoyés
+ * 30 ms en retard (détail dans virtual-stick.js). On enveloppe `nipplejs.create` : le « move » d'EmulatorJS n'est jamais branché, le nôtre
+ * envoie au cœur seulement les changements, tout de suite. « end » (tout relâcher) et l'affichage du disque restent ceux d'EmulatorJS et de nipplejs.
+ * Le cœur est cherché à chaque mouvement (`getGameManager`) : la manette virtuelle peut être créée avant que `window.EJS_emulator` soit posé.
+ * @param {object} lib objet global nipplejs
+ * @param {() => object|undefined} getGameManager gameManager d'EmulatorJS (simulateInput)
+ */
+export function patchVirtualStick(lib, getGameManager) {
+  if (typeof lib?.create !== 'function' || lib.create.clone90Stick) return;
+  const create = lib.create.bind(lib);
+  const wrapped = (options) => {
+    const manager = create(options);
+    const on = manager.on.bind(manager);
+    let state = { ...RELEASED };
+    manager.on = (type, handler) => {
+      if (type === 'move') {
+        return on('move', (event, data) => {
+          const next = stickDirections(data, state);
+          for (const dir of Object.keys(STICK_CODES)) {
+            if (next[dir] !== state[dir]) getGameManager()?.simulateInput(0, STICK_CODES[dir], next[dir] ? 1 : 0);
+          }
+          state = next;
+        });
+      }
+      if (type === 'end') return on('end', (...args) => { state = { ...RELEASED }; return handler(...args); });
+      return on(type, handler);
+    };
+    return manager;
+  };
+  wrapped.clone90Stick = true;
+  lib.create = wrapped;
+}
+
+/**
+ * Applique patchVirtualStick dès que nipplejs se pose sur `window` (enveloppe UMD : `window.nipplejs = ...`, avant le constructeur
+ * d'EmulatorJS, qui peut créer la manette virtuelle). Schéma N64 exclu : sa zone est analogique et ses codes ne sont pas ceux-ci ;
+ * aucune machine de Clone90 ne l'utilise.
+ * @param {Window} win @param {{EJS_core?: string, EJS_controlScheme?: string}} globals variables EJS_* du plan
+ */
+function watchNipplejs(win, globals) {
+  if ((globals.EJS_controlScheme ?? globals.EJS_core) === 'n64') return;
+  const getGameManager = () => win.EJS_emulator?.gameManager;
+  let lib = win.nipplejs;
+  if (lib) patchVirtualStick(lib, getGameManager);
+  Object.defineProperty(win, 'nipplejs', {
+    configurable: true,
+    get: () => lib,
+    set: (value) => { lib = value; patchVirtualStick(value, getGameManager); },
+  });
+}
+
 /**
  * Contournements de défauts d'EmulatorJS 4.2.3 (version par défaut de config.js, à retester avant tout changement ; constatés en T10 avec puae et un jeu à plusieurs disques).
  * T21 : l'Amiga tourne sur 4.2.1 (systems.json `ejsVersion`), où le point 3 ("unreachable" à l'éjection) n'existe pas ; le point 1 est sans objet (pas de
@@ -311,6 +368,7 @@ export async function loadEmulator(plan, { win = globalThis.window, doc = global
     Object.assign(win, plan.globals);
     if (Object.keys(externalFiles).length) win.EJS_externalFiles = externalFiles;
     const diskGuard = plan.virtualGame ? createDiskMenuGuard({ setTimer, onTrace: onDiskTrace, getState: () => getDiskState(win) }) : null;
+    watchNipplejs(win, plan.globals);
     onEmulatorCreated(win, [() => appendRetroArchCfg(win, plan.retroarchCfgExtra), ...(diskGuard ? [diskGuard.patch] : [])]);
     if (plan.virtualGame) win.EJS_gameUrl = new File([plan.virtualGame.text], plan.virtualGame.name, { type: 'audio/x-mpegurl' });
     const watch = createStartFailureWatch({ onFailure, setTimer });
