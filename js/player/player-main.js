@@ -21,6 +21,7 @@ import { mountDiagnostic } from './diagnostic-panel.js';
 import { describeDiskTrace } from './diagnostic-log.js';
 import { APP_VERSION, APP_DATE } from '../version.js';
 import { shouldShowExitHint, EXIT_HINT_MS } from './exit-hint.js';
+import { readScale, saveScale, canShowScaleControl, createScaleControl } from './game-scale.js';
 import {
   renderPlayScreen, renderPlayerMessage, renderLoading, renderExitHint, createMenuButton, exitDialogOptions,
   describeLoadError, describeStartFailure, exitDecision, PLAY_NAV_ID, BACK_NAV_ID,
@@ -43,6 +44,7 @@ let currentGameFiles = []; // T18 : fichiers du jeu, pour expliquer un échec IP
 let diskCount = 1;
 let pendingStartFailure = null; // échec du cœur arrivé pendant la boîte de confirmation (T14)
 let exitHint = null;
+let currentSystemId = ''; // T37 : taille de l'image gardée par machine
 let currentSnapshot = { version: APP_VERSION, date: APP_DATE }; // machine et jeu ajoutés quand ils sont connus
 // Mode diagnostic (T16) : null sans `debug=1` dans l'adresse, donc aucun panneau, aucun journal, journal du cœur inchangé.
 const diagnostic = mountDiagnostic({
@@ -168,6 +170,24 @@ function watchMenuIdle() {
   window.addEventListener('mousemove', wake, { passive: true });
 }
 
+/**
+ * T37 : réglette de taille de l'image (ordinateur à souris seulement). Pose --game-scale sur <body> : css/player.css réduit #game
+ * autour de son centre. Une taille par machine (localStorage).
+ * @returns {HTMLElement|null} la réglette (retirée si le moteur échoue), ou null en tactile
+ */
+function mountScaleControl() {
+  if (!canShowScaleControl(window.matchMedia?.bind(window))) return null;
+  let storage = null;
+  try { storage = window.localStorage; } catch { /* accès refusé */ }
+  const apply = (scale) => document.body.style.setProperty('--game-scale', String(scale / 100));
+  const initial = readScale(storage, currentSystemId);
+  document.body.classList.add('has-game-scale');
+  apply(initial);
+  const { element } = createScaleControl({ value: initial, onChange: (v) => apply(saveScale(storage, currentSystemId, v)) });
+  chrome.append(element);
+  return element;
+}
+
 /** @returns {HTMLElement|null} le rappel affiché (pour le retirer si le moteur échoue), ou null */
 function showExitHint() {
   let storage = null;
@@ -198,6 +218,7 @@ async function play(plan) {
   history.pushState({ clone90: 'exit-guard' }, '');
   window.addEventListener('popstate', onPopState);
   exitHint = showExitHint();
+  const scaleControl = mountScaleControl();
   try {
     await loadEmulator(plan, {
       onStart: () => { hideLoading(); logEvent('Jeu démarré (EJS_onGameStart)'); },
@@ -207,6 +228,9 @@ async function play(plan) {
   } catch (e) {
     // INVARIANT (T11/A2) : on reste armé (garde, popstate, bouton Menu) : phase 'error' quitte en un seul appui.
     exitHint?.remove();
+    scaleControl?.remove();
+    document.body.classList.remove('has-game-scale');
+    document.body.style.removeProperty('--game-scale');
     diskShortcut.stop();
     gameElement.hidden = true;
     document.body.classList.remove('is-playing');
@@ -242,6 +266,7 @@ async function main() {
     return;
   }
   currentGameTitle = game.title;
+  currentSystemId = system.id;
   currentGameFiles = game.disks ?? [game.file];
   diskCount = game.disks?.length ?? 1;
   currentSnapshot = { ...currentSnapshot, machine: `${system.name} (${system.id}, cœur ${system.emulatorjsCore})`, game: `${game.title} (${game.id})` };

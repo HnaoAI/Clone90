@@ -48,5 +48,6 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `link-relay.test.mjs` : relais du Mac (adresses locales et privées refusées, DNS figé, redirections, tailles, écriture sûre) (T34).
 - `links-api.test.mjs` : API `api/links...` (sécurité T25, corps validé, suivi, verrou partagé) (T34).
 - `link-explorer.test.mjs` : analyse améliorée (data-*, meta refresh, adresses en clair, Content-Disposition, exploration et limites, faux site à deux niveaux par le relais) (T34b).
+- `game-scale.test.mjs` : réglette de taille de l'image (bornes, mémorisation par machine, stockage abîmé, réglette, double-clic, focus rendu, CSS) (T37).
 - `updater.test.mjs` : mises à jour côté Mac (versions, dernière version, copie git factice puis vrai git, pull en avance rapide, API api/update..., relance du serveur) (T35). `update-ui.test.mjs` : sources de mise à jour de la page et fenêtre (compte à rebours, Plus tard, maintenant, erreur, impossible) (T35).
 - `link-download.test.mjs` : sources Mac et navigateur (CORS refusé, « Mes fichiers »), aides de l'écran, route `#/telecharger` (T34).
