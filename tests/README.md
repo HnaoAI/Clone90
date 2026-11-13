@@ -15,6 +15,7 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `machine-grid.test.mjs` : accueil (tuiles, 0 jeu en fin de liste, 12 machines, messages games.json, choix d'écran, rendu avec document factice) (T5).
 - `game-grid.test.mjs` : grille de jeux (initiales, tuiles, focus de retour, état vide, repli de jaquette) et boîte de confirmation (T6).
 - `launcher.test.mjs` : plan de lancement EmulatorJS (variables EJS_*, BIOS, chemins encodés), fichiers manquants, chargement avec fenêtre factice (T7).
+- `virtual-stick.test.mjs` : joystick tactile, directions (zone morte, hystérésis, jamais deux opposées) et enveloppe de `nipplejs.create` (T32).
 - `exit-guard.test.mjs` : sortie du jeu (F10, Échap maintenu, Select+Start), aucune autre touche captée (T7).
 - `disk-shortcut.test.mjs` : raccourci disquette (Select+RB front montant, F9, cycle, jeu à 1 disquette, Select+Start exclu, anti-rebond) et `getDiskState`/`switchToDisk` (T12).
 - `player-ui.test.mjs` : rappel de sortie, textes, anneau de progression, mode d'entrée (T7).
