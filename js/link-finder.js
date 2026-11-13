@@ -163,3 +163,15 @@ export function checkDownloadItem(item, systems) {
   if (!(system.extensions ?? []).some((e) => e.toLowerCase() === ext)) return { ok: false, message: `${system.name} n'accepte pas les fichiers .${ext}.` };
   return { ok: true, url: address.url, name: fileNameFromUrl(address.url), target: system.id };
 }
+
+/**
+ * Résumé en français d'un téléchargement (Mac et téléphone).
+ * @param {{downloaded: string[], present: string[], failed: {name: string, message: string}[]}} summary
+ * @returns {string[]} lignes ; les 10 premiers échecs sont détaillés
+ */
+export function formatLinksSummary(summary) {
+  const lines = [`Fichiers téléchargés : ${summary.downloaded.length}`];
+  if (summary.present.length) lines.push(`Déjà présents : ${summary.present.length}`);
+  if (summary.failed.length) lines.push(`Échecs : ${summary.failed.length}`, ...summary.failed.slice(0, 10).map((f) => `- ${f.name} : ${f.message}`));
+  return lines;
+}

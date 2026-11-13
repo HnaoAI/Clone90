@@ -12,7 +12,9 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 import { createWriteStream } from 'node:fs';
 import { mkdir, rename, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { findDownloadableFiles, checkDownloadItem, checkPageAddress } from '../js/link-finder.js';
+import { findDownloadableFiles, checkDownloadItem, checkPageAddress, formatLinksSummary } from '../js/link-finder.js';
+
+export { formatLinksSummary };
 
 export const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 export const MAX_FILE_BYTES = 1024 * 1024 * 1024;
@@ -252,12 +254,4 @@ export async function downloadLinks(items, { romsDir, biosDir, systems, onProgre
   }
   onProgress({ phase: 'downloading', done: list.length, total: list.length });
   return summary;
-}
-
-/** Résumé en français d'un téléchargement (lignes affichées dans l'écran). */
-export function formatLinksSummary(summary) {
-  const lines = [`Fichiers téléchargés : ${summary.downloaded.length}`];
-  if (summary.present.length) lines.push(`Déjà présents : ${summary.present.length}`);
-  if (summary.failed.length) lines.push(`Échecs : ${summary.failed.length}`, ...summary.failed.slice(0, 10).map((f) => `- ${f.name} : ${f.message}`));
-  return lines;
 }

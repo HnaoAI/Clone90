@@ -99,6 +99,10 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
     el('ul', { class: 'library-machines' }, systems.map((s) => el('li', {}, [
       withDisabled(secondaryButton(s.name, addGamesNavId(s.id), () => onAddGames(s.id), doc, s.id === machine ? ' is-selected' : '')),
     ], doc)), doc),
+    el('p', { class: 'muted library-links' }, [
+      'Ou bien depuis une page web : ',
+      el('a', { class: 'back-button', text: 'Depuis une page web', attrs: { href: buildHash({ name: 'links' }) }, dataset: { nav: '', navId: 'links' } }, [], doc),
+    ], doc),
     el('h3', { class: 'library-heading', text: 'Ajouter des BIOS' }, [], doc),
     el('p', { class: 'muted', text: 'Certaines machines ont besoin d\'un BIOS, avec un nom de fichier exact.' }, [], doc),
     withDisabled(el('button', { class: 'button', text: 'Choisir des BIOS', attrs: { type: 'button' }, dataset: { nav: '', navId: ADD_BIOS_NAV_ID }, on: { click: () => onAddBios() } }, [], doc)),

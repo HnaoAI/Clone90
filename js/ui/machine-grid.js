@@ -32,6 +32,8 @@ export function buildMachineTiles(systems, gamesBySystem) {
 
 /** `data-nav-id` du bouton « Dossiers des jeux » (jamais un id de machine : ceux-ci viennent de systems.json). */
 export const FOLDERS_NAV_ID = 'folders';
+/** data-nav-id du bouton « Depuis une page web » de l'accueil (T34). */
+export const LINKS_NAV_ID = 'links';
 
 /** Nombre de segments de la jauge d'une tuile. */
 export const GAUGE_SEGMENTS = 6;
@@ -107,11 +109,13 @@ export function renderMachineGrid(tiles, doc = globalThis.document) {
 /**
  * Écran d'accueil complet : titre, message sur l'état de games.json (le cas échéant), cartes, bouton des dossiers (T25), rappel des touches.
  * T27 : bouton « Mes fichiers » (jeux et BIOS gardés sur cet appareil), seulement si le navigateur le permet (`localSupported`).
- * @param {{tiles: ReturnType<typeof buildMachineTiles>, gamesStatus: string, skipped?: number, localSupported?: boolean, onOpenFolders?: () => void}} model
+ * T34 : bouton « Depuis une page web » si `linksAvailable` (API du Mac ou bibliothèque locale).
+ * @param {{tiles: ReturnType<typeof buildMachineTiles>, gamesStatus: string, skipped?: number, localSupported?: boolean, onOpenFolders?: () => void,
+ *   linksAvailable?: boolean}} model
  *   `onOpenFolders` : fourni seulement si l'API locale répond ; sans lui, aucun bouton (GitHub Pages, réseau local)
  * @param {Document} [doc]
  */
-export function renderHome({ tiles, gamesStatus, skipped = 0, localSupported = false, onOpenFolders }, doc = globalThis.document) {
+export function renderHome({ tiles, gamesStatus, skipped = 0, localSupported = false, onOpenFolders, linksAvailable = false }, doc = globalThis.document) {
   const status = describeGamesStatus(gamesStatus, skipped);
   return el('section', { class: 'home' }, [
     el('div', { class: 'home-title-row' }, [
@@ -123,10 +127,14 @@ export function renderHome({ tiles, gamesStatus, skipped = 0, localSupported = f
       el('p', {}, splitCode(status.text).map((s) => (s.code ? el('code', { text: s.text }, [], doc) : s.text)), doc),
     ], doc),
     renderMachineGrid(tiles, doc),
-    onOpenFolders && el('div', { class: 'home-tools' }, [
-      el('button', {
+    (onOpenFolders || linksAvailable) && el('div', { class: 'home-tools' }, [
+      onOpenFolders && el('button', {
         class: 'button is-secondary folders-button', text: 'Dossiers des jeux', attrs: { type: 'button' },
         dataset: { nav: '', navId: FOLDERS_NAV_ID }, on: { click: onOpenFolders },
+      }, [], doc),
+      linksAvailable && el('a', {
+        class: 'button is-secondary links-button', text: 'Depuis une page web', attrs: { href: buildHash({ name: 'links' }) },
+        dataset: { nav: '', navId: LINKS_NAV_ID },
       }, [], doc),
     ], doc),
     el('p', { class: 'key-hint', text: 'Flèches : choisir  -  Entrée / A : ouvrir' }, [], doc),

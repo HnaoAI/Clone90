@@ -2,6 +2,7 @@
 // Dépend de data, folders-client, router, screens, input/*, ui/*. Seul module qui touche à la page entière ; la logique est dans screens.js et ui/.
 // Contrat d'un écran : il rend dans #screen des éléments `data-nav` ; `current.onBack` (facultatif) traite l'action retour.
 // T27 : écran « Mes fichiers » (#/fichiers) ; après un ajout ou une suppression, les données sont rechargées (reload) sans recharger la page.
+// T34 : écran « Depuis une page web » (#/telecharger), source Mac (API locale) si elle répond, sinon navigateur (bibliothèque locale).
 import { loadData, groupGamesBySystem } from './data.js';
 import { loadLocalGames } from './local-games.js';
 import { openLocalLibrary, canUseLocalLibrary, romStoragePath, biosStoragePath, requestPersistentStorage } from './local-library.js';
@@ -13,6 +14,8 @@ import { visibleSystems, resolveRoute } from './screens.js';
 import { buildMachineTiles, renderHome, FOLDERS_NAV_ID } from './ui/machine-grid.js';
 import { fetchFolderSettings, requestFolderChoice, requestCoversDownload, fetchCoversStatus, requestLogosDownload, fetchLogosStatus } from './folders-client.js';
 import { createFoldersPanel } from './ui/folders-panel.js';
+import { createLinkScreen, LINK_INPUT_NAV_ID } from './ui/link-screen.js';
+import { createMacLinkSource, createBrowserLinkSource } from './link-download.js';
 import { renderGameGrid, initialFocusId, EMPTY_NAV_ID, ADD_LOCAL_NAV_ID } from './ui/game-grid.js';
 import { renderFatalError } from './ui/error-screen.js';
 import { createToast } from './ui/toast.js';
@@ -67,6 +70,7 @@ async function main() {
     const tiles = buildMachineTiles(systems, gamesBySystem);
     screen.append(renderHome({
       tiles, gamesStatus: data.gamesStatus, skipped: data.skipped, localSupported, onOpenFolders: folderSettings ? openFolders : undefined,
+      linksAvailable: Boolean(folderSettings) || localSupported,
     }));
     current = {};
     if (lastSystem) nav.focusById(lastSystem); // retour d'une grille : le focus revient sur la machine quittée
@@ -124,6 +128,20 @@ async function main() {
     current = { onBack: () => router.navigate({ name: 'home' }) };
   }
 
+  /** Écran « Depuis une page web » (T34) : le serveur du Mac lit et télécharge s'il répond ; sinon le navigateur, vers « Mes fichiers ». */
+  function showLinks() {
+    clear(screen);
+    const source = folderSettings ? createMacLinkSource()
+      : localSupported ? createBrowserLinkSource({ systems: data.systems, openLibrary: () => openLocalLibrary() }) : null;
+    screen.append(createLinkScreen({
+      systems: data.systems, source,
+      onFinished: async () => { if (!folderSettings) requestPersistentStorage(); await reload(); },
+      focus: (id) => nav.focusById(id),
+    }));
+    nav.focusById(source ? LINK_INPUT_NAV_ID : 'back');
+    current = { onBack: () => router.navigate({ name: 'home' }) };
+  }
+
   /** Après un choix de dossier réussi : recharge games.json et redessine l'accueil (le panneau reste ouvert par-dessus). */
   async function reloadGames() {
     await reload();
@@ -172,6 +190,7 @@ async function main() {
   function onRoute(route) {
     const target = resolveRoute(route, systems);
     if (target.name === 'library') { window.scrollTo(0, 0); showLibrary(target.machine); return; }
+    if (target.name === 'links') { window.scrollTo(0, 0); showLinks(); return; }
     if (target.name === 'home') {
       if (route.name !== 'home') { location.replace('#/'); return; } // route inconnue : on réécrit le hash sans polluer l'historique
       showHome();

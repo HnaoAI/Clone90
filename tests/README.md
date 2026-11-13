@@ -44,3 +44,7 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `covers-api.test.mjs` : API locale des pochettes (sécurité identique à T25, 202 puis suivi, verrou partagé, erreurs) (T28).
 - `machine-logos.test.mjs` : logos des machines sans réseau (adresse figée, SVG vérifié, scripts et liens refusés, pas d'écrasement, dossier des ROMs choisi, champ `logos` de games.json) (T29).
 - `machine-logos-ui.test.mjs` : logos côté navigateur et serveur (`logoTheme`, validation de `logos`, repli logo téléchargé, logo maison, nom ; client, panneau, API et verrou partagé ; CSP des SVG) (T29).
+- `link-finder.test.mjs` : analyse d'une page (adresse saisie, liens, extensions de systems.json, BIOS, machine devinée, contrôle d'un choix) (T34).
+- `link-relay.test.mjs` : relais du Mac (adresses locales et privées refusées, DNS figé, redirections, tailles, écriture sûre) (T34).
+- `links-api.test.mjs` : API `api/links...` (sécurité T25, corps validé, suivi, verrou partagé) (T34).
+- `link-download.test.mjs` : sources Mac et navigateur (CORS refusé, « Mes fichiers »), aides de l'écran, route `#/telecharger` (T34).
