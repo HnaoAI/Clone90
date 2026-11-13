@@ -52,6 +52,35 @@ body.is-playing .player-screen, body.is-playing .player-screen > * { pointer-eve
 body.is-playing .player-screen { background: var(--bg-deep); }
 body.is-playing .player-screen:empty { display: none; }
 
+/* T33 : téléphone couché (Hicham : « je ne peux pas lancer de jeu car le bouton disparaît »). La pile verticale de l'écran Jouer fait
+   ~600 px : après une rotation portrait -> paysage, le bouton Jouer était sous le bas de l'écran et le haut de la jaquette coupé
+   (centrage d'une grille qui déborde). Avis ux : 2 colonnes, jaquette à gauche réglée sur la hauteur visible (dvh, barre d'adresse
+   comprise), texte et Jouer à droite ; tout tient sans défilement dès ~280 px de haut. 140 px à gauche : place du bouton Menu.
+   Les messages d'erreur (.play-message) gardent leur pile (défilement). Vérifié par tests/recette/paysage.mjs. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .player-screen {
+    place-items: safe center;
+    padding: 8px calc(16px + env(safe-area-inset-right, 0px)) 8px calc(140px + env(safe-area-inset-left, 0px));
+  }
+  .play-screen:not(.play-message) {
+    display: grid;
+    grid-template-columns: auto minmax(12rem, 18rem);
+    align-items: center;
+    justify-items: start;
+    column-gap: 24px;
+    row-gap: 8px;
+    max-width: none;
+    text-align: left;
+  }
+  .play-screen:not(.play-message) .play-cover {
+    grid-row: 1 / span 4;
+    width: calc(min(100vh - 40px, 260px) * 0.75);
+    width: calc(min(100dvh - 40px, 260px) * 0.75);
+  }
+  /* Titre long : 2 lignes au plus, la suite en « … ». */
+  .play-screen:not(.play-message) .play-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+}
+
 /* Bouton Menu : coin haut gauche, au-dessus du lecteur, hors des contrôles virtuels (en bas). */
 .chrome { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
 .menu-wrap {
@@ -127,13 +156,17 @@ body.is-playing .menu-wrap { opacity: 0.6; }
 /* T31 : en paysage de téléphone, l'image du jeu est centrée et prend toute la hauteur : EmulatorJS posait les boutons du centre
    (Select, Start, Slow, Fast...) dessus. On les range en grille de 2 colonnes sous le joystick (bande libre de gauche).
    Mesures d'emulator.css 4.2.3 : conteneur des contrôles à 50 px du bas (hauteur nulle), joystick left 10 px, 125 x 125 px, bas à
-   50 px du conteneur, donc 100 px libres dessous. bottom -42 px : 2 rangées de 31 px (+ 8 px) entre 8 et 78 px du bas de l'écran.
+   50 px du conteneur, donc 100 px libres dessous. bottom -44 px : 2 rangées de 40 px (+ 8 px, T33) entre 6 et 94 px du bas de l'écran.
    Plus de 4 boutons (aucune machine de Clone90 aujourd'hui) : une 3e rangée toucherait le joystick.
    Mêmes classes d'EmulatorJS que ci-dessus. Vérifié par tests/recette/manette-tactile.mjs. */
 @media (orientation: landscape) and (min-aspect-ratio: 3/2) {
+  /* T33 (avis ux) : 160 px réservés de chaque côté (Menu, joystick et Select... à gauche ; ☰ et A/B/X/Y à droite, ~140 px d'envergure).
+     Le cœur dessine l'image au centre de la toile avec ses bandes noires : réduire la toile ne réduit l'image que si ses bandes
+     naturelles font moins de 160 px (16:9 et plus étroit, ex. 640x360) ; Pixel 7 (863x360, bandes de 190 px) : taille inchangée. */
+  .player-body #game .ejs_canvas_parent { width: calc(100% - 320px); margin: 0 auto; }
   .player-body .ejs_virtualGamepad_bottom {
     left: 10px;
-    bottom: -42px;
+    bottom: -44px;
     width: 125px;
     height: auto;
     margin-left: 0;
@@ -142,7 +175,8 @@ body.is-playing .menu-wrap { opacity: 0.6; }
     justify-content: space-between;
     row-gap: 8px;
   }
-  .player-body .ejs_virtualGamepad_bottom .ejs_virtualGamepad_button { position: static; order: 1; }
+  /* T33 : 40 px de haut au lieu de 31 (cibles tactiles) ; 2 rangées + 8 px entre 6 et 94 px du bas de l'écran, sous le joystick (100 px). */
+  .player-body .ejs_virtualGamepad_bottom .ejs_virtualGamepad_button { position: static; order: 1; height: 40px; line-height: 40px; }
   .player-body .ejs_virtualGamepad_bottom .b_select { order: 0; }
   .player-body .ejs_virtualGamepad_bottom .b_start { order: 2; }
   .player-body .ejs_virtualGamepad_bottom .b_speed_slow { order: 3; }

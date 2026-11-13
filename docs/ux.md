@@ -174,7 +174,7 @@ Même en-tête que la grille. Message centré, ton direct, avec le chemin exact 
 
 ### 3.4 Écran de jeu
 
-**Étape "Jouer"** : le plein écran et le son exigent un geste utilisateur sur la page de jeu. player.html affiche d'abord un écran intermédiaire : titre du jeu, jaquette, un gros bouton "Jouer" qui a le focus (activable par Entrée, A ou tap) et le bouton Menu/"Retour" (B, Échap). Le clic sur "Jouer" lance EmulatorJS et le plein écran. Cela ajoute une action au parcours (tuile, puis Jouer) ; acceptable car elle reste à la manette. Le bandeau de rappel de la sortie s'affiche ensuite.
+**Étape "Jouer"** : le plein écran et le son exigent un geste utilisateur sur la page de jeu. player.html affiche d'abord un écran intermédiaire : titre du jeu, jaquette, un gros bouton "Jouer" qui a le focus (activable par Entrée, A ou tap) et le bouton Menu/"Retour" (B, Échap). Le clic sur "Jouer" lance EmulatorJS et le plein écran. T33 : téléphone couché (paysage, 500 px de haut ou moins), l'écran passe en 2 colonnes (jaquette à gauche, réglée sur la hauteur visible ; titre, machine, PRÊT ? et Jouer à droite) pour que Jouer reste entier dans l'écran, même après une rotation depuis le portrait. Cela ajoute une action au parcours (tuile, puis Jouer) ; acceptable car elle reste à la manette. Le bandeau de rappel de la sortie s'affiche ensuite.
 
 EmulatorJS occupe tout l'écran. Le site ajoute seulement :
 
@@ -191,6 +191,8 @@ Desktop                                   Téléphone (paysage conseillé)
 |                                  |      | (o)            (A)(B)    |
 +----------------------------------+      +--------------------------+
 ```
+
+Téléphone en paysage (T33) : 160 px réservés de chaque côté de l'image (à gauche Menu, joystick ou croix, Select / Start / Slow / Fast de 40 px de haut ; à droite ☰ et A/B/X/Y). L'image n'est réduite que sur les écrans où ses bandes noires sont plus étroites (16:9 étroit, ex. 640x360).
 
 Téléphone en portrait : on laisse EmulatorJS gérer son affichage (jeu en haut, contrôles en bas) ; pas de verrouillage d'orientation forcé en v1.
 
