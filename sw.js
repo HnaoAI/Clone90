@@ -25,7 +25,7 @@ const SHELL_FILES = [
   './', 'index.html', 'player.html', 'manifest.webmanifest', 'systems.json',
   'css/base.css', 'css/home.css', 'css/grid.css', 'css/library.css', 'css/player.css',
   'js/app.js', 'js/config.js', 'js/data.js', 'js/folders-client.js', 'js/router.js', 'js/screens.js', 'js/sort.js', 'js/version.js',
-  'js/games-builder.js', 'js/posix-path.js', 'js/local-library.js', 'js/local-games.js', 'js/link-finder.js', 'js/link-download.js',
+  'js/games-builder.js', 'js/posix-path.js', 'js/local-library.js', 'js/local-games.js', 'js/link-finder.js', 'js/link-explorer.js', 'js/link-download.js',
   'js/input/actions.js', 'js/input/focus-nav.js',
   'js/ui/dialog.js', 'js/ui/dom.js', 'js/ui/error-screen.js', 'js/ui/folders-panel.js', 'js/ui/format.js', 'js/ui/game-grid.js',
   'js/ui/input-mode.js', 'js/ui/library-screen.js', 'js/ui/link-screen.js', 'js/ui/logo.js', 'js/ui/machine-grid.js', 'js/ui/toast.js',

@@ -12,7 +12,8 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 import { createWriteStream } from 'node:fs';
 import { mkdir, rename, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { findDownloadableFiles, checkDownloadItem, checkPageAddress, formatLinksSummary } from '../js/link-finder.js';
+import { checkDownloadItem, checkPageAddress, formatLinksSummary, fileNameFromDisposition, fileNameFromUrl } from '../js/link-finder.js';
+import { exploreSite } from '../js/link-explorer.js';
 
 export { formatLinksSummary };
 
@@ -23,7 +24,8 @@ export const MAX_REDIRECTS = 5;
 export const PAGE_TIMEOUT_MS = 20_000;
 /** Délai sans aucune donnée reçue pendant un téléchargement (un gros fichier peut prendre longtemps, mais pas rester muet). */
 export const IDLE_TIMEOUT_MS = 60_000;
-const USER_AGENT = 'Clone90';
+// T36 : identifiant d'un navigateur courant ; beaucoup de sites refusent d'office un identifiant inconnu (« Clone90 » recevait 403).
+const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
 /** Erreur du relais avec un message français affichable. `code` : invalid-url, blocked-address, dns, http, too-big, not-html, network, timeout, redirects. */
 export class RelayError extends Error {
@@ -111,7 +113,7 @@ function requestPinned(url, pinned, signal) {
   return new Promise((resolve, reject) => {
     const req = mod.request(url, {
       method: 'GET', signal, agent: false,
-      headers: { 'User-Agent': USER_AGENT, Accept: '*/*', 'Accept-Encoding': 'identity' },
+      headers: { 'User-Agent': USER_AGENT, Accept: '*/*', 'Accept-Language': 'fr,en;q=0.8', 'Accept-Encoding': 'identity' },
       // INVARIANT : la connexion va à l'adresse vérifiée, jamais à une nouvelle résolution DNS (anti DNS rebinding).
       lookup: (_host, opts, cb) => (opts?.all ? cb(null, [pinned]) : cb(null, pinned.address, pinned.family)),
     }, resolve);
@@ -173,25 +175,46 @@ function readLimited(response, max) {
   });
 }
 
-/**
- * Analyse une page : la lit (2 Mo au plus) et renvoie les fichiers de types reconnus.
- * @param {string} address adresse saisie @param {object[]} systems machines de systems.json
- * @param {{lookup?: Function, allowAddress?: Function, timeoutMs?: number}} [options]
- * @returns {Promise<{url: string, files: object[], truncated: boolean}>} voir findDownloadableFiles
- * @throws {RelayError}
- */
-export async function scanPage(address, systems, { timeoutMs = PAGE_TIMEOUT_MS, ...options } = {}) {
-  const checked = checkPageAddress(address);
-  if (!checked.ok) throw new RelayError('invalid-url', checked.message);
-  const signal = AbortSignal.timeout(timeoutMs);
-  const { response, url } = await openPublicUrl(checked.url, { ...options, signal });
+/** Signal d'une requête : délai propre, et arrêt demandé par la personne s'il y en a un (AbortSignal.any : Node 20+, sinon délai seul). */
+function requestSignal(stop, timeoutMs) {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return stop && AbortSignal.any ? AbortSignal.any([stop, timeout]) : timeout;
+}
+
+/** Lit une page web (2 Mo au plus). @returns {Promise<{url: string, html: string}>} @throws {RelayError} */
+async function fetchPublicPage(address, options, stop) {
+  const { response, url } = await openPublicUrl(address, { ...options, signal: requestSignal(stop, PAGE_TIMEOUT_MS) });
   const type = String(response.headers['content-type'] ?? '').toLowerCase();
   if (type && !/^(text\/|application\/(xhtml\+)?xml)/.test(type)) {
     response.destroy();
     throw new RelayError('not-html', 'Cette adresse n\'est pas une page web. Pour un fichier seul, donne l\'adresse de la page qui le propose.');
   }
-  const body = await readLimited(response, MAX_PAGE_BYTES);
-  return { url, ...findDownloadableFiles(body.toString('utf8'), url, systems) };
+  return { url, html: (await readLimited(response, MAX_PAGE_BYTES)).toString('utf8') };
+}
+
+/** Nom de fichier d'un lien sans nom (T36) : en-tête Content-Disposition, sinon dernier segment de l'adresse finale. Le corps n'est pas lu. */
+async function probeName(address, options, stop) {
+  const { response, url } = await openPublicUrl(address, { ...options, signal: requestSignal(stop, PAGE_TIMEOUT_MS) });
+  response.destroy();
+  return fileNameFromDisposition(response.headers['content-disposition']) ?? fileNameFromUrl(url);
+}
+
+/**
+ * Analyse une page et, selon `depth`, les pages du même site qu'elle relie (T36, js/link-explorer.js). Chaque requête passe par openPublicUrl.
+ * @param {string} address adresse saisie @param {object[]} systems machines de systems.json
+ * @param {{depth?: number, signal?: AbortSignal, onProgress?: Function, limits?: object, lookup?: Function, allowAddress?: Function}} [options]
+ *   `signal` : arrêt demandé (on rend ce qui a été trouvé)
+ * @returns {Promise<{url: string, files: object[], truncated: boolean, stopped: boolean, stats: object}>}
+ * @throws {RelayError} si la page de départ ne peut pas être lue
+ */
+export async function scanPage(address, systems, { depth = 0, signal, onProgress, limits, ...options } = {}) {
+  const checked = checkPageAddress(address);
+  if (!checked.ok) throw new RelayError('invalid-url', checked.message);
+  return exploreSite({
+    start: checked.url, systems, depth, signal, onProgress, limits,
+    fetchPage: (url) => fetchPublicPage(url, options, signal),
+    probe: (url) => probeName(url, options, signal),
+  });
 }
 
 const exists = (p) => stat(p).then(() => true, () => false);
@@ -246,6 +269,7 @@ export async function downloadLinks(items, { romsDir, biosDir, systems, onProgre
     try {
       await mkdir(dir, { recursive: true });
       const { response } = await openPublicUrl(checked.url, options);
+      // T36 : un lien sans nom a été nommé à l'analyse (Content-Disposition) ; le nom écrit reste celui vérifié par checkDownloadItem.
       await saveTo(response, dest, join(dir, `.${checked.name}.clone90-part`), maxFileBytes);
       summary.downloaded.push(label);
     } catch (err) {

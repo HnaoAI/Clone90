@@ -1,6 +1,7 @@
 // API locale des dossiers de jeux (T25), des pochettes (T28) et des logos des machines (T29) : GET /api/settings, POST /api/settings/choose,
 // GET /api/covers, POST /api/covers/download, GET /api/logos, POST /api/logos/download,
-// et (T34, « Télécharger depuis une page ») POST /api/links/scan, POST /api/links/download, GET /api/links,
+// et (T34, « Télécharger depuis une page ») POST /api/links/scan, GET /api/links/scan/state, POST /api/links/scan/stop (T36 : analyse en
+// arrière-plan, exploration du site), POST /api/links/download, GET /api/links,
 // et (T35, mises à jour) POST /api/update/check, POST /api/update/apply, GET /api/update.
 // Branchée par serve.mjs. Dépend de local-settings.mjs, generate-games.mjs (régénération), covers.mjs et machine-logos.mjs, sans les dupliquer.
 // INVARIANT (sécurité) : active seulement si le serveur n'écoute que sur ce Mac (serve.mjs, isSettingsApiEnabled). Chaque requête doit
@@ -10,7 +11,8 @@
 //   T28 : le téléchargement des pochettes n'accepte que le corps `{}` (aucun paramètre) et partage le même verrou : jamais une boîte de choix pendant un téléchargement.
 //   T29 : les logos suivent exactement le même mécanisme (même travail en arrière-plan, même verrou) : un seul téléchargement à la fois, pochettes ou logos.
 //   T34 : les liens aussi (même verrou). Seul ce travail reçoit des paramètres : `{items: [{url, target}]}` (64 Ko au plus), chaque choix est revérifié
-//   par link-relay.mjs (adresse publique, extension acceptée par la machine, nom de BIOS déclaré). L'analyse (scan) répond directement, une à la fois.
+//   par link-relay.mjs (adresse publique, extension acceptée par la machine, nom de BIOS déclaré). T36 : l'analyse est un travail à part (pas le verrou des
+//   téléchargements, elle n'écrit rien), une à la fois, arrêtable ; corps `{url, depth?}` (depth 0 à 2).
 //   T35 : la mise à jour (updater.mjs) est un travail de plus (corps `{}`, même verrou) ; une fois faite, `restart` (serve.mjs) relance le serveur.
 import { readLocalSettings, updateLocalSettings, folderProblemKind } from './local-settings.mjs';
 import { runGenerate } from './generate-games.mjs';
@@ -53,7 +55,7 @@ const ERROR_TEXT = {
 };
 /** Routes connues : chemin -> méthode attendue. */
 const ROUTES = { '/api/settings': 'GET', '/api/settings/choose': 'POST', '/api/covers': 'GET', '/api/covers/download': 'POST', '/api/logos': 'GET', '/api/logos/download': 'POST',
-  '/api/links': 'GET', '/api/links/download': 'POST', '/api/links/scan': 'POST',
+  '/api/links': 'GET', '/api/links/download': 'POST', '/api/links/scan': 'POST', '/api/links/scan/state': 'GET', '/api/links/scan/stop': 'POST',
   '/api/update': 'GET', '/api/update/apply': 'POST', '/api/update/check': 'POST' };
 /** Téléchargements en arrière-plan (T28, T29) : état lu par GET /api/<nom>, lancé par POST /api/<nom>/download. */
 const JOB_NAMES = ['covers', 'logos', 'links', 'update'];
@@ -66,9 +68,12 @@ const parseEmpty = (data) => (Object.keys(data).length ? null : {});
 export function parseLinkItems(data) {
   const keys = Object.keys(data);
   if (keys.length !== 1 || keys[0] !== 'items' || !Array.isArray(data.items) || !data.items.length || data.items.length > MAX_ITEMS) return null;
-  const ok = data.items.every((i) => i && typeof i === 'object' && !Array.isArray(i) && Object.keys(i).length === 2
-    && typeof i.url === 'string' && typeof i.target === 'string' && i.url.length <= 2048 && i.target.length <= 32);
-  return ok ? { items: data.items.map(({ url, target }) => ({ url, target })) } : null;
+  // T36 : `name` facultatif (lien sans nom de fichier, nom lu dans Content-Disposition), revérifié par checkDownloadItem.
+  const ok = data.items.every((i) => i && typeof i === 'object' && !Array.isArray(i)
+    && Object.keys(i).every((k) => ['url', 'target', 'name'].includes(k))
+    && typeof i.url === 'string' && typeof i.target === 'string' && i.url.length <= 2048 && i.target.length <= 32
+    && (i.name === undefined || (typeof i.name === 'string' && i.name.length <= 255)));
+  return ok ? { items: data.items.map(({ url, target, name }) => ({ url, target, ...(name !== undefined && { name }) })) } : null;
 }
 
 /** Hôtes acceptés pour ce port (le nom de domaine d'une page piégée, même résolu vers 127.0.0.1, est refusé). */
@@ -128,7 +133,8 @@ function parseKind(text) {
  *   téléchargement des pochettes (T28, `runCovers` par défaut), injectable pour les tests ; il régénère games.json lui-même
  * @param {(options: {onProgress: Function}) => Promise<{exitCode: number, summary: object}>} [options.downloadLogos]
  *   téléchargement des logos des machines (T29, `runLogos` par défaut), injectable ; il régénère games.json lui-même
- * @param {(url: string, systems: object[]) => Promise<object>} [options.scanLinks] analyse d'une page (T34, `scanPage` par défaut), injectable
+ * @param {(url: string, systems: object[], options: {depth: number, signal: AbortSignal, onProgress: Function}) => Promise<object>} [options.scanLinks]
+ *   analyse d'une page et de son site (T34, T36, `scanPage` par défaut), injectable
  * @param {(items: object[], options: object) => Promise<object>} [options.fetchLinks] téléchargement des fichiers choisis (T34, `downloadLinks`), injectable
  * @param {() => Promise<object>} [options.checkUpdate] vérification de mise à jour (T35, `checkForUpdate` par défaut), injectable
  * @param {() => Promise<{ok: boolean, version?: string, message?: string}>} [options.runUpdate] application de la mise à jour (T35, `applyUpdate`)
@@ -139,7 +145,7 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
   regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }),
   downloadCovers = (options) => runCovers({ root, ...options }),
   downloadLogos = (options) => runLogos({ root, ...options }),
-  scanLinks = (url, systems) => scanPage(url, systems),
+  scanLinks = (url, systems, options) => scanPage(url, systems, options),
   fetchLinks = (items, options) => downloadLinks(items, options),
   checkUpdate = () => checkForUpdate({ root }),
   runUpdate = () => applyUpdate({ root }),
@@ -156,7 +162,9 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
     await regenerate().catch(() => {});
     return { exitCode: 0, summary: { found: [result.version] }, version: result.version };
   }
-  let scanning = false;
+  // T36 : état de l'analyse en cours ou finie : idle | running (progress) | done (url, files, truncated, stopped, stats) | error (message)
+  let scanJob = { status: 'idle' };
+  let scanAbort = null;
   const readSystems = async () => JSON.parse(await readFile(join(root, 'systems.json'), 'utf8')).systems;
   /** Travail des liens (T34) : télécharge dans les dossiers utilisés, puis régénère games.json (même si rien n'a été téléchargé : sans effet). */
   async function runLinks({ onProgress, params }) {
@@ -258,20 +266,40 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
     return data;
   }
 
-  /** POST /api/links/scan (T34) : `{url}` -> `{status: 'ok', url, files, truncated}` ou `{status: 'error', message}`. Une analyse à la fois. */
+  /** POST /api/links/scan (T34, T36) : `{url, depth?}` -> 202, l'analyse tourne en arrière-plan ; état par GET /api/links/scan/state. */
   async function handleScan(req, res) {
     const data = await readJson(req, res, MAX_SCAN_BODY_BYTES);
     if (data === undefined) return undefined;
-    if (Object.keys(data).length !== 1 || typeof data.url !== 'string') return send(res, 400, { message: 'Requête invalide' });
-    if (scanning) return send(res, 409, { status: 'busy', message: ERROR_TEXT.scanBusy });
-    scanning = true;
-    try {
-      const result = await scanLinks(data.url, await readSystems());
-      return send(res, 200, { status: 'ok', ...result });
-    } catch (err) {
-      if (!(err instanceof RelayError)) console.error('Analyse de page impossible :', err.message);
-      return send(res, 200, { status: 'error', message: err instanceof RelayError ? err.message : ERROR_TEXT.scanFailed });
-    } finally { scanning = false; }
+    const keys = Object.keys(data);
+    const depth = data.depth ?? 0;
+    if (typeof data.url !== 'string' || !keys.every((k) => k === 'url' || k === 'depth') || !Number.isInteger(depth) || depth < 0 || depth > 2) {
+      return send(res, 400, { message: 'Requête invalide' });
+    }
+    if (scanJob.status === 'running') return send(res, 409, { status: 'busy', message: ERROR_TEXT.scanBusy });
+    jobCounter += 1;
+    const id = jobCounter;
+    scanAbort = new AbortController();
+    scanJob = { id, status: 'running', progress: { pages: 0, queued: 1, files: 0 } };
+    const { signal } = scanAbort;
+    (async () => {
+      try {
+        const result = await scanLinks(data.url, await readSystems(), { depth, signal, onProgress: (progress) => { if (scanJob.id === id) scanJob = { id, status: 'running', progress }; } });
+        scanJob = { id, status: 'done', ...result };
+      } catch (err) {
+        if (!(err instanceof RelayError)) console.error('Analyse de page impossible :', err.message);
+        scanJob = { id, status: 'error', message: err instanceof RelayError ? err.message : ERROR_TEXT.scanFailed };
+      }
+    })();
+    return send(res, 202, { status: 'started' });
+  }
+
+  /** POST /api/links/scan/stop (T36) : corps `{}` ; l'analyse s'arrête et rend ce qu'elle a trouvé. */
+  async function handleScanStop(req, res) {
+    const data = await readJson(req, res, MAX_BODY_BYTES);
+    if (data === undefined) return undefined;
+    if (Object.keys(data).length) return send(res, 400, { message: 'Requête invalide' });
+    if (scanJob.status === 'running') scanAbort?.abort();
+    return send(res, 200, { status: scanJob.status === 'running' ? 'stopping' : scanJob.status });
   }
 
   /** POST /api/update/check (T35) : corps `{}` -> résultat de checkForUpdate (uptodate, available, error). Une vérification à la fois. */
@@ -313,6 +341,8 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
         const method = ROUTES[path];
         if (req.method !== method) return send(res, 405, { message: 'Méthode non autorisée' }, { Allow: method });
         if (path === '/api/links/scan') return await handleScan(req, res);
+        if (path === '/api/links/scan/state') return send(res, 200, scanJob);
+        if (path === '/api/links/scan/stop') return await handleScanStop(req, res);
         if (path === '/api/update/check') return await handleUpdateCheck(req, res);
         const job = JOB_NAMES.find((n) => path === `/api/${n}` || path === startPath(n));
         if (job && method === 'GET') return send(res, 200, jobs[job]);
