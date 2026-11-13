@@ -21,7 +21,7 @@ async function setup({ enabled = true, scanLinks = async () => ({ url: 'u', file
     root, enabled, getPort: () => server.address().port, applyFolders: () => {}, chooseFolder: async () => null,
     regenerate: async () => { calls.regenerate += 1; return { exitCode: 0 }; },
     downloadCovers: downloadCovers ?? (async () => ({ exitCode: 0, summary: { found: [] } })),
-    scanLinks: async (url, systems) => { calls.scan.push({ url, systems: systems.length }); return scanLinks(url); },
+    scanLinks: async (url, systems, options) => { calls.scan.push({ url, systems: systems.length }); return scanLinks(url, options); },
     fetchLinks: async (items, options) => { calls.fetch.push({ items, options }); return fetchLinks(items, options); },
   });
   server = createStaticServer({ root, api });
@@ -66,33 +66,57 @@ test('T34 API liens : mêmes refus que les dossiers (hôte, origine, en-tête X-
   } finally { t.close(); }
 });
 
-test('T34 API analyse : renvoie les fichiers trouvés ; erreur du relais rendue en message français ; corps invalide ou trop grand refusé', async () => {
+test('T34/T36 API analyse : lancée en arrière-plan, état lu par GET /api/links/scan/state, erreur du relais rendue en message français', async () => {
   let fail = false;
   const t = await setup({
     scanLinks: async (url) => {
       if (fail) throw new RelayError('blocked-address', 'Cette adresse mène à un appareil local ou privé : Clone90 ne la contacte pas.');
-      return { url, files: [{ url: `${url}a.adf`, name: 'a.adf', kind: 'rom', target: 'amiga', candidates: ['amiga'] }], truncated: false };
+      return { url, files: [{ url: `${url}a.adf`, name: 'a.adf', kind: 'rom', target: 'amiga', candidates: ['amiga'] }], truncated: false, stopped: false, stats: { pages: 1, links: 1 } };
     },
   });
   try {
-    const ok = await t.call('POST', '/api/links/scan', { json: { url: 'https://exemple.org/' } });
-    assert.equal(ok.status, 200);
-    assert.equal(ok.json().status, 'ok');
-    assert.equal(ok.json().files[0].name, 'a.adf');
+    assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 'https://exemple.org/' } })).status, 202);
+    const done = await until(async () => { const s = (await t.call('GET', '/api/links/scan/state')).json(); return s.status === 'done' && s; });
+    assert.equal(done.files[0].name, 'a.adf');
     assert.equal(t.calls.scan[0].systems, 14, 'machines lues dans systems.json');
     fail = true;
-    const refused = (await t.call('POST', '/api/links/scan', { json: { url: 'http://192.168.1.1/' } })).json();
-    assert.deepEqual(refused, { status: 'error', message: 'Cette adresse mène à un appareil local ou privé : Clone90 ne la contacte pas.' });
+    assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 'http://192.168.1.1/' } })).status, 202);
+    const refused = await until(async () => { const s = (await t.call('GET', '/api/links/scan/state')).json(); return s.status === 'error' && s; });
+    assert.equal(refused.message, 'Cette adresse mène à un appareil local ou privé : Clone90 ne la contacte pas.');
     assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 'x', autre: 1 } })).status, 400);
     assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 3 } })).status, 400);
+    assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 'x', depth: 3 } })).status, 400);
+    assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 'x', depth: 1.5 } })).status, 400);
     assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 'x'.repeat(5000) } })).status, 413);
+  } finally { t.close(); }
+});
+
+test('T36 API analyse : profondeur transmise, une analyse à la fois, « Arrêter » interrompt et rend ce qui est trouvé', async () => {
+  let seen;
+  const t = await setup({
+    scanLinks: async (url, options) => {
+      seen = options;
+      await new Promise((r) => { options.signal.addEventListener('abort', r); });
+      return { url, files: [], truncated: false, stopped: true, stats: { pages: 3, links: 9 } };
+    },
+  });
+  try {
+    assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 'https://exemple.org/', depth: 2 } })).status, 202);
+    await until(async () => seen);
+    assert.equal(seen.depth, 2);
+    assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 'https://exemple.org/' } })).status, 409);
+    assert.equal((await t.call('POST', '/api/links/scan/stop', { json: {} })).json().status, 'stopping');
+    const done = await until(async () => { const s = (await t.call('GET', '/api/links/scan/state')).json(); return s.status === 'done' && s; });
+    assert.equal(done.stopped, true);
+    assert.equal((await t.call('POST', '/api/links/scan/stop', { json: { x: 1 } })).status, 400);
   } finally { t.close(); }
 });
 
 test('T34 API téléchargement : corps limité à {items: [{url, target}]}, 1 à 200 choix, rien d\'autre', () => {
   assert.deepEqual(parseLinkItems({ items: [ITEM] }), { items: [ITEM] });
+  assert.deepEqual(parseLinkItems({ items: [{ ...ITEM, name: 'jeu.adf' }] }), { items: [{ ...ITEM, name: 'jeu.adf' }] }, 'T36 : nom facultatif');
   for (const bad of [{}, { items: [] }, { items: 'x' }, { items: [ITEM], path: '/tmp' }, { items: [{ ...ITEM, dir: '/etc' }] },
-    { items: [{ url: 1, target: 'amiga' }] }, { items: [null] }, { items: Array(201).fill(ITEM) }, { items: [{ url: 'x'.repeat(3000), target: 'amiga' }] }]) {
+    { items: [{ url: 1, target: 'amiga' }] }, { items: [null] }, { items: Array(201).fill(ITEM) }, { items: [{ url: 'x'.repeat(3000), target: 'amiga' }] }, { items: [{ ...ITEM, name: 3 }] }, { items: [{ ...ITEM, name: 'n'.repeat(300) }] }]) {
     assert.equal(parseLinkItems(bad), null, JSON.stringify(bad).slice(0, 80));
   }
 });

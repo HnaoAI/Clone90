@@ -4,7 +4,8 @@
 //   (CORS) ; les fichiers vont dans « Mes fichiers » (local-library.js). Sinon, message clair qui renvoie vers le Mac.
 // Dépend de link-finder.js et local-library.js. fetch, attente et bibliothèque injectables pour les tests.
 // INVARIANT (CLAUDE.md règle 5) : aucune connexion sans action de la personne ; seule l'adresse qu'elle a donnée (et les fichiers qu'elle a cochés) est lue.
-import { findDownloadableFiles, checkDownloadItem, checkPageAddress, formatLinksSummary } from './link-finder.js';
+import { checkDownloadItem, checkPageAddress, formatLinksSummary } from './link-finder.js';
+import { exploreSite } from './link-explorer.js';
 import { romStoragePath } from './local-library.js';
 import { BIOS_DIR } from './config.js';
 
@@ -26,21 +27,35 @@ const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
  * Source du Mac (serveur local, API active).
  * @param {{fetchFn?: typeof fetch, wait?: (ms: number) => Promise<void>}} [options]
  * @returns {{kind: 'mac', scan: Function, download: Function}}
- *   scan(url) -> {status: 'ok', url, files, truncated} | {status: 'error', message} ;
+ *   scan(url, {depth, onProgress, signal}) -> {status: 'ok', url, files, truncated, stopped, stats} | {status: 'error', message} (T36 : analyse en
+ *   arrière-plan suivie par api/links/scan/state ; `signal` demande l'arrêt au serveur) ;
  *   download(items, onProgress) -> {status: 'done', found, lines} | {status: 'error', message} ; ne lèvent jamais d'exception
  */
 export function createMacLinkSource({ fetchFn = globalThis.fetch, wait = sleep } = {}) {
   const post = (path, body) => fetchFn(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Clone90': '1' }, body: JSON.stringify(body) });
   return {
     kind: 'mac',
-    async scan(url) {
+    async scan(url, { depth = 0, onProgress = () => {}, signal } = {}) {
+      let started;
       try {
-        const res = await post('api/links/scan', { url });
-        const body = await res.json().catch(() => null);
-        if (isObject(body) && body.status === 'ok' && Array.isArray(body.files)) return body;
-        if (isObject(body) && typeof body.message === 'string') return { status: 'error', message: body.message };
-        return { status: 'error', message: 'La page n\'a pas pu être analysée.' };
+        const res = await post('api/links/scan', { url, depth });
+        started = { status: res.status, body: await res.json().catch(() => null) };
       } catch { return { status: 'error', message: UNREACHABLE_TEXT }; }
+      if (started.status !== 202) return { status: 'error', message: started.body?.message || 'La page n\'a pas pu être analysée.' };
+      const stop = () => { post('api/links/scan/stop', {}).catch(() => {}); };
+      signal?.addEventListener('abort', stop, { once: true });
+      try {
+        for (;;) {
+          let state = null;
+          try { const res = await fetchFn('api/links/scan/state', { cache: 'no-store' }); state = res.ok ? await res.json() : null; } catch { state = null; }
+          if (!isObject(state)) return { status: 'error', message: UNREACHABLE_TEXT };
+          if (state.status === 'done' && Array.isArray(state.files)) return { ...state, status: 'ok' };
+          if (state.status === 'error') return { status: 'error', message: state.message };
+          if (state.status === 'idle') return { status: 'error', message: 'L\'analyse s\'est arrêtée.' };
+          onProgress(state.progress ?? {});
+          await wait(POLL_MS);
+        }
+      } finally { signal?.removeEventListener('abort', stop); }
     },
     async download(items, onProgress = () => {}) {
       let started;
@@ -71,17 +86,26 @@ export function createMacLinkSource({ fetchFn = globalThis.fetch, wait = sleep }
 export function createBrowserLinkSource({ systems, openLibrary, fetchFn = globalThis.fetch }) {
   return {
     kind: 'browser',
-    async scan(text) {
+    async scan(text, { depth = 0, onProgress, signal } = {}) {
       const checked = checkPageAddress(text);
       if (!checked.ok) return { status: 'error', message: checked.message };
-      let res;
-      // Une page refusée par CORS et un site injoignable donnent la même TypeError : le navigateur ne dit pas lequel (sécurité).
-      try { res = await fetchFn(checked.url, FETCH_INIT); } catch { return { status: 'blocked', message: BLOCKED_TEXT }; }
-      if (!res.ok) return { status: 'error', message: `Le site a répondu « erreur ${res.status} ».` };
-      const html = await res.text().catch(() => '');
-      if (html.length > MAX_PAGE_CHARS) return { status: 'error', message: 'Cette page est trop grande pour être analysée.' };
-      const url = res.url || checked.url;
-      return { status: 'ok', url, ...findDownloadableFiles(html, url, systems) };
+      const fetchPage = async (url) => {
+        let res;
+        // Une page refusée par CORS et un site injoignable donnent la même TypeError : le navigateur ne dit pas lequel (sécurité).
+        try { res = await fetchFn(url, { ...FETCH_INIT, signal }); } catch (err) {
+          throw Object.assign(new Error(BLOCKED_TEXT), { blocked: !(signal?.aborted) });
+        }
+        if (!res.ok) throw new Error(`Le site a répondu « erreur ${res.status} ».`);
+        const html = await res.text().catch(() => '');
+        if (html.length > MAX_PAGE_CHARS) throw new Error('Cette page est trop grande pour être analysée.');
+        return { url: res.url || url, html };
+      };
+      try {
+        // T36 : mêmes sous-pages que sur le Mac ; pas d'interrogation des liens sans nom (le navigateur ne laisse pas lire Content-Disposition d'un autre site).
+        return { status: 'ok', ...await exploreSite({ start: checked.url, systems, depth, fetchPage, onProgress, signal }) };
+      } catch (err) {
+        return err.blocked ? { status: 'blocked', message: BLOCKED_TEXT } : { status: 'error', message: err.message };
+      }
     },
     async download(items, onProgress = () => {}) {
       let library;

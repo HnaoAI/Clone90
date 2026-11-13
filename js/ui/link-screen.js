@@ -5,11 +5,21 @@
 // INVARIANT (règle 2) : les machines proposées viennent de systems.json (candidats calculés par link-finder.js).
 import { buildHash } from '../router.js';
 import { el, clear } from './dom.js';
+import { describeEmptyScan, describeScanProgress } from '../link-explorer.js';
 
 export const LINK_BACK_NAV_ID = 'back';
 export const LINK_INPUT_NAV_ID = 'link-url';
 export const LINK_SCAN_NAV_ID = 'link-scan';
 export const LINK_DOWNLOAD_NAV_ID = 'link-download';
+export const LINK_DEPTH_NAV_ID = 'link-depth';
+export const LINK_STOP_NAV_ID = 'link-stop';
+/** Profondeurs proposées (T36) ; 1 par défaut : la page et les pages qu'elle relie. */
+export const DEPTH_CHOICES = [
+  { value: '0', label: 'Cette page seulement' },
+  { value: '1', label: 'Et les pages reliées' },
+  { value: '2', label: 'Et 2 niveaux de pages' },
+];
+export const DEFAULT_DEPTH = '1';
 export const WARNING_TEXT = 'Télécharge uniquement des fichiers dont tu as le droit de disposer.';
 const CHOOSE_LABEL = 'Choisir la machine';
 
@@ -42,7 +52,8 @@ export const initialChoices = (files) => files.map((f) => ({ checked: Boolean(f.
  * Fichiers à télécharger : cochés, avec une machine choisie.
  * @returns {{url: string, target: string}[]}
  */
-export const selectedItems = (files, choices) => files.flatMap((f, i) => (choices[i]?.checked && choices[i].target ? [{ url: f.url, target: choices[i].target }] : []));
+export const selectedItems = (files, choices) => files.flatMap((f, i) => (choices[i]?.checked && choices[i].target
+  ? [{ url: f.url, target: choices[i].target, ...(f.named && { name: f.name }) }] : [])); // T36 : nom lu à l'analyse pour un lien sans nom
 
 /** Nombre de fichiers cochés sans machine choisie (le bouton les signale). */
 export const missingMachines = (choices) => choices.filter((c) => c.checked && !c.target).length;
@@ -54,6 +65,22 @@ export const downloadLabel = (count) => (count ? `Télécharger la sélection ($
 export function describeFound(count, truncated) {
   if (!count) return 'Aucun fichier de jeu ou de BIOS reconnu sur cette page.';
   return `${count} fichier${count > 1 ? 's' : ''} trouvé${count > 1 ? 's' : ''}${truncated ? ' (liste limitée aux premiers)' : ''}`;
+}
+
+/**
+ * Message de fin d'analyse (T36). @param {{files: object[], stopped?: boolean, stats?: {pages: number, links: number}}} result
+ * @returns {{text: string, tone: 'info'|'error'}}
+ */
+export function describeScanResult(result) {
+  const n = result.files.length;
+  if (!n) return { text: result.stats ? describeEmptyScan(result.stats) : describeFound(0), tone: 'error' };
+  const pages = result.stats?.pages > 1 ? ` sur ${result.stats.pages} pages` : '';
+  return { text: `${result.stopped ? 'Analyse arrêtée. ' : ''}${describeFound(n, result.truncated)}${pages}. Coche les fichiers à télécharger et vérifie leur machine.`, tone: 'info' };
+}
+
+/** Page d'origine affichée sous un fichier : chemin de l'adresse, sans le protocole. */
+export function describeSourcePage(page) {
+  try { const u = new URL(page); return `${u.host}${decodeURI(u.pathname)}${u.search}`; } catch { return ''; }
 }
 
 /** Texte d'avancement. */
@@ -81,6 +108,11 @@ export function createLinkScreen({ systems, source, onFinished = () => {}, focus
     dataset: { nav: '', navId: LINK_INPUT_NAV_ID },
   }, [], doc);
   const scanButton = el('button', { class: 'button', text: 'Analyser', attrs: { type: 'submit' }, dataset: { nav: '', navId: LINK_SCAN_NAV_ID } }, [], doc);
+  const depthSelect = el('select', { class: 'link-depth', attrs: { id: 'link-depth' }, dataset: { nav: '', navId: LINK_DEPTH_NAV_ID } },
+    DEPTH_CHOICES.map((d) => el('option', { text: d.label, attrs: { value: d.value, ...(d.value === DEFAULT_DEPTH && { selected: '' }) } }, [], doc)), doc);
+  let scanStop = null;
+  const stopButton = el('button', { class: 'back-button link-stop', text: 'Arrêter', attrs: { type: 'button', hidden: '' }, dataset: { nav: '', navId: LINK_STOP_NAV_ID },
+    on: { click: () => scanStop?.abort() } }, [], doc);
   const status = el('p', { class: 'folders-status link-status', attrs: { role: 'status', 'aria-live': 'polite' } }, [], doc);
   const bar = el('progress', { class: 'covers-progress', attrs: { max: '100', 'aria-hidden': 'true', hidden: '' } }, [], doc);
   const results = el('div', { class: 'link-results' }, [], doc);
@@ -88,7 +120,7 @@ export function createLinkScreen({ systems, source, onFinished = () => {}, focus
   const show = (text, tone = 'info') => { status.textContent = text; status.setAttribute('class', `folders-status link-status is-${tone}`); };
   const setBusy = (value) => {
     busy = value;
-    for (const node of [scanButton, ...results.querySelectorAll('button, select')]) {
+    for (const node of [scanButton, depthSelect, ...results.querySelectorAll('button, select')]) {
       if (value) node.setAttribute('disabled', ''); else node.removeAttribute('disabled');
     }
     if (value) input.setAttribute('readonly', ''); else input.removeAttribute('readonly');
@@ -109,7 +141,9 @@ export function createLinkScreen({ systems, source, onFinished = () => {}, focus
       const select = el('select', { class: 'link-machine', attrs: { 'aria-label': `Machine pour ${f.name}` }, dataset: { nav: '', navId: `link-machine-${i}` },
         on: { change: () => { choices[i].target = select.value; if (select.value) { choices[i].checked = true; toggle.setAttribute('aria-pressed', 'true'); } refresh(); } } },
       machineOptions(f, systems).map((o) => el('option', { text: o.label, attrs: { value: o.value, ...(o.value === choices[i].target && { selected: '' }) } }, [], doc)), doc);
-      return el('li', { class: 'library-file link-file' }, [toggle, select], doc);
+      const label = el('div', { class: 'link-file-label' }, [toggle,
+        f.page && el('span', { class: 'link-file-page muted', text: describeSourcePage(f.page) }, [], doc)], doc);
+      return el('li', { class: 'library-file link-file' }, [label, select], doc);
     });
     results.append(
       el('h3', { class: 'library-heading', text: describeFound(files.length, truncated) }, [], doc),
@@ -130,13 +164,19 @@ export function createLinkScreen({ systems, source, onFinished = () => {}, focus
     renderResults(false);
     setBusy(true);
     show('Analyse de la page...');
-    const result = await source.scan(input.value);
+    scanStop = new AbortController();
+    stopButton.removeAttribute('hidden');
+    focus(LINK_STOP_NAV_ID);
+    const result = await source.scan(input.value, { depth: Number(depthSelect.value), signal: scanStop.signal, onProgress: (p) => { status.textContent = describeScanProgress(p); } });
+    stopButton.setAttribute('hidden', '');
+    scanStop = null;
     setBusy(false);
     if (result.status !== 'ok') { show(result.message, 'error'); focus(LINK_INPUT_NAV_ID); return; }
     files = result.files;
     choices = initialChoices(files);
     renderResults(result.truncated);
-    show(files.length ? 'Coche les fichiers à télécharger et vérifie leur machine.' : describeFound(0), files.length ? 'info' : 'error');
+    const summary = describeScanResult(result);
+    show(summary.text, summary.tone);
     focus(files.length ? 'link-file-0' : LINK_INPUT_NAV_ID);
   }
 
@@ -179,6 +219,9 @@ export function createLinkScreen({ systems, source, onFinished = () => {}, focus
     source && el('form', { class: 'link-form', attrs: { novalidate: '' }, on: { submit: runScan } }, [
       el('label', { class: 'link-label', text: 'Adresse de la page', attrs: { for: 'link-url' } }, [], doc),
       el('div', { class: 'link-row' }, [input, scanButton], doc),
+      el('div', { class: 'link-row link-depth-row' }, [
+        el('label', { class: 'link-label', text: 'Chercher aussi', attrs: { for: 'link-depth' } }, [], doc), depthSelect, stopButton,
+      ], doc),
     ], doc),
     bar,
     status,
