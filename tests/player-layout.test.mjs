@@ -62,3 +62,45 @@ test('Menu d\'EmulatorJS (☰, en haut à droite) : rangé dans la barre, hors d
   assert.match(r, /width:\s*48px/);
   assert.match(r, /height:\s*48px/);
 });
+
+// T31 : manette tactile d'EmulatorJS (demande de Hicham, 2026-11-13). Vérification en navigateur réel : tests/recette/manette-tactile.mjs.
+/** Bloc @media du paysage de téléphone (complément du bloc portrait / 3:2 de T28). */
+const landscape = () => mediaBlock('min-aspect-ratio: 3/2');
+
+test('Joystick gris clair : le joystick tactile (nipplejs, rouge par défaut, posé en style en ligne) est forcé en gris clair', () => {
+  const m = /([^{}]*\.nipple[^{}]*)\{([^}]*)\}/.exec(css);
+  assert.ok(m, 'règle .nipple absente de player.css');
+  assert.match(m[1], /\.ejs_virtualGamepad_parent \.nipple \.front/);
+  assert.match(m[1], /\.ejs_virtualGamepad_parent \.nipple \.back/);
+  // !important : nipplejs écrit background dans l'attribut style, qu'une règle normale ne peut pas battre.
+  assert.match(m[2], /background:\s*(lightgr[ae]y|#d3d3d3)\s*!important/);
+  // nipplejs pose une opacité de 0,5 (style en ligne) : sans la relever, le gris clair paraît gris foncé sur fond noir.
+  assert.match(rule(css, '.player-body .ejs_virtualGamepad_parent .nipple .front') ?? '', /opacity:\s*0\.[6-9]\d*\s*!important/);
+});
+
+test('Boutons Select, Start, Slow et Fast sous le joystick en paysage : bloc paysage de téléphone, complément du bloc portrait', () => {
+  assert.match(landscape(), /@media\s*\(orientation: landscape\)\s*and\s*\(min-aspect-ratio: 3\/2\)/);
+});
+
+test('Boutons Select, Start, Slow et Fast sous le joystick en paysage : leur groupe est à gauche, de la largeur du joystick, sous lui', () => {
+  const r = rule(landscape(), '.player-body .ejs_virtualGamepad_bottom');
+  assert.ok(r, '.ejs_virtualGamepad_bottom absent du bloc paysage');
+  // Joystick (emulator.css 4.2.3) : left 10 px, largeur 125 px, bas à 50 px du conteneur ; le groupe descend sous ce bas.
+  assert.match(r, /left:\s*10px/);
+  assert.match(r, /width:\s*125px/);
+  assert.match(r, /margin-left:\s*0/);
+  assert.match(r, /bottom:\s*-\d+px/);
+  assert.match(r, /display:\s*grid/);
+});
+
+test('Boutons Select, Start, Slow et Fast sous le joystick en paysage : rangés dans la grille (positions d\'EmulatorJS ignorées), Select et Start puis Slow et Fast', () => {
+  const block = landscape();
+  assert.match(rule(block, '.player-body .ejs_virtualGamepad_bottom .ejs_virtualGamepad_button') ?? '', /position:\s*static/);
+  const order = (id) => Number(/order:\s*(\d+)/.exec(rule(block, `.player-body .ejs_virtualGamepad_bottom .b_${id}`) ?? '')?.[1]);
+  assert.ok(order('select') < order('start') && order('start') < order('speed_slow') && order('speed_slow') < order('speed_fast'));
+});
+
+test('Boutons en portrait : pas touchés (ils sont déjà sous l\'image du jeu)', () => {
+  assert.doesNotMatch(mediaBlock('orientation: portrait'), /ejs_virtualGamepad_bottom/);
+  assert.equal(rule(css.replace(/@media[^{]*\{[\s\S]*?\}\s*\}/g, ''), '.player-body .ejs_virtualGamepad_bottom'), null);
+});
