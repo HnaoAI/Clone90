@@ -246,6 +246,11 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
 .dialog-body { padding: 20px 24px 28px; }
 .dialog-message { margin: 0 0 24px; color: var(--text-muted); }
 .dialog-actions { display: flex; gap: 20px; justify-content: flex-end; flex-wrap: wrap; }
+/* T39 : la place du curseur ▶ est toujours réservée dans les boutons de boîte (caché hors focus). Sinon, sur un téléphone, deux boutons
+   (« Annuler », « Supprimer ») passaient sur une ligne ou deux selon le curseur : au toucher, le focus changeait de bouton, la rangée se
+   recomposait sous le doigt et le relâchement tombait à côté (clic perdu, vu à la recette tests/recette/supprimer-jeu.mjs). */
+.dialog-button::before { display: block; visibility: hidden; }
+.dialog-button:focus-visible::before, .input-gamepad .dialog-button:focus::before { visibility: visible; }
 /* Panneau des dossiers (T25, js/ui/folders-panel.js) : boîte plus large, boutons en colonne, chemins longs coupés. */
 .dialog-box.is-wide { width: min(100%, 38rem); }
 .dialog-actions.is-vertical { flex-direction: column; align-items: stretch; gap: 16px; }

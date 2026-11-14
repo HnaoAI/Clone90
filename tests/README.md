@@ -52,3 +52,5 @@ Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (
 - `game-scale.test.mjs` : réglette de taille de l'image (bornes, mémorisation par machine, stockage abîmé, réglette, double-clic, focus rendu, CSS) (T37).
 - `updater.test.mjs` : mises à jour côté Mac (versions, dernière version, copie git factice puis vrai git, pull en avance rapide, API api/update..., relance du serveur) (T35). `update-ui.test.mjs` : sources de mise à jour de la page et fenêtre (compte à rebours, Plus tard, maintenant, erreur, impossible) (T35).
 - `link-download.test.mjs` : sources Mac et navigateur (CORS refusé, « Mes fichiers »), aides de l'écran, route `#/telecharger` (T34).
+- `local-game-delete.test.mjs` : « Supprimer le fichier » d'un jeu importé (T39) : fichiers du jeu, confirmation avec le nom, refus sans suppression, suppression dans la bibliothèque.
+- `game-delete.test.mjs` : suppression d'un jeu sur le disque du Mac ou du PC (T39) : fichiers effacés, jamais un dossier ni hors du dossier des jeux, API (refus de sécurité), client, confirmation « disque ».
