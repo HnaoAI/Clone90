@@ -1,12 +1,14 @@
 // Point d'entrée de player.html (T7) : Jouer, lancement d'EmulatorJS, sortie confirmée, retour avec focus.
 // Dépend de data, router, version, input/*, ui/dialog, ui/input-mode et de player/* (launcher, exit-guard, exit-hint, player-ui, diagnostic-panel).
 // Phases : boot -> ready (écran Jouer) -> playing -> dialog (confirmation, jeu en pause) ; error à tout moment avant le jeu.
+// T39 : ready -> delete (confirmation « Supprimer <jeu> ? » d'un jeu importé) -> ready (refus) ou retour à la grille (supprimé).
 // INVARIANT : pendant 'playing', la source d'actions est passive (isActive) : clavier et manette appartiennent au jeu.
 // Seuls exit-guard (lecture seule) et le bouton Menu peuvent demander la sortie.
 import { HOME_PAGE } from '../config.js';
 import { loadData } from '../data.js';
 import { loadLocalGames } from '../local-games.js';
-import { canUseLocalLibrary } from '../local-library.js';
+import { canUseLocalLibrary, openLocalLibrary } from '../local-library.js';
+import { canDeleteGame, confirmAndDeleteGame } from '../local-game-delete.js';
 import { parsePlayerParams, buildReturnUrl } from '../router.js';
 import { createActionSource } from '../input/actions.js';
 import { createFocusNavigator } from '../input/focus-nav.js';
@@ -24,7 +26,7 @@ import { shouldShowExitHint, EXIT_HINT_MS } from './exit-hint.js';
 import { readScale, saveScale, canShowScaleControl, createScaleControl } from './game-scale.js';
 import {
   renderPlayScreen, renderPlayerMessage, renderLoading, renderExitHint, createMenuButton, exitDialogOptions,
-  describeLoadError, describeStartFailure, exitDecision, PLAY_NAV_ID, BACK_NAV_ID,
+  describeLoadError, describeStartFailure, exitDecision, PLAY_NAV_ID, BACK_NAV_ID, DELETE_NAV_ID,
 } from './player-ui.js';
 
 const MENU_IDLE_MS = 3000;
@@ -113,6 +115,27 @@ function showStartFailure(info) {
   showMessage({ title, details });
 }
 
+/**
+ * T39 : « Supprimer le fichier » d'un jeu importé. Confirmation avec le nom du jeu (focus sur Annuler) ; refus = rien n'est supprimé.
+ * Supprimé : retour à la grille de la machine (le jeu n'y est plus). Échec : message, on reste sur l'écran Jouer.
+ */
+async function deleteGame(game, systemId) {
+  if (phase !== 'ready') return;
+  phase = 'delete';
+  let library;
+  try { library = await openLocalLibrary(); } catch { phase = 'ready'; toast('Suppression impossible'); return; }
+  const result = await confirmAndDeleteGame({
+    game, library,
+    confirm: (options) => { dialog = createConfirmDialog(options); dialog.open(document.body); return dialog.result; },
+  });
+  dialog = null;
+  logEvent(`Suppression de ${game.title} : ${result.status}`);
+  if (result.status === 'deleted') { leave(buildReturnUrl(systemId, null)); return; }
+  phase = 'ready';
+  if (result.status === 'error') toast('Suppression impossible');
+  nav.focusById(DELETE_NAV_ID);
+}
+
 function onPopState() {
   history.pushState({ clone90: 'exit-guard' }, ''); // remet la sentinelle : le retour système ne quitte jamais directement
   if (phase === 'dialog') dialog?.handleAction('back');
@@ -136,6 +159,7 @@ const diskShortcut = createDiskShortcut({
 
 function onAction(action, source) {
   setGamepadMode(source === 'gamepad');
+  if (phase === 'delete') { dialog?.handleAction(action); return; } // T39 : le garde ne tourne pas avant le jeu, Échap = Annuler
   if (phase === 'dialog') {
     // Échap (clavier) est traité par le garde : tap = Continuer, maintenu 1 s = Quitter. Sinon Échap fermerait la boîte avant 1 s.
     // Manette : tant que Select ou Start est tenu, "valider" est ignoré, sinon répéter Select+Start (= Quitter) fermerait la boîte (Start = valider).
@@ -289,7 +313,7 @@ async function main() {
   phase = 'ready';
   menu = createMenuButton({ onClick: () => requestExit() });
   chrome.append(menu.element);
-  screen.append(renderPlayScreen({ machine: system, game, onPlay: () => play(plan) }));
+  screen.append(renderPlayScreen({ machine: system, game, onPlay: () => play(plan), onDelete: canDeleteGame(game) ? () => deleteGame(game, system.id) : null }));
   nav.focusById(PLAY_NAV_ID);
 }
 
