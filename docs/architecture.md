@@ -294,6 +294,16 @@ Interface : `scripts/settings-api.mjs` ajoute `GET /api/covers` (état : `idle`,
 
 Limites : Neo Geo et arcade ont souvent plusieurs images pour un même jeu (cartouche MVS `NGM` ou AES `NGH`, sets `set 1`, `set 2`, versions de l'arcade) : ces jeux sont signalés « ambiguës » (constaté en lecture : `Metal Slug 3`, `Garou`, `Zaxxon`, `Pac-Man`, `Galaga`, `Donkey Kong` en arcade), `Viewpoint`, `Samurai Shodown II` et `Metal Slug` passent. Amiga (3339 images), Mega Drive, etc. correspondent mieux (`Gods`, `Leander`, `Zaxxon`).
 
+## 7.4b Pochettes de « Mes fichiers » (T40, navigateur)
+
+La recherche de 7.4 est dans `js/cover-match.js` (pur), partagée par `scripts/covers.mjs` (Mac) et `js/local-covers.js` (navigateur).
+
+1. **Quand** (`app.js`) : après chaque ajout de jeux dans la bibliothèque locale (« Ajouter des jeux », « Choisir le dossier des jeux », « Depuis une page web » côté navigateur) et sur le bouton « Chercher les pochettes manquantes » de « Mes fichiers ». Jamais sans geste de la personne.
+2. **Quoi** (`findLocalCovers`) : jeux `local: true` sans `cover`, machine avec `thumbnailsRepo`. Liste et choix comme 7.4 (1, 2). Cache des listes : IndexedDB `clone90-covers` (magasin `listings`, clé = dépôt, 7 jours, `freshListing`), base À PART de `clone90-local` (partagée avec `sw.js`, dont la version ne change pas).
+3. **Téléchargement** direct depuis le navigateur : `api.github.com` et `raw.githubusercontent.com` répondent `Access-Control-Allow-Origin: *`, donc ni relais du Mac ni clé. `credentials: 'omit'`, `referrerPolicy: 'no-referrer'`, `redirect: 'error'`, aucun en-tête ajouté (pas de requête préalable). PNG vérifié, 2 Mo (taille annoncée, `Content-Length`, lecture interrompue).
+4. **Rangement** : `library.put('roms/<machine>/<nom du jeu>.png', Blob image/png)` (`localCoverPath` = `roms/` + `coverTargetPath`), jamais si un fichier de ce nom existe (relu juste avant l'écriture). `buildLocalGames` la voit comme une jaquette, `sw.js` la sert (T27), `gameFilePaths` l'efface avec le jeu (T39).
+5. **Erreurs** : jamais d'exception ; introuvable, ambigu, refusé, GitHub injoignable ou limite atteinte = compteurs du résumé (`describeCoversResult`, une ligne : « Pochettes : 3 ajoutées, 1 introuvable »).
+
 ## 7.5 scripts/machine-logos.mjs (T29, logos des machines)
 
 Même mécanisme que les pochettes (7.4), plus simple : pas de liste à lire ni de correspondance à deviner.
