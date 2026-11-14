@@ -4,11 +4,14 @@
 import { el } from '../ui/dom.js';
 import { createCover, buildGameTiles } from '../ui/game-grid.js';
 import { exitHintText } from './exit-hint.js';
+import { DELETE_LABEL } from '../local-game-delete.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 export const MENU_NAV_ID = 'menu';
 export const PLAY_NAV_ID = 'play';
 export const BACK_NAV_ID = 'back';
+/** data-nav-id du bouton « Supprimer le fichier » de l'écran Jouer (T39). */
+export const DELETE_NAV_ID = 'delete-game';
 
 /**
  * Que faire d'une demande de sortie (Menu, F10, Select+Start, retour du navigateur) selon la phase de player-main.js.
@@ -79,9 +82,10 @@ const navButton = (label, navId, onClick, doc, extraClass = '') => el('button', 
 
 /**
  * Écran Jouer (docs/ux.md 3.4) : jaquette, titre, machine, gros bouton Jouer. Le clic est le geste qui autorise plein écran et son.
- * @param {{machine: object, game: object, onPlay: () => void}} model
+ * T39 : `onDelete` (jeu importé dans « Mes fichiers » seulement) ajoute un petit bouton « Supprimer le fichier » sous Jouer.
+ * @param {{machine: object, game: object, onPlay: () => void, onDelete?: (() => void)|null}} model
  */
-export function renderPlayScreen({ machine, game, onPlay }, doc = globalThis.document) {
+export function renderPlayScreen({ machine, game, onPlay, onDelete = null }, doc = globalThis.document) {
   const text = playScreenModel(machine, game);
   const tile = buildGameTiles([game], machine)[0];
   return el('section', { class: 'play-screen' }, [
@@ -90,6 +94,9 @@ export function renderPlayScreen({ machine, game, onPlay }, doc = globalThis.doc
     el('p', { class: 'muted', text: text.machineName }, [], doc),
     el('p', { class: 'ready', text: READY_LABEL, attrs: { 'aria-hidden': 'true' } }, [], doc),
     navButton(text.playLabel, PLAY_NAV_ID, onPlay, doc, 'play-button'),
+    onDelete && el('button', {
+      class: 'back-button delete-game-button', text: DELETE_LABEL, attrs: { type: 'button' }, dataset: { nav: '', navId: DELETE_NAV_ID }, on: { click: onDelete },
+    }, [], doc),
   ], doc);
 }
 

@@ -2,7 +2,8 @@
 // GET /api/covers, POST /api/covers/download, GET /api/logos, POST /api/logos/download,
 // et (T34, « Télécharger depuis une page ») POST /api/links/scan, GET /api/links/scan/state, POST /api/links/scan/stop (T36 : analyse en
 // arrière-plan, exploration du site), POST /api/links/download, GET /api/links,
-// et (T35, mises à jour) POST /api/update/check, POST /api/update/apply, GET /api/update.
+// et (T35, mises à jour) POST /api/update/check, POST /api/update/apply, GET /api/update,
+// et (T39, « Supprimer le fichier ») GET /api/games, POST /api/games/delete (corps `{id}`), sur Mac ET PC (option `gamesEnabled`).
 // Branchée par serve.mjs. Dépend de local-settings.mjs, generate-games.mjs (régénération), covers.mjs et machine-logos.mjs, sans les dupliquer.
 // INVARIANT (sécurité) : active seulement si le serveur n'écoute que sur ce Mac (serve.mjs, isSettingsApiEnabled). Chaque requête doit
 //   avoir un en-tête Host localhost:<port> ou 127.0.0.1:<port> (anti DNS rebinding), une Origin identique (ou aucune avec X-Clone90: 1),
@@ -14,12 +15,16 @@
 //   par link-relay.mjs (adresse publique, extension acceptée par la machine, nom de BIOS déclaré). T36 : l'analyse est un travail à part (pas le verrou des
 //   téléchargements, elle n'écrit rien), une à la fois, arrêtable ; corps `{url, depth?}` (depth 0 à 2).
 //   T35 : la mise à jour (updater.mjs) est un travail de plus (corps `{}`, même verrou) ; une fois faite, `restart` (serve.mjs) relance le serveur.
+//   T39 : la suppression d'un jeu ne reçoit que `{id}` (512 caractères au plus), jamais un chemin ; game-delete.mjs n'efface que des fichiers du
+//   dossier des jeux ; même verrou (jamais pendant un téléchargement) ; mêmes contrôles Host/Origin/X-Clone90. Active si le serveur n'écoute que
+//   sur cet ordinateur, sur tout système (`gamesEnabled`, isGameDeleteEnabled), même là où le reste de l'API (boîte du Mac) n'existe pas.
 import { readLocalSettings, updateLocalSettings, folderProblemKind } from './local-settings.mjs';
 import { runGenerate } from './generate-games.mjs';
 import { runCovers, formatSummary } from './covers.mjs';
 import { runLogos, formatLogosSummary } from './machine-logos.mjs';
 import { scanPage, downloadLinks, formatLinksSummary, RelayError, MAX_ITEMS } from './link-relay.mjs';
 import { checkForUpdate, applyUpdate } from './updater.mjs';
+import { deleteGameFromDisk } from './game-delete.mjs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -52,11 +57,15 @@ const ERROR_TEXT = {
   scanFailed: 'La page n\'a pas pu être analysée.',
   updateBusy: 'Une mise à jour est en cours.',
   updateFailed: 'La mise à jour a échoué. Rien n\'a été changé.',
+  deleteFailed: 'Le fichier n\'a pas pu être effacé (droits, dossier ou fichier hors du dossier des jeux).',
+  deleteNotFound: 'Ce jeu n\'est plus dans la liste.',
 };
 /** Routes connues : chemin -> méthode attendue. */
 const ROUTES = { '/api/settings': 'GET', '/api/settings/choose': 'POST', '/api/covers': 'GET', '/api/covers/download': 'POST', '/api/logos': 'GET', '/api/logos/download': 'POST',
   '/api/links': 'GET', '/api/links/download': 'POST', '/api/links/scan': 'POST', '/api/links/scan/state': 'GET', '/api/links/scan/stop': 'POST',
-  '/api/update': 'GET', '/api/update/apply': 'POST', '/api/update/check': 'POST' };
+  '/api/update': 'GET', '/api/update/apply': 'POST', '/api/update/check': 'POST', '/api/games': 'GET', '/api/games/delete': 'POST' };
+/** Routes de la suppression d'un jeu (T39), réglées par `gamesEnabled` et non par `enabled`. */
+const isGamesRoute = (path) => path === '/api/games' || path === '/api/games/delete';
 /** Téléchargements en arrière-plan (T28, T29) : état lu par GET /api/<nom>, lancé par POST /api/<nom>/download. */
 const JOB_NAMES = ['covers', 'logos', 'links', 'update'];
 /** Route de lancement d'un travail (`/api/<nom>/download`, sauf la mise à jour : `/api/update/apply`). */
@@ -140,6 +149,8 @@ function parseKind(text) {
  * @param {() => Promise<{ok: boolean, version?: string, message?: string}>} [options.runUpdate] application de la mise à jour (T35, `applyUpdate`)
  * @param {() => void} [options.restart] relance du serveur après une mise à jour réussie (T35, fourni par serve.mjs ; sans lui, rien)
  * @param {Record<string, string>} [options.baseHeaders] en-têtes de toutes les réponses (nosniff)
+ * @param {boolean} [options.gamesEnabled] T39 : suppression d'un jeu du disque permise (serveur limité à cet ordinateur, Mac ou PC) ; défaut `enabled`
+ * @param {() => Promise<string>} [options.getRomsDir] T39 : dossier des jeux utilisé (clone90.local.json, sinon roms/ du projet), injectable
  */
 export function createSettingsApi({ root, enabled, getPort, applyFolders, chooseFolder, baseHeaders = { 'X-Content-Type-Options': 'nosniff' },
   regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }),
@@ -149,7 +160,8 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
   fetchLinks = (items, options) => downloadLinks(items, options),
   checkUpdate = () => checkForUpdate({ root }),
   runUpdate = () => applyUpdate({ root }),
-  restart = () => {} }) {
+  restart = () => {}, gamesEnabled = enabled,
+  getRomsDir = async () => (await readLocalSettings(root)).romsDir }) {
   let busy = false;
   // Par travail : idle | running (progress) | done (found, lines) | error (message) ; `id` = numéro du travail, pour que le client ne traite qu'une fois sa fin
   const jobs = { covers: { status: 'idle' }, logos: { status: 'idle' }, links: { status: 'idle' }, update: { status: 'idle' } };
@@ -315,6 +327,28 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
     } finally { checking = false; }
   }
 
+  /** POST /api/games/delete (T39) : `{id}` -> efface les fichiers du jeu (game-delete.mjs), puis régénère games.json. */
+  async function handleGameDelete(req, res) {
+    const data = await readJson(req, res, MAX_BODY_BYTES);
+    if (data === undefined) return undefined;
+    const keys = Object.keys(data);
+    if (keys.length !== 1 || keys[0] !== 'id' || typeof data.id !== 'string' || !data.id || data.id.length > 512) return send(res, 400, { message: 'Requête invalide' });
+    if (busy) return send(res, 409, { status: 'busy', message: busyMessage() });
+    busy = true;
+    try {
+      const result = await deleteGameFromDisk({ root, romsDir: await getRomsDir(), gameId: data.id });
+      if (result.status === 'not-found') return send(res, 200, { status: 'not-found', message: ERROR_TEXT.deleteNotFound });
+      if (result.removed.length) await regenerate().catch(() => {});
+      if (result.failed.length) console.error(`Suppression de ${data.id} : fichiers refusés :`, result.failed.join(', '));
+      return send(res, 200, result.status === 'ok'
+        ? { status: 'ok', removed: result.removed.length + result.missing.length, failed: 0 }
+        : { status: 'error', removed: result.removed.length, failed: result.failed.length, message: ERROR_TEXT.deleteFailed });
+    } catch (err) {
+      console.error('Suppression d\'un jeu impossible :', err.message);
+      return send(res, 200, { status: 'error', message: ERROR_TEXT.deleteFailed });
+    } finally { busy = false; }
+  }
+
   async function runJob(name, id, params) {
     const spec = jobSpecs[name];
     try {
@@ -335,7 +369,7 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
       try {
         const path = (req.url ?? '').split('?')[0].split('#')[0];
         const known = Object.hasOwn(ROUTES, path);
-        if (!enabled || !known) return send(res, 404, { message: 'Introuvable' });
+        if (!known || !(isGamesRoute(path) ? gamesEnabled : enabled)) return send(res, 404, { message: 'Introuvable' });
         const refused = checkRequestOrigin(req.headers, getPort(), req.method);
         if (refused) return send(res, refused.status, { message: refused.message });
         const method = ROUTES[path];
@@ -344,6 +378,8 @@ export function createSettingsApi({ root, enabled, getPort, applyFolders, choose
         if (path === '/api/links/scan/state') return send(res, 200, scanJob);
         if (path === '/api/links/scan/stop') return await handleScanStop(req, res);
         if (path === '/api/update/check') return await handleUpdateCheck(req, res);
+        if (path === '/api/games') return send(res, 200, { deletable: true });
+        if (path === '/api/games/delete') return await handleGameDelete(req, res);
         const job = JOB_NAMES.find((n) => path === `/api/${n}` || path === startPath(n));
         if (job && method === 'GET') return send(res, 200, jobs[job]);
         if (job) return await handleJobStart(job, req, res);

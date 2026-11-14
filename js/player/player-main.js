@@ -1,12 +1,16 @@
 // Point d'entrée de player.html (T7) : Jouer, lancement d'EmulatorJS, sortie confirmée, retour avec focus.
 // Dépend de data, router, version, input/*, ui/dialog, ui/input-mode et de player/* (launcher, exit-guard, exit-hint, player-ui, diagnostic-panel).
 // Phases : boot -> ready (écran Jouer) -> playing -> dialog (confirmation, jeu en pause) ; error à tout moment avant le jeu.
+// T39 : ready -> delete (confirmation « Supprimer <jeu> ? ») -> ready (refus) ou retour à la grille (supprimé). Jeu importé : bibliothèque du
+// navigateur ; jeu du disque : serveur local du Mac ou du PC (api/games), seulement s'il le permet (bouton absent sinon, ex. téléphone).
 // INVARIANT : pendant 'playing', la source d'actions est passive (isActive) : clavier et manette appartiennent au jeu.
 // Seuls exit-guard (lecture seule) et le bouton Menu peuvent demander la sortie.
 import { HOME_PAGE } from '../config.js';
 import { loadData } from '../data.js';
 import { loadLocalGames } from '../local-games.js';
-import { canUseLocalLibrary } from '../local-library.js';
+import { canUseLocalLibrary, openLocalLibrary } from '../local-library.js';
+import { canDeleteGame, confirmAndDeleteGame, confirmAndDeleteDiskGame } from '../local-game-delete.js';
+import { fetchGameDeleteSupport, requestGameDelete } from '../folders-client.js';
 import { parsePlayerParams, buildReturnUrl } from '../router.js';
 import { createActionSource } from '../input/actions.js';
 import { createFocusNavigator } from '../input/focus-nav.js';
@@ -24,7 +28,7 @@ import { shouldShowExitHint, EXIT_HINT_MS } from './exit-hint.js';
 import { readScale, saveScale, canShowScaleControl, createScaleControl } from './game-scale.js';
 import {
   renderPlayScreen, renderPlayerMessage, renderLoading, renderExitHint, createMenuButton, exitDialogOptions,
-  describeLoadError, describeStartFailure, exitDecision, PLAY_NAV_ID, BACK_NAV_ID,
+  describeLoadError, describeStartFailure, exitDecision, PLAY_NAV_ID, BACK_NAV_ID, DELETE_NAV_ID,
 } from './player-ui.js';
 
 const MENU_IDLE_MS = 3000;
@@ -113,6 +117,31 @@ function showStartFailure(info) {
   showMessage({ title, details });
 }
 
+/**
+ * T39 : « Supprimer le fichier ». Confirmation avec le nom du jeu (focus sur Annuler, « définitive ») ; refus = rien n'est supprimé.
+ * Jeu importé : bibliothèque du navigateur. Jeu du disque : le serveur local efface ses fichiers (on n'envoie que l'id).
+ * Supprimé : retour à la grille de la machine (le jeu n'y est plus). Échec : message, on reste sur l'écran Jouer.
+ */
+async function deleteGame(game, systemId) {
+  if (phase !== 'ready') return;
+  phase = 'delete';
+  const confirm = (options) => { dialog = createConfirmDialog(options); dialog.open(document.body); return dialog.result; };
+  let result;
+  if (game.local) {
+    let library = null;
+    try { library = await openLocalLibrary(); } catch { /* bibliothèque illisible */ }
+    result = library ? await confirmAndDeleteGame({ game, library, confirm }) : { status: 'error' };
+  } else {
+    result = await confirmAndDeleteDiskGame({ game, confirm, request: (id) => requestGameDelete(id) });
+  }
+  dialog = null;
+  logEvent(`Suppression de ${game.title} : ${result.status}`);
+  if (result.status === 'deleted') { leave(buildReturnUrl(systemId, null)); return; }
+  phase = 'ready';
+  if (result.status === 'error') toast(result.message ?? 'Suppression impossible');
+  nav.focusById(DELETE_NAV_ID);
+}
+
 function onPopState() {
   history.pushState({ clone90: 'exit-guard' }, ''); // remet la sentinelle : le retour système ne quitte jamais directement
   if (phase === 'dialog') dialog?.handleAction('back');
@@ -136,6 +165,7 @@ const diskShortcut = createDiskShortcut({
 
 function onAction(action, source) {
   setGamepadMode(source === 'gamepad');
+  if (phase === 'delete') { dialog?.handleAction(action); return; } // T39 : le garde ne tourne pas avant le jeu, Échap = Annuler
   if (phase === 'dialog') {
     // Échap (clavier) est traité par le garde : tap = Continuer, maintenu 1 s = Quitter. Sinon Échap fermerait la boîte avant 1 s.
     // Manette : tant que Select ou Start est tenu, "valider" est ignoré, sinon répéter Select+Start (= Quitter) fermerait la boîte (Start = valider).
@@ -286,10 +316,12 @@ async function main() {
     showMessage({ title: described[0].title, details: described.map((m) => m.detail) });
     return;
   }
+  // T39 : bouton de suppression pour un jeu importé, ou pour un jeu du disque si le serveur local le permet (Mac ou PC limité à cet ordinateur).
+  const deletable = canDeleteGame(game) || await fetchGameDeleteSupport();
   phase = 'ready';
   menu = createMenuButton({ onClick: () => requestExit() });
   chrome.append(menu.element);
-  screen.append(renderPlayScreen({ machine: system, game, onPlay: () => play(plan) }));
+  screen.append(renderPlayScreen({ machine: system, game, onPlay: () => play(plan), onDelete: deletable ? () => deleteGame(game, system.id) : null }));
   nav.focusById(PLAY_NAV_ID);
 }
 

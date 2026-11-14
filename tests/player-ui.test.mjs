@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { exitHintText, shouldShowExitHint, EXIT_HINT_MAX_LAUNCHES, EXIT_HINT_STORAGE_KEY } from '../js/player/exit-hint.js';
-import { exitDialogOptions, ringDashOffset, describeLoadError, playScreenModel, renderPlayScreen, READY_LABEL } from '../js/player/player-ui.js';
+import { exitDialogOptions, ringDashOffset, describeLoadError, playScreenModel, renderPlayScreen, READY_LABEL, DELETE_NAV_ID } from '../js/player/player-ui.js';
 import { setGamepadMode, watchPointer } from '../js/ui/input-mode.js';
 
 const memoryStorage = (initial = {}) => {
@@ -160,4 +160,26 @@ test('T24 écran Jouer : « PRÊT ? » décoratif (aria-hidden) avant le bouton 
   assert.equal(kids.at(-1).textContent, 'Jouer', 'le bouton Jouer reste le dernier élément (focus initial inchangé)');
   assert.ok(kids.indexOf(ready) < kids.length - 1);
   assert.equal(kids.find((c) => c.tag === 'h1').textContent, 'Star Courier');
+});
+
+// --- T39 : « Supprimer le fichier » sur l'écran Jouer d'un jeu importé ---
+const fakeDoc = () => ({ createElement: (tag) => ({ tag, children: [], attrs: {}, dataset: {}, listeners: {}, textContent: '', append(...c) { this.children.push(...c); }, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, f) { this.listeners[t] = f; } }), createTextNode: (t) => ({ text: t }) });
+const neogeo = { id: 'neogeo', name: 'Neo Geo', accent: '--m-neogeo' };
+
+test('T39 écran Jouer : bouton « Supprimer le fichier » (navigable) quand onDelete est donné, après Jouer', () => {
+  let deleted = 0;
+  const screen = renderPlayScreen({ machine: neogeo, game: { id: 'neogeo/x', title: 'Star Courier' }, onPlay() {}, onDelete: () => { deleted += 1; } }, fakeDoc());
+  const button = screen.children.at(-1);
+  assert.equal(button.tag, 'button');
+  assert.equal(button.textContent, 'Supprimer le fichier');
+  assert.equal(button.dataset.navId, DELETE_NAV_ID);
+  assert.equal(button.dataset.nav, '');
+  assert.equal(screen.children.at(-2).textContent, 'Jouer');
+  button.listeners.click();
+  assert.equal(deleted, 1);
+});
+
+test('T39 écran Jouer : sans onDelete (jeu du disque du Mac), pas de bouton de suppression', () => {
+  const screen = renderPlayScreen({ machine: neogeo, game: { id: 'neogeo/x', title: 'Star Courier' }, onPlay() {} }, fakeDoc());
+  assert.ok(!screen.children.some((c) => c.textContent === 'Supprimer le fichier'));
 });

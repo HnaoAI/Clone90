@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { PROJECT_ROOT } from './project-root.mjs';
 import { readLocalSettings, describeFolders } from './local-settings.mjs';
 import { createSettingsApi } from './settings-api.mjs';
+import { isGameDeleteEnabled } from './game-delete.mjs';
 import { chooseFolderOnMac } from './mac-folder-dialog.mjs';
 
 export const DEFAULT_PORT = 8080;
@@ -293,7 +294,7 @@ async function main() {
   }
   const settings = await readLocalSettings(PROJECT_ROOT);
   const api = createSettingsApi({
-    root: PROJECT_ROOT, enabled: isSettingsApiEnabled(host), getPort: () => server.address().port,
+    root: PROJECT_ROOT, enabled: isSettingsApiEnabled(host), gamesEnabled: isGameDeleteEnabled(host), getPort: () => server.address().port,
     applyFolders: (folders) => server.setFolders(folders), chooseFolder: chooseFolderOnMac, baseHeaders: SECURITY_HEADERS,
     restart: () => restart(),
   });
