@@ -7,6 +7,7 @@ Modules ES sans framework ni build. Chemins relatifs uniquement.
 - `data.js` : charge et valide `systems.json` et `games.json` (`games.json` absent = statut `absent`, pas d'erreur), regroupement par machine, encodage des chemins (par segment) et des ids pour les URL, messages d'erreur français de systems.json, statuts de games.json (`ok`, `empty`, `absent`, `offline`, `invalid`), logos téléchargés (`logos` de games.json, ajoutés aux machines en `downloadedLogo`, T29).
 - `router.js` : routes hash `#/` et `#/<machine>?focus=<id>` (`parseHash`, `buildHash`, `createRouter`) et `buildPlayerUrl`. Aucune logique d'écran.
 - `games-builder.js` : construction des jeux d'une machine depuis des noms de fichiers (titres, disquettes, .m3u, .cue), fonctions pures partagées par `scripts/generate-games.mjs` et le navigateur (T27). `posix-path.js` : sous-ensemble de `node:path` posix pour ce module.
+- `folder-scan.js` : scan d'un dossier choisi sur l'appareil (T38, pur) : un sous-dossier par machine vers `roms/<machine>/`, `bios/` et BIOS déclarés (neogeo.zip) vers `bios/`, formats gardés, déjà présents, message de fin. Choix du dossier : `pickFolder` de `ui/library-screen.js`.
 - `local-library.js` : bibliothèque locale (IndexedDB) des jeux et BIOS importés sur l'appareil, chemins `roms/<machine>/` et `bios/` (T27). `local-games.js` : jeux de cette bibliothèque (`loadLocalGames`), fusionnés par `loadData`.
 - `sort.js` : `compareTitles`, règle de tri des titres partagée avec `scripts/generate-games.mjs`.
 - `ui/dom.js` : helpers `el` et `clear` (pas d'`innerHTML`).

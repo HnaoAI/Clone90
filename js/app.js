@@ -7,7 +7,8 @@
 import { loadData, groupGamesBySystem } from './data.js';
 import { loadLocalGames } from './local-games.js';
 import { openLocalLibrary, canUseLocalLibrary, romStoragePath, biosStoragePath, requestPersistentStorage } from './local-library.js';
-import { renderLibrary, pickFiles, describeImport, addGamesNavId, ADD_BIOS_NAV_ID, LIBRARY_BACK_NAV_ID } from './ui/library-screen.js';
+import { renderLibrary, pickFiles, pickFolder, describeImport, addGamesNavId, ADD_BIOS_NAV_ID, LIBRARY_BACK_NAV_ID, SCAN_FOLDER_NAV_ID } from './ui/library-screen.js';
+import { planFolderImport, summarizePlan, describeFolderImport, folderPickingSupported } from './folder-scan.js';
 import { createRouter } from './router.js';
 import { createActionSource } from './input/actions.js';
 import { createFocusNavigator } from './input/focus-nav.js';
@@ -84,7 +85,7 @@ async function main() {
   }
 
   /** Écran « Mes fichiers » (T27). `focusId` : bouton à refocaliser après un nouveau rendu. */
-  async function showLibrary(machine, focusId = null) {
+  async function showLibrary(machine, focusId = null, notice = null) { // T38 : `notice` = résultat du dernier scan, affiché dans l'écran
     let entries = [];
     let library = null;
     if (localSupported) {
@@ -94,6 +95,7 @@ async function main() {
       clear(screen);
       screen.append(renderLibrary({
         systems: data.systems, entries, supported: Boolean(library), machine, busy: libraryBusy,
+        folderPicking: folderPickingSupported(window), onScanFolder: () => importFolder(), notice,
         onAddGames: (systemId) => importFiles((file) => ({ path: romStoragePath(systemId, file.name) }), addGamesNavId(systemId)),
         onAddBios: () => importFiles((file) => biosStoragePath(file.name, data.systems), ADD_BIOS_NAV_ID),
         onRemove: async (path) => {
@@ -130,6 +132,30 @@ async function main() {
       }
       await reload();
       showLibrary(machine, returnFocus);
+    }
+    /** T38 : copie tout un dossier choisi (un sous-dossier par machine), d'après le plan pur de folder-scan.js. */
+    async function importFolder() {
+      const files = await pickFolder(document);
+      if (!files.length) return;
+      const plan = planFolderImport(files, data.systems, entries);
+      const summary = summarizePlan(plan, data.systems);
+      libraryBusy = true;
+      render(null);
+      let copied = 0;
+      try {
+        for (const item of plan.items) {
+          await library.put(item.path, files[item.index]);
+          copied += 1;
+        }
+        if (copied) requestPersistentStorage();
+      } catch (e) {
+        console.error('Copie du dossier impossible :', e);
+      } finally {
+        libraryBusy = false;
+      }
+      await reload();
+      // Le résumé est affiché dans l'écran, sous le bouton (pas de toast : 2 s ne suffisent pas pour le lire et il le recouvrirait).
+      showLibrary(machine, SCAN_FOLDER_NAV_ID, describeFolderImport({ ...summary, copied }));
     }
     render(focusId ?? (machine ? addGamesNavId(machine) : LIBRARY_BACK_NAV_ID));
     current = { onBack: () => router.navigate({ name: 'home' }) };

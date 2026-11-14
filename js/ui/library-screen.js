@@ -1,4 +1,5 @@
 // Écran « Mes fichiers » (T27) : ajouter ses jeux et BIOS depuis le téléphone, voir et supprimer ce qui est gardé dans ce navigateur.
+// T38 : en tête, « Choisir le dossier des jeux » range tout un dossier (un sous-dossier par machine) d'un coup (js/folder-scan.js).
 // Dépend de router.js, config.js, ui/dom.js, local-library.js (describeBiosStatus). Les actions (choisir, supprimer) sont transmises par app.js.
 // INVARIANT : aucune liste de machines ici, tout vient de systems.json. Chaque bouton est `data-nav` (clavier et manette via js/input/).
 import { buildHash } from '../router.js';
@@ -9,6 +10,8 @@ import { el } from './dom.js';
 /** data-nav-id du bouton retour et du bouton « Choisir des BIOS ». */
 export const LIBRARY_BACK_NAV_ID = 'back';
 export const ADD_BIOS_NAV_ID = 'add-bios';
+/** data-nav-id du bouton « Choisir le dossier des jeux » (T38). */
+export const SCAN_FOLDER_NAV_ID = 'scan-folder';
 /** data-nav-id du bouton d'ajout de jeux d'une machine. */
 export const addGamesNavId = (systemId) => `add-${systemId}`;
 
@@ -65,12 +68,14 @@ const secondaryButton = (text, navId, onClick, doc, extraClass = '') => el('butt
 /**
  * Écran complet.
  * @param {{systems: object[], entries: {path: string, size: number}[], supported: boolean, machine?: string|null, busy?: boolean,
+ *   folderPicking?: boolean, onScanFolder?: () => void, notice?: string|null,
  *   onAddGames: (systemId: string) => void, onAddBios: () => void, onRemove: (path: string) => void}} model
- *   `machine` : machine mise en avant (arrivée depuis sa grille vide) ; `busy` : import en cours (boutons désactivés)
+ *   `machine` : machine mise en avant (arrivée depuis sa grille vide) ; `busy` : import en cours (boutons désactivés) ;
+ *   `folderPicking` : le navigateur sait choisir un dossier (T38), sinon une phrase remplace le bouton ; `notice` : résultat du dernier scan
  * @param {Document} [doc]
  * @returns {HTMLElement}
  */
-export function renderLibrary({ systems, entries, supported, machine = null, busy = false, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
+export function renderLibrary({ systems, entries, supported, machine = null, busy = false, folderPicking = false, onScanFolder = () => {}, notice = null, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
   const groups = groupLibraryEntries(entries, systems);
   const total = entries.reduce((sum, e) => sum + (e.size || 0), 0);
   const bios = describeBiosStatus(systems, entries.map((e) => e.path));
@@ -92,6 +97,12 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
       el('p', { text: 'Ouvrez le site en HTTPS dans Chrome ou Firefox, hors navigation privée.' }, [], doc),
     ], doc),
     busy && el('p', { class: 'banner', attrs: { role: 'status' }, text: 'Copie des fichiers en cours…' }, [], doc),
+    el('h3', { class: 'library-heading', text: 'Importer tout un dossier' }, [], doc),
+    el('p', { class: 'muted', text: 'Choisissez le dossier qui contient un sous-dossier par machine (amiga, neogeo, nes…), comme le dossier roms du Mac, et bios s\'il existe. Chaque jeu est rangé dans sa machine ; neogeo.zip va dans les BIOS. Les fichiers déjà présents ne sont pas recopiés.' }, [], doc),
+    folderPicking
+      ? withDisabled(el('button', { class: 'button', text: 'Choisir le dossier des jeux', attrs: { type: 'button' }, dataset: { nav: '', navId: SCAN_FOLDER_NAV_ID }, on: { click: () => onScanFolder() } }, [], doc))
+      : el('p', { class: 'muted', text: 'Ce navigateur ne permet pas de choisir un dossier : ajoutez les jeux machine par machine ci-dessous.' }, [], doc),
+    notice && !busy && el('p', { class: 'library-notice', attrs: { role: 'status' }, text: notice }, [], doc),
     el('h3', { class: 'library-heading', text: 'Ajouter des jeux' }, [], doc),
     el('p', { class: 'muted', text: highlighted
       ? `Formats acceptés pour ${highlighted.name} : ${(highlighted.extensions ?? []).map((e) => `.${e}`).join(' ')}. Touchez la machine, puis choisissez vos fichiers.`
@@ -132,6 +143,21 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
 export function pickFiles(doc = globalThis.document) {
   return new Promise((resolve) => {
     const input = el('input', { attrs: { type: 'file', multiple: '', hidden: '' } }, [], doc);
+    input.addEventListener('change', () => { resolve([...(input.files ?? [])]); input.remove(); });
+    doc.body.append(input);
+    input.click();
+  });
+}
+
+/**
+ * Ouvre le sélecteur de DOSSIER du système (T38, `webkitdirectory`) : tous les fichiers du dossier et de ses sous-dossiers,
+ * chacun avec `webkitRelativePath` (« roms/amiga/Gods.adf »). Même règles que `pickFiles` (geste de la personne, élément ajouté le temps du choix).
+ * @param {Document} [doc]
+ * @returns {Promise<File[]>} résolue au choix ; jamais si la personne annule
+ */
+export function pickFolder(doc = globalThis.document) {
+  return new Promise((resolve) => {
+    const input = el('input', { attrs: { type: 'file', webkitdirectory: '', multiple: '', hidden: '' } }, [], doc);
     input.addEventListener('change', () => { resolve([...(input.files ?? [])]); input.remove(); });
     doc.body.append(input);
     input.click();

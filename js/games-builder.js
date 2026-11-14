@@ -4,7 +4,8 @@
 import * as posix from './posix-path.js';
 import { compareTitles } from './sort.js';
 
-const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp']; // ordre = priorité de la jaquette
+/** Extensions d'image reconnues comme jaquettes (ordre = priorité). Partagé avec js/folder-scan.js (T38). */
+export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
 
 /** Extension en minuscules, sans point ('' si aucune). */
 export const extOf = (name) => posix.extname(name).slice(1).toLowerCase();
@@ -239,9 +240,15 @@ export function buildSystemGames({ system, files, texts, titles, dirName = syste
     return game;
   };
 
+  // T38 : un BIOS déclaré pour cette machine (neogeo.zip) rangé par erreur avec les jeux n'est pas un jeu : sa place est bios/.
+  const biosNames = new Set((system.bios ?? []).map((b) => b.file).filter((x) => typeof x === 'string').map((x) => x.toLowerCase()));
   const candidates = [];
   for (const f of visible) {
     const ext = extOf(f);
+    if (biosNames.has(posix.basename(f).toLowerCase())) {
+      warnings.push(`${system.id} : ${f} est un BIOS, pas un jeu : rangez-le dans bios/`);
+      continue;
+    }
     if (!accepted.has(ext)) {
       if (!IMAGE_EXTENSIONS.includes(ext) && ext !== 'bios' && !referenced.has(f.toLowerCase())) {
         warnings.push(`${system.id} : extension non prise en charge, fichier ignoré : ${f}`);
