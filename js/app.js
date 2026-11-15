@@ -4,10 +4,14 @@
 // T27 : écran « Mes fichiers » (#/fichiers) ; après un ajout ou une suppression, les données sont rechargées (reload) sans recharger la page.
 // T34 : écran « Depuis une page web » (#/telecharger), source Mac (API locale) si elle répond, sinon navigateur (bibliothèque locale).
 // T35 : vérification des mises à jour 5 s après l'ouverture, fenêtre js/ui/update-dialog.js.
+// T40 : après chaque import de jeux dans « Mes fichiers » (fichiers, dossier, page web) et sur un bouton, pochettes manquantes (local-covers.js) ;
+// sur le Mac, pochettes manquantes cherchées sans clic à l'ouverture et après un ajout de jeux par Clone90 (auto-covers.js, décision du 2026-11-15).
 import { loadData, groupGamesBySystem } from './data.js';
 import { loadLocalGames } from './local-games.js';
 import { openLocalLibrary, canUseLocalLibrary, romStoragePath, biosStoragePath, requestPersistentStorage } from './local-library.js';
-import { renderLibrary, pickFiles, pickFolder, describeImport, addGamesNavId, ADD_BIOS_NAV_ID, LIBRARY_BACK_NAV_ID, SCAN_FOLDER_NAV_ID } from './ui/library-screen.js';
+import { findLocalCovers, describeCoversResult } from './local-covers.js';
+import { runAutoCovers, autoCoversToast } from './auto-covers.js';
+import { renderLibrary, pickFiles, pickFolder, describeImport, addGamesNavId, ADD_BIOS_NAV_ID, LIBRARY_BACK_NAV_ID, SCAN_FOLDER_NAV_ID, FIND_COVERS_NAV_ID } from './ui/library-screen.js';
 import { planFolderImport, summarizePlan, describeFolderImport, folderPickingSupported } from './folder-scan.js';
 import { createRouter } from './router.js';
 import { createActionSource } from './input/actions.js';
@@ -65,12 +69,22 @@ async function main() {
   let current = {};
   let lastSystem = null;
   let libraryBusy = false;
+  let libraryBusyText = null; // T40 : avancement de la recherche des pochettes
 
   /** Relit games.json et la bibliothèque locale (T27, après un ajout ou une suppression). Garde les données d'avant en cas d'échec. */
   async function reload() {
     try {
       applyData(await loadAll());
     } catch (e) { console.error('Rechargement impossible :', e.cause ?? e); }
+  }
+
+  /** T40 : pochettes des jeux de « Mes fichiers » qui n'en ont pas ; données rechargées si des images ont été ajoutées. Ne lève jamais.
+   *  @returns {Promise<string|null>} résumé d'une ligne, null s'il n'y avait rien à chercher */
+  async function addLocalCovers(library, onProgress) {
+    await reload(); // les jeux tout juste importés doivent être dans data.games
+    const summary = await findLocalCovers({ systems: data.systems, games: data.games, library, onProgress });
+    if (summary.found.length) await reload();
+    return describeCoversResult(summary);
   }
 
   function showHome() {
@@ -94,9 +108,10 @@ async function main() {
     const render = (focus) => {
       clear(screen);
       screen.append(renderLibrary({
-        systems: data.systems, entries, supported: Boolean(library), machine, busy: libraryBusy,
+        systems: data.systems, entries, supported: Boolean(library), machine, busy: libraryBusy, busyText: libraryBusyText,
         folderPicking: folderPickingSupported(window), onScanFolder: () => importFolder(), notice,
-        onAddGames: (systemId) => importFiles((file) => ({ path: romStoragePath(systemId, file.name) }), addGamesNavId(systemId)),
+        onAddGames: (systemId) => importFiles((file) => ({ path: romStoragePath(systemId, file.name) }), addGamesNavId(systemId), true),
+        onFindCovers: () => findCovers(FIND_COVERS_NAV_ID),
         onAddBios: () => importFiles((file) => biosStoragePath(file.name, data.systems), ADD_BIOS_NAV_ID),
         onRemove: async (path) => {
           if (!window.confirm(`Supprimer ${path.split('/').pop()} de cet appareil ?`)) return;
@@ -107,8 +122,25 @@ async function main() {
       }));
       if (focus) nav.focusById(focus);
     };
-    /** Copie les fichiers choisis dans la bibliothèque. `target(file)` : {path, known?} ou null (nom inutilisable). */
-    async function importFiles(target, returnFocus) {
+    /** T40 : recherche des pochettes avec avancement dans l'écran, puis nouveau rendu avec le résumé (`before` : message de l'import, gardé devant). */
+    async function findCovers(returnFocus, before = null) {
+      libraryBusy = true;
+      libraryBusyText = 'Recherche des pochettes…';
+      render(null);
+      let text = null;
+      try {
+        text = await addLocalCovers(library, (p) => {
+          libraryBusyText = p.total > 0 && p.phase === 'downloading' ? `Recherche des pochettes : ${Math.min(p.done + 1, p.total)} sur ${p.total}…` : 'Recherche des pochettes…';
+          render(null);
+        });
+      } finally {
+        libraryBusy = false;
+        libraryBusyText = null;
+      }
+      showLibrary(machine, returnFocus, [before, text ?? (before ? null : 'Pochettes : aucun jeu sans pochette.')].filter(Boolean).join('. ') || null);
+    }
+    /** Copie les fichiers choisis dans la bibliothèque. `target(file)` : {path, known?} ou null (nom inutilisable). `covers` : jeux (T40). */
+    async function importFiles(target, returnFocus, covers = false) {
       const files = await pickFiles(document);
       if (!files.length) return;
       libraryBusy = true;
@@ -130,6 +162,7 @@ async function main() {
       } finally {
         libraryBusy = false;
       }
+      if (covers && result.added) { await findCovers(returnFocus, describeImport(result)); return; }
       await reload();
       showLibrary(machine, returnFocus);
     }
@@ -153,8 +186,9 @@ async function main() {
       } finally {
         libraryBusy = false;
       }
-      await reload();
       // Le résumé est affiché dans l'écran, sous le bouton (pas de toast : 2 s ne suffisent pas pour le lire et il le recouvrirait).
+      if (copied) { await findCovers(SCAN_FOLDER_NAV_ID, describeFolderImport({ ...summary, copied })); return; }
+      await reload();
       showLibrary(machine, SCAN_FOLDER_NAV_ID, describeFolderImport({ ...summary, copied }));
     }
     render(focusId ?? (machine ? addGamesNavId(machine) : LIBRARY_BACK_NAV_ID));
@@ -168,7 +202,14 @@ async function main() {
       : localSupported ? createBrowserLinkSource({ systems: data.systems, openLibrary: () => openLocalLibrary() }) : null;
     screen.append(createLinkScreen({
       systems: data.systems, source,
-      onFinished: async () => { if (!folderSettings) requestPersistentStorage(); await reload(); },
+      onFinished: async () => {
+        if (folderSettings) { await reload(); autoCovers(); return; } // T40 : jeux tout juste téléchargés sur le Mac
+        requestPersistentStorage();
+        // T40 : jeux arrivés dans « Mes fichiers » : leurs pochettes, résumé en message temporaire (on reste sur cet écran).
+        let text = null;
+        try { text = await addLocalCovers(await openLocalLibrary()); } catch { await reload(); }
+        if (text) toast(text);
+      },
       focus: (id) => nav.focusById(id),
     }));
     nav.focusById(source ? LINK_INPUT_NAV_ID : 'back');
@@ -179,19 +220,35 @@ async function main() {
   async function reloadGames() {
     await reload();
     showHome();
+    autoCovers(); // T40 : nouveau dossier, nouveaux jeux peut-être sans pochette
+  }
+
+  /** T40 (Mac) : pochettes manquantes cherchées sans clic. Rien si aucun jeu n'en manque, si un autre téléchargement tourne ou sans API locale.
+   *  Message seulement si des pochettes ont été ajoutées ; la fin est traitée par onDownloadDone comme pour le bouton. */
+  let autoCoversRunning = false;
+  async function autoCovers() {
+    if (!folderSettings || autoCoversRunning) return;
+    autoCoversRunning = true;
+    try {
+      const state = await runAutoCovers({ games: data.games, systems: data.systems, start: () => requestCoversDownload(), status: () => fetchCoversStatus() });
+      if (state) await onDownloadDone(state, { quiet: true });
+    } finally {
+      autoCoversRunning = false;
+    }
   }
 
   /** Fin d'un téléchargement de pochettes (T28) ou de logos (T29), panneau ouvert ou fermé : une seule fois par travail (`state.id`, numéroté
    *  par le serveur pour les deux), même si deux panneaux l'ont suivi. */
   let lastDownloadJob = null;
-  async function onDownloadDone(state) {
+  async function onDownloadDone(state, { quiet = false } = {}) { // quiet (T40, recherche automatique) : message seulement si des pochettes ont été ajoutées
     if (state.id !== undefined && state.id === lastDownloadJob) return;
     lastDownloadJob = state.id;
     if (state.status === 'done' && state.found > 0) { // l'utilisateur a pu quitter l'accueil : on recharge les données, on ne redessine l'accueil que s'il est affiché
       await reload();
       if (screen.querySelector('.home')) showHome();
     }
-    toast(state.status === 'done' ? state.lines[0] : state.message);
+    const text = quiet ? autoCoversToast(state) : (state.status === 'done' ? state.lines[0] : state.message);
+    if (text) toast(text);
   }
 
   async function openFolders() {
@@ -263,7 +320,8 @@ async function main() {
     setTimeout(async () => {
       const source = folderSettings ? createMacUpdateSource() : createBrowserUpdateSource();
       const update = await source.check();
-      if (update.status !== 'available' || foldersPanel) return;
+      if (update.status !== 'available') { autoCovers(); return; } // T40 : après la vérification, jamais pendant une mise à jour
+      if (foldersPanel) return;
       const { dialog, done } = openUpdateDialog({ update, source, parent: document.body });
       updateDialog = dialog;
       await done;

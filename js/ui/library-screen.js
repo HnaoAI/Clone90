@@ -1,5 +1,7 @@
 // Écran « Mes fichiers » (T27) : ajouter ses jeux et BIOS depuis le téléphone, voir et supprimer ce qui est gardé dans ce navigateur.
 // T38 : en tête, « Choisir le dossier des jeux » range tout un dossier (un sous-dossier par machine) d'un coup (js/folder-scan.js).
+// T40 : rubrique « Pochettes » (bouton « Chercher les pochettes manquantes », phrase sur la connexion à GitHub) ; la recherche elle-même
+// est dans js/local-covers.js, lancée par app.js (après chaque import de jeux et sur ce bouton).
 // Dépend de router.js, config.js, ui/dom.js, local-library.js (describeBiosStatus). Les actions (choisir, supprimer) sont transmises par app.js.
 // INVARIANT : aucune liste de machines ici, tout vient de systems.json. Chaque bouton est `data-nav` (clavier et manette via js/input/).
 import { buildHash } from '../router.js';
@@ -12,6 +14,11 @@ export const LIBRARY_BACK_NAV_ID = 'back';
 export const ADD_BIOS_NAV_ID = 'add-bios';
 /** data-nav-id du bouton « Choisir le dossier des jeux » (T38). */
 export const SCAN_FOLDER_NAV_ID = 'scan-folder';
+/** data-nav-id du bouton « Chercher les pochettes manquantes » (T40). */
+export const FIND_COVERS_NAV_ID = 'find-covers';
+/** Ce qui part sur le réseau quand on cherche des pochettes (CLAUDE.md règle 5, exception a). */
+export const COVERS_LIBRARY_INFO = 'Après chaque ajout de jeux, et sur ce bouton, Clone90 cherche la pochette des jeux qui n\'en ont pas dans la base libre libretro-thumbnails, sur github.com, '
+  + 'et la garde dans ce navigateur. Seules des images sont téléchargées. GitHub voit l\'adresse IP de l\'appareil et les noms des jeux cherchés.';
 /** data-nav-id du bouton d'ajout de jeux d'une machine. */
 export const addGamesNavId = (systemId) => `add-${systemId}`;
 
@@ -68,14 +75,15 @@ const secondaryButton = (text, navId, onClick, doc, extraClass = '') => el('butt
 /**
  * Écran complet.
  * @param {{systems: object[], entries: {path: string, size: number}[], supported: boolean, machine?: string|null, busy?: boolean,
- *   folderPicking?: boolean, onScanFolder?: () => void, notice?: string|null,
+ *   folderPicking?: boolean, onScanFolder?: () => void, notice?: string|null, busyText?: string|null, onFindCovers?: () => void,
  *   onAddGames: (systemId: string) => void, onAddBios: () => void, onRemove: (path: string) => void}} model
  *   `machine` : machine mise en avant (arrivée depuis sa grille vide) ; `busy` : import en cours (boutons désactivés) ;
  *   `folderPicking` : le navigateur sait choisir un dossier (T38), sinon une phrase remplace le bouton ; `notice` : résultat du dernier scan
+ *   (et des pochettes, T40) ; `busyText` : avancement affiché pendant `busy` (T40, défaut « Copie des fichiers en cours… »)
  * @param {Document} [doc]
  * @returns {HTMLElement}
  */
-export function renderLibrary({ systems, entries, supported, machine = null, busy = false, folderPicking = false, onScanFolder = () => {}, notice = null, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
+export function renderLibrary({ systems, entries, supported, machine = null, busy = false, folderPicking = false, onScanFolder = () => {}, notice = null, busyText = null, onFindCovers = () => {}, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
   const groups = groupLibraryEntries(entries, systems);
   const total = entries.reduce((sum, e) => sum + (e.size || 0), 0);
   const bios = describeBiosStatus(systems, entries.map((e) => e.path));
@@ -96,7 +104,7 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
       el('strong', { text: 'Ce navigateur ne peut pas garder de fichiers' }, [], doc),
       el('p', { text: 'Ouvrez le site en HTTPS dans Chrome ou Firefox, hors navigation privée.' }, [], doc),
     ], doc),
-    busy && el('p', { class: 'banner', attrs: { role: 'status' }, text: 'Copie des fichiers en cours…' }, [], doc),
+    busy && el('p', { class: 'banner', attrs: { role: 'status' }, text: busyText ?? 'Copie des fichiers en cours…' }, [], doc),
     el('h3', { class: 'library-heading', text: 'Importer tout un dossier' }, [], doc),
     el('p', { class: 'muted', text: 'Choisissez le dossier qui contient un sous-dossier par machine (amiga, neogeo, nes…), comme le dossier roms du Mac, et bios s\'il existe. Chaque jeu est rangé dans sa machine ; neogeo.zip va dans les BIOS. Les fichiers déjà présents ne sont pas recopiés.' }, [], doc),
     folderPicking
@@ -121,6 +129,10 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
       `${b.systemName} : `, el('code', { text: b.file }, [], doc),
       ` - ${b.present ? 'présent' : b.required ? 'manquant (requis)' : 'absent (facultatif)'}`,
     ], doc)), doc),
+    el('h3', { class: 'library-heading', text: 'Pochettes' }, [], doc),
+    el('p', { class: 'muted', text: COVERS_LIBRARY_INFO, attrs: { id: 'library-covers-info' } }, [], doc),
+    withDisabled(el('button', { class: 'button', text: 'Chercher les pochettes manquantes', attrs: { type: 'button', 'aria-describedby': 'library-covers-info' },
+      dataset: { nav: '', navId: FIND_COVERS_NAV_ID }, on: { click: () => onFindCovers() } }, [], doc)),
     el('h3', { class: 'library-heading', text: `Sur cet appareil${entries.length ? ` (${formatSize(total)})` : ''}` }, [], doc),
     groups.length === 0 ? el('p', { class: 'muted', text: 'Aucun fichier pour l\'instant.' }, [], doc) : null,
     ...groups.map((g) => el('div', { class: 'library-group' }, [

@@ -14,7 +14,8 @@ export const FOLDER_CHOICES = [
 ];
 export const COVERS_LABEL = 'Télécharger les pochettes';
 // Texte validé par le PO : dit clairement quand Clone90 se connecte, à qui, et ce que GitHub voit (adresse IP et noms des images demandées, qui reprennent les titres des jeux).
-export const COVERS_INFO = 'Pochettes : Clone90 se connecte à Internet (github.com, base libre libretro-thumbnails) uniquement quand vous cliquez sur ce bouton. '
+// T40 : recherche aussi sans clic (à l'ouverture, après un ajout de jeux), décision de Hicham le 2026-11-15 (js/auto-covers.js).
+export const COVERS_INFO = 'Pochettes : Clone90 se connecte à Internet (github.com, base libre libretro-thumbnails) pour chercher les pochettes manquantes à chaque ouverture de Clone90, après un ajout de jeux, et quand vous cliquez sur ce bouton. '
   + 'GitHub voit votre adresse IP et les noms des jeux cherchés (les images demandées portent leurs titres) ; rien d\'autre n\'est envoyé. '
   + 'Les images sont copiées à côté de vos jeux, pour votre usage personnel, et ne sont jamais publiées.';
 export const LOGOS_LABEL = 'Télécharger les logos des machines';
