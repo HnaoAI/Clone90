@@ -23,7 +23,7 @@ Le Mac a déjà ses pochettes depuis T28 (bouton « Télécharger les pochettes 
 6. Sur le Mac, les pochettes manquantes sont cherchées sans clic à l'ouverture et après un ajout de jeux par Clone90 ; aucune connexion s'il ne manque rien.
 
 ## Tests
-`tests/local-covers.test.mjs` (24), `tests/auto-covers.test.mjs` (7) ; `tests/covers.test.mjs` et `tests/covers-api.test.mjs` inchangés et verts. Recette `tests/recette/pochettes.mjs` (Chromium, ordinateur et Pixel 7, faux GitHub intercepté)  : 28/28 (dont Mac automatique, API locale simulée).
+`tests/local-covers.test.mjs` (24), `tests/auto-covers.test.mjs` (7) ; `tests/covers.test.mjs` et `tests/covers-api.test.mjs` inchangés et verts. Recette `tests/recette/pochettes.mjs` (Chromium, ordinateur et Pixel 7, faux GitHub intercepté) : 28/28 (dont Mac automatique, API locale simulée).
 
 ## Limites
 - Non essayé sur un vrai téléphone ni avec le vrai GitHub depuis un navigateur (le conteneur de développement ne joint pas api.github.com). En-têtes CORS de raw.githubusercontent.com vérifiés (`access-control-allow-origin: *`).
