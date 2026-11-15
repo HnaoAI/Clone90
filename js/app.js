@@ -10,6 +10,7 @@
 // sur le Mac, pochettes manquantes cherchées sans clic à l'ouverture et après un ajout de jeux par Clone90 (auto-covers.js, décision du 2026-11-15).
 // T41 : barre de navigation du bas (ui/bottom-nav.js), rendue une fois dans #app, onglet actif suivi à chaque route.
 import { loadData, groupGamesBySystem } from './data.js';
+import { formatShortVersionLabel } from './version.js';
 import { loadLocalGames } from './local-games.js';
 import { openLocalLibrary, canUseLocalLibrary, romStoragePath, biosStoragePath, requestPersistentStorage } from './local-library.js';
 import { findLocalCovers, describeCoversResult } from './local-covers.js';
@@ -51,6 +52,9 @@ const UPDATE_CHECKED_KEY = 'clone90-update-checked';
 const loadAll = () => loadData(undefined, localSupported ? (systems) => loadLocalGames(systems) : null, localSupported ? (systems) => loadLocalLogos(systems) : null); // T42 : logos gardés dans le navigateur
 
 async function main() {
+  // T45 : numéro sous « Clone90 » (visible sur le téléphone, css/base.css), rempli d'abord pour rester affiché même si le chargement échoue.
+  const headerVersion = document.querySelector('.site-version');
+  if (headerVersion) headerVersion.textContent = formatShortVersionLabel();
   let data;
   try {
     data = await loadAll();

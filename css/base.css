@@ -55,6 +55,7 @@
   --chrome-hi: #ffffff;
   --chrome-lo: #6d7a8c;
   --ink: #16133a;
+  --chrome-veil: rgb(255 255 255 / 0.6); /* T45 : pastille du numéro de version dans l'en-tête */
   /* Bouton Quitter et texte d'erreur. */
   --danger: #c4122a;
   --danger-hi: #ff7b8a;
@@ -163,8 +164,9 @@ body {
   box-shadow: 0 3px 0 var(--pink-lo), 0 5px 8px var(--shade);
 }
 
+/* T45 : titre et, sur le téléphone, numéro de version juste dessous. */
+.site-brand { flex: 1; min-width: 0; }
 .site-title {
-  flex: 1;
   margin: 0;
   font-family: var(--font-title);
   font-size: 1.75rem;
@@ -173,6 +175,21 @@ body {
   color: var(--blue);
   text-shadow: 0 1px 0 var(--chrome-hi), 0 2px 0 var(--blue-lo), 0 3px 3px var(--shade);
 }
+/* T45 : numéro de version sous le titre, téléphone seulement (sur ordinateur, il reste en bas de l'accueil, T16).
+   Texte foncé sur le chrome clair de l'en-tête. Rempli par js/app.js depuis js/version.js. */
+.site-version {
+  display: none;
+  width: fit-content;
+  margin: 3px 0 0;
+  padding: 1px 8px;
+  border-radius: var(--pill);
+  background: var(--chrome-veil); /* pastille claire : contraste AA même sur la bande sombre du chrome */
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+}
+@media (max-width: 599px) { .site-version { display: block; } }
 .site-title-90 { color: var(--pink); text-shadow: 0 1px 0 var(--chrome-hi), 0 2px 0 var(--pink-lo), 0 3px 3px var(--shade); }
 
 /* Petite jauge de 4 barres croissantes (réseau d'un téléphone des années 2000), purement décorative (aria-hidden dans index.html). */

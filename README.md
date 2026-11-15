@@ -203,7 +203,7 @@ Pour un jeu Amiga à plusieurs disquettes (ex. Leander), passez à la disquette 
 
 ## Numéro de version et diagnostic (T16)
 
-- Le numéro (« Clone90 v0.16.0 - 11/11/2026 ») est affiché en bas de l'accueil. Il vient de `js/version.js`, seule source ; le service worker en tire le nom de son cache.
+- Le numéro (« Clone90 v0.16.0 - 11/11/2026 ») est affiché en bas de l'accueil et, sur le téléphone, aussi dans l'en-tête, juste sous « Clone90 » (« v0.45.0 - 15/11/2026 », T45). Il vient de `js/version.js`, seule source ; le service worker en tire le nom de son cache.
 - **À chaque livraison**, relever `APP_VERSION` (format `0.<numéro du dernier ticket>.<n>`, par exemple `0.17.0` au ticket 17, `0.16.1` pour une correction du 16) et `APP_DATE` dans `js/version.js`. Rien d'autre à changer : `tests/version.test.mjs` échoue si le numéro de ticket est en retard.
 - **Mode diagnostic** : ajouter `&debug=1` à l'adresse de `player.html`, par exemple `http://localhost:8080/player.html?system=amiga&game=amiga%2Fleander_(1991)(psygnosis)&debug=1`. Une pastille « Diag » apparaît en haut à droite : l'ouvrir montre la version, la machine, le jeu, les disquettes et le journal des changements de disquette. « Copier le journal » le met dans le presse-papiers. Rien n'est envoyé sur le réseau, et sans `debug=1` rien ne change.
 

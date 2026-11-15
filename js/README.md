@@ -2,7 +2,7 @@
 
 Modules ES sans framework ni build. Chemins relatifs uniquement.
 
-- `version.js` : `APP_VERSION`, `APP_DATE`, `formatVersionLabel` (source unique du numéro de version, T16).
+- `version.js` : `APP_VERSION`, `APP_DATE`, `formatVersionLabel`, `formatShortVersionLabel` de l'en-tête du téléphone T45 (source unique du numéro de version, T16).
 - `config.js` : constantes (version par défaut du CDN EmulatorJS et `ejsDataUrl`, seule fonction qui en construit l'URL, T21 ; noms de fichiers de données, dossiers roms/bios).
 - `data.js` : charge et valide `systems.json` et `games.json` (`games.json` absent = statut `absent`, pas d'erreur), regroupement par machine, encodage des chemins (par segment) et des ids pour les URL, messages d'erreur français de systems.json, statuts de games.json (`ok`, `empty`, `absent`, `offline`, `invalid`), logos téléchargés (`logos` de games.json, ajoutés aux machines en `downloadedLogo`, T29).
 - `router.js` : routes hash `#/` et `#/<machine>?focus=<id>` (`parseHash`, `buildHash`, `createRouter`) et `buildPlayerUrl`. Aucune logique d'écran.
