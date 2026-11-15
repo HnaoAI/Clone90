@@ -4,11 +4,13 @@
 // T27 : écran « Mes fichiers » (#/fichiers) ; après un ajout ou une suppression, les données sont rechargées (reload) sans recharger la page.
 // T34 : écran « Depuis une page web » (#/telecharger), source Mac (API locale) si elle répond, sinon navigateur (bibliothèque locale).
 // T35 : vérification des mises à jour 5 s après l'ouverture, fenêtre js/ui/update-dialog.js.
-// T40 : après chaque import de jeux dans « Mes fichiers » (fichiers, dossier, page web) et sur un bouton, pochettes manquantes (local-covers.js).
+// T40 : après chaque import de jeux dans « Mes fichiers » (fichiers, dossier, page web) et sur un bouton, pochettes manquantes (local-covers.js) ;
+// sur le Mac, pochettes manquantes cherchées sans clic à l'ouverture et après un ajout de jeux par Clone90 (auto-covers.js, décision du 2026-11-15).
 import { loadData, groupGamesBySystem } from './data.js';
 import { loadLocalGames } from './local-games.js';
 import { openLocalLibrary, canUseLocalLibrary, romStoragePath, biosStoragePath, requestPersistentStorage } from './local-library.js';
 import { findLocalCovers, describeCoversResult } from './local-covers.js';
+import { runAutoCovers, autoCoversToast } from './auto-covers.js';
 import { renderLibrary, pickFiles, pickFolder, describeImport, addGamesNavId, ADD_BIOS_NAV_ID, LIBRARY_BACK_NAV_ID, SCAN_FOLDER_NAV_ID, FIND_COVERS_NAV_ID } from './ui/library-screen.js';
 import { planFolderImport, summarizePlan, describeFolderImport, folderPickingSupported } from './folder-scan.js';
 import { createRouter } from './router.js';
@@ -201,7 +203,7 @@ async function main() {
     screen.append(createLinkScreen({
       systems: data.systems, source,
       onFinished: async () => {
-        if (folderSettings) { await reload(); return; }
+        if (folderSettings) { await reload(); autoCovers(); return; } // T40 : jeux tout juste téléchargés sur le Mac
         requestPersistentStorage();
         // T40 : jeux arrivés dans « Mes fichiers » : leurs pochettes, résumé en message temporaire (on reste sur cet écran).
         let text = null;
@@ -218,19 +220,35 @@ async function main() {
   async function reloadGames() {
     await reload();
     showHome();
+    autoCovers(); // T40 : nouveau dossier, nouveaux jeux peut-être sans pochette
+  }
+
+  /** T40 (Mac) : pochettes manquantes cherchées sans clic. Rien si aucun jeu n'en manque, si un autre téléchargement tourne ou sans API locale.
+   *  Message seulement si des pochettes ont été ajoutées ; la fin est traitée par onDownloadDone comme pour le bouton. */
+  let autoCoversRunning = false;
+  async function autoCovers() {
+    if (!folderSettings || autoCoversRunning) return;
+    autoCoversRunning = true;
+    try {
+      const state = await runAutoCovers({ games: data.games, systems: data.systems, start: () => requestCoversDownload(), status: () => fetchCoversStatus() });
+      if (state) await onDownloadDone(state, { quiet: true });
+    } finally {
+      autoCoversRunning = false;
+    }
   }
 
   /** Fin d'un téléchargement de pochettes (T28) ou de logos (T29), panneau ouvert ou fermé : une seule fois par travail (`state.id`, numéroté
    *  par le serveur pour les deux), même si deux panneaux l'ont suivi. */
   let lastDownloadJob = null;
-  async function onDownloadDone(state) {
+  async function onDownloadDone(state, { quiet = false } = {}) { // quiet (T40, recherche automatique) : message seulement si des pochettes ont été ajoutées
     if (state.id !== undefined && state.id === lastDownloadJob) return;
     lastDownloadJob = state.id;
     if (state.status === 'done' && state.found > 0) { // l'utilisateur a pu quitter l'accueil : on recharge les données, on ne redessine l'accueil que s'il est affiché
       await reload();
       if (screen.querySelector('.home')) showHome();
     }
-    toast(state.status === 'done' ? state.lines[0] : state.message);
+    const text = quiet ? autoCoversToast(state) : (state.status === 'done' ? state.lines[0] : state.message);
+    if (text) toast(text);
   }
 
   async function openFolders() {
@@ -302,7 +320,8 @@ async function main() {
     setTimeout(async () => {
       const source = folderSettings ? createMacUpdateSource() : createBrowserUpdateSource();
       const update = await source.check();
-      if (update.status !== 'available' || foldersPanel) return;
+      if (update.status !== 'available') { autoCovers(); return; } // T40 : après la vérification, jamais pendant une mise à jour
+      if (foldersPanel) return;
       const { dialog, done } = openUpdateDialog({ update, source, parent: document.body });
       updateDialog = dialog;
       await done;

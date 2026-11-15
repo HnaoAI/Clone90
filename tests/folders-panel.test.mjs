@@ -316,14 +316,15 @@ test('panneau pochettes : le bouton « Télécharger les pochettes » est entre 
   assert.ok(!buttonsOf(plain.panel.element).some((b) => /is-separated/.test(b.attrs.class)));
 });
 
-test('panneau pochettes : le texte dit que Clone90 contacte github.com uniquement au clic, que GitHub voit l\'adresse IP et les noms des jeux cherchés, et que rien d\'autre n\'est envoyé', () => {
+// T40 (décision de Hicham, 2026-11-15, « Passe en automatique sur mac ») : la recherche n'est plus seulement au clic ; le texte le dit.
+test('panneau pochettes : le texte dit quand Clone90 contacte github.com (ouverture, ajout de jeux, clic), que GitHub voit l\'adresse IP et les noms des jeux cherchés, et que rien d\'autre n\'est envoyé', () => {
   assert.match(COVERS_INFO, /se connecte à Internet \(github\.com/);
-  assert.match(COVERS_INFO, /uniquement quand vous cliquez sur ce bouton/);
+  assert.match(COVERS_INFO, /à chaque ouverture de Clone90, après un ajout de jeux, et quand vous cliquez sur ce bouton/);
   assert.match(COVERS_INFO, /GitHub voit votre adresse IP et les noms des jeux cherchés/);
   assert.match(COVERS_INFO, /rien d'autre n'est envoyé/);
   assert.match(COVERS_INFO, /usage personnel/);
   const { panel } = openCoversPanel();
-  assert.match(textOf(panel.element), /uniquement quand vous cliquez sur ce bouton/);
+  assert.match(textOf(panel.element), /quand vous cliquez sur ce bouton/);
 });
 
 test('panneau pochettes : aria-describedby relie la boîte à son texte d\'introduction et au texte sur Internet (et seulement à ceux qui existent)', () => {
