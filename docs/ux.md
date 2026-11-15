@@ -287,7 +287,17 @@ Pendant le jeu, **toutes les touches et boutons vont à EmulatorJS**. Le site n'
 
 ## 5. Direction visuelle
 
-### 5.1 Ambiance
+### 5.0 Style Y2K (T41, remplace « Cartouche bleue » le 2026-11-15)
+
+Maquette validée par Hicham (`maquette-y2k.html` et `captures/Y2K/` des fichiers du projet). Esprit début des années 2000 (Windows XP, premiers smartphones) : fond dégradé bleu, violet, rose avec rayures diagonales ; en-tête en plaque chromée, titre « Clone90 » en relief (« 90 » en rose) ; boutons « gel » en pilule (reflet clair en haut, tranche et ombre portée) ; machines en bulles qui alternent rose, bleu, vert citron, violet, logo dans une bulle blanche, nombre de jeux en pastille chromée, 6 voyants jaunes ; machine sélectionnée : anneau blanc, halo jaune, plaque de nom jaune, agrandissement 1.05 ; 0 jeu : chrome terne.
+
+**Barre de navigation du bas** (toutes les pages de index.html, jamais pendant le jeu) : « Machines », « Mes fichiers » (si le navigateur le permet), « Page web », « Dossiers » (Mac seulement). Elle remplace les boutons « Mes fichiers », « Dossiers des jeux » et « Depuis une page web » de l'accueil (mêmes conditions, mêmes `data-nav-id`). Onglet de la page courante (`aria-current="page"`) : gel plus gros qui sort de la barre, halo rose ; la grille d'une machine marque « Machines ». Toujours la dernière rangée pour le clavier et la manette.
+
+**Police** : interface en Trebuchet MS, titres en Arial Rounded MT Bold (polices du système). Press Start 2P reste pour les visuels de repli (logos, jaquettes) et l'écran de jeu ; elle peut revenir sur le seul titre si Hicham le demande.
+
+Palette et contrastes : bloc `:root` de `css/base.css`, vérifiés par `tests/design.test.mjs` (`--text` sur `--bg` 9.38, sur `--panel` 8.68 ; `--text-muted` sur `--panel-2` 4.95, le plus bas ; `--on-accent` sur `--accent` 12.87 ; `--text` sur `--pink` 5.58 ; `--on-lime` sur `--lime` 9.67 ; `--ink` sur `--chrome` 11.58). Les sections 5.1 à 5.4 ci-dessous décrivent l'ancienne direction T24 ; les règles d'accessibilité (5.5) restent valables. La grille de jeux, « Mes fichiers » et l'écran de jeu gardent leur mise en page et prennent la nouvelle palette.
+
+### 5.1 Ambiance (T24, remplacée par 5.0)
 
 « Cartouche bleue » (T24) : une console de jeu des années 90 en bleu profond. Cadres pixel à contour noir et biseau, fond rayé de deux bleus très proches, curseur ▶ jaune qui clignote, jauges à segments, titres en police pixel, texte courant en police lisible. Tout est dessiné pour Clone90 : aucun nom, personnage, sprite, logo, police, son ni écran d'un jeu existant. Thème sombre uniquement (usage TV / soirée, les jaquettes ressortent mieux).
 

@@ -12,7 +12,7 @@ import { loadData } from '../js/data.js';
 import { parseHash, buildHash, LIBRARY_SEGMENT } from '../js/router.js';
 import { resolveRoute } from '../js/screens.js';
 import { formatSize, groupLibraryEntries, describeImport, renderLibrary, addGamesNavId } from '../js/ui/library-screen.js';
-import { renderHome, LIBRARY_NAV_ID } from '../js/ui/machine-grid.js';
+import { renderBottomNav, LIBRARY_NAV_ID } from '../js/ui/bottom-nav.js';
 import { renderGameGrid, ADD_LOCAL_NAV_ID } from '../js/ui/game-grid.js';
 import { buildLaunchPlan, describeMissing } from '../js/player/launcher.js';
 
@@ -305,10 +305,11 @@ test('T27 renderLibrary : navigateur incompatible ou copie en cours = boutons d�
   }
 });
 
-test('T27 accueil et grille : bouton « Mes fichiers » et « Ajouter des jeux » seulement si le navigateur le permet', () => {
+test('T27 barre du bas et grille : onglet « Mes fichiers » et « Ajouter des jeux » seulement si le navigateur le permet', () => {
   const linkTo = (root, navId) => find(root, (n) => n.dataset?.navId === navId)[0];
-  assert.equal(linkTo(renderHome({ tiles: [], gamesStatus: 'absent', localSupported: true }, doc), LIBRARY_NAV_ID).attrs.href, '#/fichiers');
-  assert.equal(linkTo(renderHome({ tiles: [], gamesStatus: 'absent' }, doc), LIBRARY_NAV_ID), undefined);
+  // T41 : « Mes fichiers » est un onglet de la barre du bas (plus un bouton de l'accueil), mêmes conditions.
+  assert.equal(linkTo(renderBottomNav({ localSupported: true }, doc), LIBRARY_NAV_ID).attrs.href, '#/fichiers');
+  assert.equal(linkTo(renderBottomNav({}, doc), LIBRARY_NAV_ID), undefined);
   assert.equal(linkTo(renderGameGrid({ machine: amiga, games: [], localSupported: true }, doc), ADD_LOCAL_NAV_ID).attrs.href, '#/fichiers?machine=amiga');
   assert.equal(linkTo(renderGameGrid({ machine: amiga, games: [] }, doc), ADD_LOCAL_NAV_ID), undefined);
   const [game] = buildLocalGames({ systems: SYSTEMS, paths: ['roms/amiga/Gods.adf'] });

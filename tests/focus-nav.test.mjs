@@ -200,3 +200,20 @@ test('createFocusNavigator A3 : hasFocus est vrai seulement si un élément navi
   doc.activeElement = els[1];
   assert.equal(nav.hasFocus(), true);
 });
+
+test('T41 placePinnedLast : la barre fixe du bas est toujours la dernière rangée, même avec des rangées cachées plus bas dans la page', async () => {
+  const { placePinnedLast, pickNext: next } = await import('../js/input/focus-nav.js');
+  const r = (left, top) => ({ left, top, right: left + 100, bottom: top + 100 });
+  // Tuiles : rangées à 0, 200 (à l'écran), 900 (cachée sous la barre) ; barre fixe à 780.
+  const rects = [r(0, 0), r(0, 200), r(0, 900), r(0, 780), r(200, 780)];
+  const pinned = [false, false, false, true, true];
+  const placed = placePinnedLast(rects, pinned);
+  assert.equal(next(placed, 1, 'down'), 2, 'bas depuis la rangée 2 : la rangée cachée, pas la barre');
+  assert.equal(next(placed, 2, 'down'), 3, 'bas depuis la dernière rangée : la barre');
+  assert.equal(next(placed, 3, 'up'), 2);
+  assert.equal(next(placed, 3, 'right'), 4);
+  assert.deepEqual(placePinnedLast(rects, rects.map(() => false)), rects, 'sans barre : rien ne bouge');
+  assert.deepEqual(placePinnedLast([], []), []);
+  const above = [r(0, 0), r(0, 600)];
+  assert.deepEqual(placePinnedLast(above, [false, true]), above, 'barre déjà sous tout : inchangée');
+});

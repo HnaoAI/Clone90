@@ -23,15 +23,16 @@ const CACHE_VERSION = `${CACHE_PREFIX}v${versionFromScriptSearch(self.location?.
 
 const SHELL_FILES = [
   './', 'index.html', 'player.html', 'manifest.webmanifest', 'systems.json',
-  'css/base.css', 'css/home.css', 'css/grid.css', 'css/library.css', 'css/player.css',
+  'css/base.css', 'css/home.css', 'css/grid.css', 'css/library.css', 'css/player.css', 'css/dock.css',
   'js/app.js', 'js/config.js', 'js/data.js', 'js/folders-client.js', 'js/router.js', 'js/screens.js', 'js/sort.js', 'js/version.js',
   'js/games-builder.js', 'js/posix-path.js', 'js/local-library.js', 'js/cover-match.js', 'js/local-covers.js', 'js/auto-covers.js', 'js/local-games.js', 'js/local-game-delete.js', 'js/folder-scan.js', 'js/link-finder.js', 'js/link-explorer.js', 'js/link-download.js', 'js/update-check.js',
   'js/input/actions.js', 'js/input/focus-nav.js',
-  'js/ui/dialog.js', 'js/ui/dom.js', 'js/ui/error-screen.js', 'js/ui/folders-panel.js', 'js/ui/format.js', 'js/ui/game-grid.js',
+  'js/ui/bottom-nav.js', 'js/ui/dialog.js', 'js/ui/dom.js', 'js/ui/error-screen.js', 'js/ui/folders-panel.js', 'js/ui/format.js', 'js/ui/game-grid.js',
   'js/ui/input-mode.js', 'js/ui/library-screen.js', 'js/ui/link-screen.js', 'js/ui/update-dialog.js', 'js/ui/logo.js', 'js/ui/machine-grid.js', 'js/ui/toast.js',
   'js/player/diagnostic-log.js', 'js/player/diagnostic-panel.js', 'js/player/disk-shortcut.js', 'js/player/ejs-start-watch.js', 'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/game-scale.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js', 'js/player/retroarch-cfg.js', 'js/player/virtual-stick.js',
   'js/pwa.js',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/icon-192-maskable.png', 'assets/icons/icon-512-maskable.png',
+  'assets/icons/dock-machines.svg', 'assets/icons/dock-files.svg', 'assets/icons/dock-web.svg', 'assets/icons/dock-folders.svg',
   'assets/fonts/PressStart2P-Regular.ttf', 'assets/fonts/OFL.txt',
 ];
 

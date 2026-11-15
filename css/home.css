@@ -1,4 +1,4 @@
-/* Accueil (T5, design T24) : cartes des machines en cadre pixel, jauge de jeux, état focalisé. docs/ux.md 3.1 et 5.4.
+/* Accueil (T5, design T24, style Y2K T41) : machines en bulles « gel », voyants de jeux, état focalisé. docs/ux.md 3.1 et 5.4.
    Flex centré (et non grid) : avec 2 machines la rangée est centrée, les cartes gardent leur taille. */
 .machine-list {
   --cols: 4;
@@ -17,7 +17,10 @@
 @media (min-width: 600px) and (max-width: 1023px) { .machine-list { --cols: 3; } }
 @media (max-width: 599px) { .machine-list { --cols: 2; } }
 
+/* Bulle « gel » (T41) : couleur --gel tournante (rose, bleu, vert citron, violet) posée par .machine-item:nth-child, reflet blanc en haut (::after),
+   biseau et ombre portée. La couleur propre à la machine reste dans son logo. */
 .machine-tile {
+  --gel: var(--pink); --gel-hi: var(--pink-hi); --gel-lo: var(--pink-lo); --gel-text: var(--text);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -25,20 +28,38 @@
   width: 100%;
   min-height: 140px;
   aspect-ratio: 4 / 3;
-  padding: 12px;
-  background: var(--panel);
-  box-shadow: var(--frame);
-  color: var(--text);
+  padding: 10px 10px 12px;
+  border-radius: var(--round);
+  background: linear-gradient(170deg, var(--gel-hi) 0%, var(--gel) 45%, var(--gel-lo) 100%);
+  box-shadow: 0 0 0 2px var(--chrome-hi), 0 0 0 4px var(--gel-lo), 0 5px 0 4px var(--gel-lo), 0 10px 16px var(--shadow), inset 0 -6px 12px var(--shade);
+  color: var(--gel-text);
   text-decoration: none;
-  transition: transform 150ms, background-color 150ms;
+  transition: transform 150ms;
 }
-@media (max-width: 599px) { .machine-tile { aspect-ratio: auto; min-height: 132px; padding: 10px; } }
+.machine-tile::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 4px;
+  height: 40%;
+  border-radius: 20px 20px 50% 50% / 20px 20px 24px 24px;
+  background: linear-gradient(180deg, var(--gloss), var(--gloss-soft));
+  pointer-events: none;
+}
+.machine-item:nth-child(4n+1) .machine-tile { --gel: var(--pink); --gel-hi: var(--pink-hi); --gel-lo: var(--pink-lo); }
+.machine-item:nth-child(4n+2) .machine-tile { --gel: var(--blue); --gel-hi: var(--blue-hi); --gel-lo: var(--blue-lo); }
+.machine-item:nth-child(4n+3) .machine-tile { --gel: var(--lime); --gel-hi: var(--lime-hi); --gel-lo: var(--lime-lo); --gel-text: var(--on-lime); }
+.machine-item:nth-child(4n+4) .machine-tile { --gel: var(--violet); --gel-hi: var(--violet-hi); --gel-lo: var(--violet-lo); }
+@media (max-width: 599px) { .machine-tile { aspect-ratio: auto; min-height: 150px; padding: 8px 8px 10px; } }
 
-@media (hover: hover) { .machine-tile:hover { background: var(--panel-2); } }
+@media (hover: hover) { .machine-tile:hover { filter: brightness(1.08); } }
 
 /* Focus : curseur ▶ (base.css), anneau cyan, cadre et plaque de nom jaunes, échelle 1.05. Quatre indices indépendants de la couleur. */
+/* T41 : halo jaune lumineux et anneau blanc autour de la bulle. */
 .machine-tile:focus-visible, .input-gamepad .machine-tile:focus { transform: scale(1.05); z-index: 2; box-shadow: var(--frame-accent); }
 
+/* Bulle blanche du logo, creusée (ombre interne). */
 .machine-logo {
   position: relative;
   flex: 1;
@@ -48,16 +69,18 @@
   place-items: center;
   overflow: hidden;
   padding: 8px;
-  background: var(--tile-accent, var(--panel-2));
+  border-radius: 18px;
+  background: radial-gradient(ellipse at 50% 30%, var(--chrome-hi) 0%, var(--logo-plaque) 55%, var(--chrome) 100%);
+  box-shadow: inset 0 3px 6px var(--shade);
 }
-.machine-tile .machine-logo { padding-right: 22px; border: 3px solid var(--line); } /* 22 px à droite : place de la jauge */
 .machine-logo img { width: 100%; height: 100%; object-fit: contain; }
-.machine-logo.is-downloaded { background: var(--logo-plaque); } /* vrai logo téléchargé (T29) ; le logo maison garde la couleur de la machine */
+.machine-logo.is-downloaded { background: var(--logo-plaque); } /* vrai logo téléchargé (T29) */
 
-/* Jauge verticale de 6 segments (js/ui/machine-grid.js, gaugeSegments) : décorative (aria-hidden), le texte « N jeux » reste l'information. */
-.gauge { position: absolute; right: 5px; top: 6px; bottom: 6px; width: 10px; display: flex; flex-direction: column-reverse; gap: 2px; }
-.gauge i { flex: 1; max-height: 14px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); }
-.gauge i.is-on { background: var(--focus); }
+/* Voyants (T41, ex-jauge T24) : 6 LED rondes en bas à droite de la bulle, jaunes allumées (js/ui/machine-grid.js, gaugeSegments).
+   Décoratifs (aria-hidden) : le texte « N jeux » reste l'information. Hors de la bulle du logo : ils ne cachent jamais le logo. */
+.gauge { position: absolute; z-index: 1; right: 12px; bottom: 18px; display: flex; gap: 3px; }
+.gauge i { width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--disabled-hi) 0 15%, var(--disabled-bg) 60%, var(--disabled-lo)); box-shadow: 0 0 0 1px var(--shade); }
+.gauge i.is-on { background: radial-gradient(circle at 35% 30%, var(--chrome-hi) 0 20%, var(--accent) 50%, var(--accent-lo)); box-shadow: 0 0 6px var(--accent), 0 0 0 1px var(--shade); }
 
 .logo-fallback {
   font-family: var(--font-pixel);
@@ -69,24 +92,35 @@
   text-shadow: 2px 2px 0 var(--line);
 }
 
-.machine-name { padding: 2px 4px; font-weight: 700; font-size: 1rem; text-align: center; }
-.machine-count { margin-top: -4px; color: var(--text-muted); font-size: 0.9375rem; text-align: center; }
+/* Nom en relief, nombre de jeux dans une pastille chromée (texte --ink). Au-dessus du reflet de la bulle. */
+.machine-name { position: relative; z-index: 1; align-self: flex-start; padding: 2px 6px; border-radius: var(--pill); font-family: var(--font-title); font-weight: 900; font-size: 1rem; line-height: 1.15; text-shadow: 0 -1px 0 var(--shade), 0 2px 3px var(--shade); }
+.machine-item:nth-child(4n+3) .machine-name { text-shadow: 0 1px 0 var(--lime-hi); }
+.machine-count {
+  position: relative;
+  z-index: 1;
+  align-self: flex-start;
+  padding: 2px 10px;
+  border-radius: var(--pill);
+  background: linear-gradient(180deg, var(--chrome-hi), var(--chrome) 55%, var(--chrome-hi));
+  box-shadow: 0 2px 0 var(--shade), inset 0 1px 0 var(--chrome-hi);
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
 
 .machine-tile:focus-visible .machine-name, .input-gamepad .machine-tile:focus .machine-name {
   background: var(--accent);
   color: var(--on-accent);
-  box-shadow: 0 0 0 2px var(--line);
+  text-shadow: none;
+  box-shadow: 0 0 0 2px var(--accent-lo);
 }
 
-/* 0 jeu : cadre terne, logo hachuré en gris (le texte reste en --text-muted, la mention « 0 jeu » porte l'information). */
-.machine-tile.is-empty { background: var(--disabled-bg); box-shadow: var(--frame-disabled); }
-.machine-tile.is-empty:focus-visible, .input-gamepad .machine-tile.is-empty:focus { box-shadow: var(--frame-accent); }
-.machine-tile.is-empty .machine-logo { background: repeating-linear-gradient(45deg, var(--stripe-a) 0 6px, var(--stripe-b) 6px 12px); filter: grayscale(1); }
-.machine-tile.is-empty .machine-logo.is-downloaded { background: var(--logo-plaque); opacity: 0.6; }
-.machine-tile.is-empty .machine-name { color: var(--text-muted); }
+/* 0 jeu (T41) : bulle en chrome terne, logo délavé ; la mention « 0 jeu » porte l'information. */
+.machine-item .machine-tile.is-empty { --gel: var(--disabled-bg); --gel-hi: var(--disabled-hi); --gel-lo: var(--disabled-lo); --gel-text: var(--text); }
+.machine-tile.is-empty .machine-logo img, .machine-tile.is-empty .logo-fallback { filter: grayscale(1); opacity: 0.55; }
+.machine-tile.is-empty .machine-name { text-shadow: 0 -1px 0 var(--shade); }
 .machine-tile.is-empty:focus-visible .machine-name, .input-gamepad .machine-tile.is-empty:focus .machine-name { color: var(--on-accent); }
 
-.home-tools { display: flex; justify-content: center; margin: 32px 0 0; } /* bouton « Dossiers des jeux » (T25) */
 .key-hint { margin: 32px 0 0; text-align: center; }
 @media (hover: none) and (pointer: coarse) { .key-hint { display: none; } }
 

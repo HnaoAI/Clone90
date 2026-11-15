@@ -9,7 +9,7 @@ import { fetchFolderSettings, requestFolderChoice, requestCoversDownload, fetchC
 import {
   createFoldersPanel, describeFolderLines, describeChoiceResult, describeCoversProgress, describeCoversState, coversAnnounceKey, FOLDER_CHOICES, PENDING_TEXT, COVERS_LABEL, COVERS_INFO,
 } from '../js/ui/folders-panel.js';
-import { renderHome } from '../js/ui/machine-grid.js';
+import { renderBottomNav } from '../js/ui/bottom-nav.js';
 import { createDialog, nextButtonIndex, resolveDialogAction } from '../js/ui/dialog.js';
 
 // --- Document factice (focus suivi à la main) ---
@@ -192,22 +192,22 @@ test('panneau : un échec inattendu de choose est affiché sans planter', async 
   assert.ok(!statusOf(panel.element).textContent.includes('boum'));
 });
 
-// --- Bouton de l'accueil ---
-const home = (extra = {}) => renderHome({ tiles: [], gamesStatus: 'ok', ...extra }, fakeDoc());
+// --- Onglet « Dossiers » de la barre du bas (T41 : remplace le bouton « Dossiers des jeux » de l'accueil) ---
+const dock = (extra = {}) => renderBottomNav({ ...extra }, fakeDoc());
 
-test('accueil : le bouton « Dossiers des jeux » n\'apparaît que si onOpenFolders est fourni (jamais sans API)', () => {
-  assert.equal(buttonsOf(home()).length, 0);
-  const withButton = buttonsOf(home({ onOpenFolders: () => {} }));
+test('barre du bas : l\'onglet « Dossiers » n\'apparaît que si onOpenFolders est fourni (jamais sans API)', () => {
+  assert.equal(buttonsOf(dock()).length, 0);
+  const withButton = buttonsOf(dock({ onOpenFolders: () => {} }));
   assert.equal(withButton.length, 1);
-  assert.equal(withButton[0].textContent, 'Dossiers des jeux');
+  assert.equal(textOf(withButton[0]).trim(), 'Dossiers');
   assert.equal(withButton[0].dataset.nav, '');
   assert.equal(withButton[0].dataset.navId, 'folders');
-  assert.match(withButton[0].attrs.class, /\bbutton\b/);
+  assert.match(withButton[0].attrs.class, /\bfolders-button\b/);
 });
 
-test('accueil : cliquer sur le bouton appelle onOpenFolders', () => {
+test('barre du bas : toucher « Dossiers » appelle onOpenFolders', () => {
   let opened = 0;
-  const [button] = buttonsOf(home({ onOpenFolders: () => { opened += 1; } }));
+  const [button] = buttonsOf(dock({ onOpenFolders: () => { opened += 1; } }));
   button.listeners.click();
   assert.equal(opened, 1);
 });

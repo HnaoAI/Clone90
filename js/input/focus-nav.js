@@ -57,6 +57,22 @@ export function pickNext(rects, current, direction) {
   return best;
 }
 
+/**
+ * T41 : les éléments d'une barre fixe (barre du bas, marquée `data-nav-pinned`) forment toujours la dernière rangée. Sans cela, une barre
+ * collée au bas de l'écran passerait AVANT les rangées encore cachées plus bas dans la page (bas depuis la rangée 3 sauterait à la barre),
+ * ou dans la même rangée qu'une tuile à demi cachée dessous.
+ * @param {{left: number, top: number, right: number, bottom: number}[]} rects rectangles à l'écran
+ * @param {boolean[]} pinned vrai pour les éléments de la barre fixe
+ * @returns {{left: number, top: number, right: number, bottom: number}[]} rectangles des éléments de la barre décalés sous tous les autres
+ */
+export function placePinnedLast(rects, pinned) {
+  const others = rects.filter((_, i) => !pinned[i]);
+  const fixed = rects.filter((_, i) => pinned[i]);
+  if (!others.length || !fixed.length) return rects;
+  const shift = Math.max(0, Math.max(...others.map((r) => r.bottom)) - Math.min(...fixed.map((r) => r.top)) + 1);
+  return rects.map((r, i) => (pinned[i] ? { left: r.left, right: r.right, top: r.top + shift, bottom: r.bottom + shift } : r));
+}
+
 const defaultReducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /**
@@ -112,7 +128,8 @@ export function createFocusNavigator({ getRoot, doc = globalThis.document, reduc
       if (!['up', 'down', 'left', 'right'].includes(action)) return false;
       if (list.length === 0) return true;
       if (current < 0) { focusElement(list[0]); return true; }
-      const next = pickNext(list.map((el) => el.getBoundingClientRect()), current, action);
+      const rects = placePinnedLast(list.map((el) => el.getBoundingClientRect()), list.map((el) => Boolean(el.closest?.('[data-nav-pinned]'))));
+      const next = pickNext(rects, current, action);
       if (next !== null) focusElement(list[next]);
       return true;
     },
