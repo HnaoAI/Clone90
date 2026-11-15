@@ -8,9 +8,6 @@ import { accentVar, createLogo, machineLogoSources } from './logo.js';
 import { formatGameCount, splitCode } from './format.js';
 import { formatVersionLabel } from '../version.js';
 
-/** data-nav-id du bouton « Mes fichiers » de l'accueil (T27). */
-export const LIBRARY_NAV_ID = 'library';
-
 /**
  * Tuiles de l'accueil : machines avec jeux d'abord, machines à 0 jeu ensuite (grisées), ordre de systems.json conservé
  * dans chaque groupe (docs/ux.md 3.1).
@@ -30,11 +27,6 @@ export function buildMachineTiles(systems, gamesBySystem) {
   return [...tiles.filter((t) => !t.empty), ...tiles.filter((t) => t.empty)];
 }
 
-/** `data-nav-id` du bouton « Dossiers des jeux » (jamais un id de machine : ceux-ci viennent de systems.json). */
-export const FOLDERS_NAV_ID = 'folders';
-/** data-nav-id du bouton « Depuis une page web » de l'accueil (T34). */
-export const LINKS_NAV_ID = 'links';
-
 /** Nombre de segments de la jauge d'une tuile. */
 export const GAUGE_SEGMENTS = 6;
 
@@ -48,7 +40,7 @@ export function gaugeSegments(count) {
   return Array.from({ length: GAUGE_SEGMENTS }, (_, i) => i < lit);
 }
 
-/** Jauge décorative (aria-hidden) : le texte « N jeux » reste l'information. */
+/** Jauge décorative (aria-hidden), des voyants ronds depuis T41 : le texte « N jeux » reste l'information. */
 const renderGauge = (count, doc) => el('span', { class: 'gauge', attrs: { 'aria-hidden': 'true' } },
   gaugeSegments(count).map((on) => el('i', { class: on ? 'is-on' : '' }, [], doc)), doc);
 
@@ -83,8 +75,6 @@ export function describeGamesStatus(status, skipped = 0) {
   }
 }
 
-const withGauge = (logo, count, doc) => { logo.append(renderGauge(count, doc)); return logo; };
-
 /**
  * Construit la liste des cartes machines.
  * @param {ReturnType<typeof buildMachineTiles>} tiles
@@ -98,45 +88,31 @@ export function renderMachineGrid(tiles, doc = globalThis.document) {
       attrs: { href: t.href },
       dataset: { nav: '', navId: t.id },
     }, [
-      withGauge(createLogo(t, doc), t.count, doc),
+      createLogo(t, doc),
       el('span', { class: 'machine-name', text: t.name }, [], doc),
       el('span', { class: 'machine-count', text: t.countLabel }, [], doc),
+      renderGauge(t.count, doc), // T41 : voyants à côté de la pastille du nombre de jeux, hors de la bulle du logo
     ], doc),
   ], doc));
   return el('ul', { class: 'machine-list' }, items, doc);
 }
 
 /**
- * Écran d'accueil complet : titre, message sur l'état de games.json (le cas échéant), cartes, bouton des dossiers (T25), rappel des touches.
- * T27 : bouton « Mes fichiers » (jeux et BIOS gardés sur cet appareil), seulement si le navigateur le permet (`localSupported`).
- * T34 : bouton « Depuis une page web » si `linksAvailable` (API du Mac ou bibliothèque locale).
- * @param {{tiles: ReturnType<typeof buildMachineTiles>, gamesStatus: string, skipped?: number, localSupported?: boolean, onOpenFolders?: () => void,
- *   linksAvailable?: boolean}} model
- *   `onOpenFolders` : fourni seulement si l'API locale répond ; sans lui, aucun bouton (GitHub Pages, réseau local)
+ * Écran d'accueil complet : titre, message sur l'état de games.json (le cas échéant), cartes, rappel des touches, version.
+ * T41 : « Mes fichiers » (T27), « Dossiers des jeux » (T25) et « Depuis une page web » (T34) sont des onglets de la barre du bas
+ * (js/ui/bottom-nav.js), plus des boutons de l'accueil ; les options d'avant sont ignorées.
+ * @param {{tiles: ReturnType<typeof buildMachineTiles>, gamesStatus: string, skipped?: number}} model
  * @param {Document} [doc]
  */
-export function renderHome({ tiles, gamesStatus, skipped = 0, localSupported = false, onOpenFolders, linksAvailable = false }, doc = globalThis.document) {
+export function renderHome({ tiles, gamesStatus, skipped = 0 }, doc = globalThis.document) {
   const status = describeGamesStatus(gamesStatus, skipped);
   return el('section', { class: 'home' }, [
-    el('div', { class: 'home-title-row' }, [
-      el('h2', { class: 'screen-title', text: 'Choisis une machine' }, [], doc),
-      localSupported && el('a', { class: 'back-button library-link', text: 'Mes fichiers', attrs: { href: buildHash({ name: 'library' }) }, dataset: { nav: '', navId: LIBRARY_NAV_ID } }, [], doc),
-    ], doc),
+    el('h2', { class: 'screen-title', text: 'Choisis une machine' }, [], doc),
     status && el('div', { class: 'banner', attrs: { role: 'status' } }, [
       el('strong', { text: status.title }, [], doc),
       el('p', {}, splitCode(status.text).map((s) => (s.code ? el('code', { text: s.text }, [], doc) : s.text)), doc),
     ], doc),
     renderMachineGrid(tiles, doc),
-    (onOpenFolders || linksAvailable) && el('div', { class: 'home-tools' }, [
-      onOpenFolders && el('button', {
-        class: 'button is-secondary folders-button', text: 'Dossiers des jeux', attrs: { type: 'button' },
-        dataset: { nav: '', navId: FOLDERS_NAV_ID }, on: { click: onOpenFolders },
-      }, [], doc),
-      linksAvailable && el('a', {
-        class: 'button is-secondary links-button', text: 'Depuis une page web', attrs: { href: buildHash({ name: 'links' }) },
-        dataset: { nav: '', navId: LINKS_NAV_ID },
-      }, [], doc),
-    ], doc),
     el('p', { class: 'key-hint', text: 'Flèches : choisir  -  Entrée / A : ouvrir' }, [], doc),
     el('p', { class: 'app-version', text: formatVersionLabel() }, [], doc),
   ], doc);

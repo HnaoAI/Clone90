@@ -1,5 +1,6 @@
-/* Base commune (T5, refonte « Cartouche bleue » T24) : variables (docs/ux.md 5.2), typographie, cadre pixel, en-tête, focus, boutons, toast, boîte de dialogue.
-   Les écrans ont leur feuille : home.css (accueil), grid.css (grille), player.css (page de jeu).
+/* Base commune (T5, « Cartouche bleue » T24, style Y2K T41) : variables (docs/ux.md 5.2), typographie, formes « gel », fond, en-tête chromé,
+   focus, boutons, toast, boîte de dialogue, barre de navigation du bas (T41).
+   Les écrans ont leur feuille : home.css (accueil), grid.css (grille), library.css (Mes fichiers), player.css (page de jeu).
    INVARIANT : toute couleur est déclarée ici, dans :root, et nulle part ailleurs (tests/design.test.mjs). */
 @font-face {
   font-family: "Press Start 2P";
@@ -10,40 +11,72 @@
 }
 
 :root {
-  /* Fonds : rayures horizontales de 32 px --bg / --band (écran) ; --bg-deep / --band-deep derrière le jeu (page player). */
-  --bg: #0a1233;
-  --band: #0e1b52;
+  /* Fond (T41) : ciel bleu en haut (décor, sous l'en-tête), puis --bg, --bg-mid (violet) et --band (rose) ; rayures diagonales --gloss-faint.
+     --bg-deep / --band-deep : fond sombre derrière le jeu (page player), inchangé. */
+  --sky: #2a8cff;
+  --bg: #1239b0;
+  --bg-mid: #3a1690;
+  --band: #8a0f6e;
   --bg-deep: #05091f;
   --band-deep: #070d2c;
-  /* Cartes, en-tête, boîte (--panel), boutons secondaires (--panel-2), barre de titre rayée de la boîte (--panel-2 / --panel-3). */
-  --panel: #16296e;
-  --panel-2: #1f3a9c;
-  --panel-3: #2646b0;
-  /* Cadre pixel : contour noir (--line, 4 px), biseau clair en haut à gauche, sombre en bas à droite. Le biseau clair porte la limite visible (7.6:1 sur --bg). */
+  /* Gels bleus : cartes, boîtes, boutons secondaires (--panel-2), haut des dégradés (--panel-3). */
+  --panel: #0d3fb8;
+  --panel-2: #1a55d6;
+  --panel-3: #2a62dc;
+  /* --line : contours noirs (jaquettes, fond du jeu). Biseaux des gels : --bevel-hi (reflet), --bevel-lo (tranche sous le gel). */
   --line: #000000;
-  --bevel-hi: #6fa8ff;
-  --bevel-lo: #0a1a66;
+  --bevel-hi: #9fd6ff;
+  --bevel-lo: #062a7a;
   --text: #ffffff;
-  --text-muted: #b9c8ff;
-  /* Jaune : titres, bouton principal, cadre et plaque de nom des éléments focalisés. Biseaux jaunes pour les cadres « actifs ». */
-  --accent: #ffd23f;
-  --accent-hi: #fff3a8;
-  --accent-lo: #b88a00;
-  --on-accent: #1a1200;
-  --focus: #3ee0ff;
+  --text-muted: #d6e4ff;
+  /* Jaune : bouton principal, halo et plaque de nom des éléments focalisés, voyants allumés. */
+  --accent: #ffe11a;
+  --accent-hi: #fff8b0;
+  --accent-lo: #d68a00;
+  --on-accent: #2a1a00;
+  /* Anneau de focus vert-jaune : >= 3:1 sur tous les fonds et toutes les bulles. */
+  --focus: #c8ff3d;
+  /* Couleurs des bulles (machines, onglets) : rose vif, bleu électrique, vert citron (texte sombre --on-lime), violet. */
+  --pink: #c8007f;
+  --pink-hi: #ff8fd8;
+  --pink-lo: #7a004d;
+  --blue: #0f55d8;
+  --blue-hi: #8fc8ff;
+  --blue-lo: #062a7a;
+  --lime: #7ee01a;
+  --lime-hi: #e4ffb0;
+  --lime-lo: #3f8a00;
+  --on-lime: #102600;
+  --violet: #6a1fe0;
+  --violet-hi: #c9a6ff;
+  --violet-lo: #36098a;
+  /* Chrome argenté : en-tête, barre du bas, pastilles ; texte --ink. */
+  --chrome: #c9d2de;
+  --chrome-hi: #ffffff;
+  --chrome-lo: #6d7a8c;
+  --ink: #16133a;
   /* Bouton Quitter et texte d'erreur. */
-  --danger: #b3202a;
-  --danger-hi: #ff6b73;
+  --danger: #c4122a;
+  --danger-hi: #ff7b8a;
   --danger-lo: #6e0f16;
-  --danger-text: #ff8a8a;
-  /* Machine à 0 jeu : cadre terne et logo hachuré. */
-  --disabled-bg: #1b2147;
-  --disabled-hi: #4a5486;
-  --disabled-lo: #11163a;
-  --stripe-a: #2a3162;
-  --stripe-b: #222850;
+  --danger-text: #ffb3b8;
+  /* Machine à 0 jeu : chrome terne. */
+  --disabled-bg: #4a5370;
+  --disabled-hi: #c3cad8;
+  --disabled-lo: #2a3045;
+  --stripe-a: #5a6380;
+  --stripe-b: #525a76;
+  /* Reflets, ombres et halos (transparences). */
+  --gloss: rgba(255, 255, 255, 0.85);
+  --gloss-top: rgba(255, 255, 255, 0.5);
+  --gloss-soft: rgba(255, 255, 255, 0.08);
+  --gloss-faint: rgba(255, 255, 255, 0.07);
+  --shade: rgba(0, 0, 0, 0.28);
+  --shadow: rgba(10, 8, 40, 0.45);
+  --glow: rgba(255, 225, 26, 0.75);
+  --glow-pink: rgba(255, 60, 190, 0.7);
   /* Voiles semi-transparents : fond de la boîte de dialogue, panneau de diagnostic. */
-  --scrim: rgba(5, 9, 31, 0.82);
+  --scrim: rgba(10, 8, 40, 0.82);
   --scrim-strong: rgba(5, 9, 31, 0.94);
 
   /* Couleur d'accent par machine (visuel de repli et logos). Une variable par machine de systems.json (champ `accent`). */
@@ -52,22 +85,33 @@
   --m-gameboycolor: #7d3c98; --m-mastersystem: #1f5fa8; --m-gamegear: #2c3e50;
   --m-megadrive: #2b2b2b; --m-megacd: #34495e; --m-32x: #8e2a2a;
   --m-pcengine: #8a3a5c; --m-pcenginecd: #1e6b6b;
-  /* Plaque claire sous les vrais logos téléchargés (T29) : ils sont dessinés pour un fond clair (Game Boy, Neo Geo sombres). */
+  /* Plaque claire sous les logos (T29 : vrais logos dessinés pour un fond clair ; T41 : bulle blanche des machines). */
   --logo-plaque: #e9edf7;
 
-  /* Cadres pixel (box-shadow), un par ton. Pas de border-radius ni de clip-path (il couperait l'anneau de focus). */
-  --frame: 0 0 0 4px var(--line), inset 4px 4px 0 var(--bevel-hi), inset -4px -4px 0 var(--bevel-lo);
-  --frame-accent: 0 0 0 4px var(--line), inset 4px 4px 0 var(--accent-hi), inset -4px -4px 0 var(--accent-lo);
-  --frame-danger: 0 0 0 4px var(--line), inset 4px 4px 0 var(--danger-hi), inset -4px -4px 0 var(--danger-lo);
-  --frame-disabled: 0 0 0 4px var(--line), inset 4px 4px 0 var(--disabled-hi), inset -4px -4px 0 var(--disabled-lo);
+  /* Formes arrondies (T41). Pas de clip-path : il couperait l'anneau de focus. */
+  --round: 26px;
+  --round-sm: 14px;
+  --pill: 999px;
+  /* Reflet « gel » : bande claire sur le haut d'un élément, posée en premier fond (background: var(--gloss-layer), <couleur>). */
+  --gloss-layer: linear-gradient(180deg, var(--gloss-top) 0%, var(--gloss-soft) 46%, transparent 47%);
+  /* Cadres « gel » (box-shadow) : tranche sombre dessous, ombre portée, reflet et ombre internes. Un par ton. */
+  --frame: 0 0 0 2px var(--bevel-lo), 0 4px 0 2px var(--bevel-lo), 0 8px 14px var(--shadow), inset 0 2px 0 var(--bevel-hi), inset 0 -4px 8px var(--shade);
+  --frame-accent: 0 0 0 3px var(--text), 0 0 0 7px var(--accent), 0 0 22px 8px var(--glow), inset 0 2px 0 var(--accent-hi), inset 0 -4px 8px var(--shade);
+  --frame-danger: 0 0 0 2px var(--danger-lo), 0 4px 0 2px var(--danger-lo), 0 8px 14px var(--shadow), inset 0 2px 0 var(--danger-hi), inset 0 -4px 8px var(--shade);
+  --frame-disabled: 0 0 0 2px var(--disabled-lo), 0 4px 0 2px var(--disabled-lo), 0 8px 14px var(--shadow), inset 0 2px 0 var(--disabled-hi), inset 0 -4px 8px var(--shade);
+  --frame-chrome: 0 0 0 2px var(--chrome-lo), 0 5px 0 2px var(--chrome-lo), 0 10px 18px var(--shadow), inset 0 2px 0 var(--chrome-hi), inset 0 -3px 0 var(--shade);
 
-  /* Police pixel : Press Start 2P (licence OFL, assets/fonts/OFL.txt), déclarée par @font-face ci-dessus ; repli monospace. */
+  /* Polices (T41, maquette validée) : interface façon Windows XP, titres arrondis ; polices du système, rien à télécharger.
+     Press Start 2P (licence OFL, assets/fonts/OFL.txt) reste pour les visuels de repli (logos, jaquettes) et l'écran de jeu ;
+     elle pourrait revenir sur le seul titre « Clone90 » si Hicham le demande. */
+  --font-text: "Trebuchet MS", Verdana, Tahoma, "Segoe UI", system-ui, sans-serif;
+  --font-title: "Arial Rounded MT Bold", "Trebuchet MS", Verdana, "Segoe UI", system-ui, sans-serif;
   --font-pixel: "Press Start 2P", ui-monospace, "SF Mono", Consolas, monospace;
-  --font-text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Consolas, monospace;
 
   --gap: 24px;
   --margin-x: 48px;
+  --dock-space: 104px; /* hauteur de la barre du bas (T41) + marge : place réservée sous le contenu */
   --game-scale: 1; /* T37 : taille de l'image du jeu (0.4 à 1), posée sur <body> par la réglette */
   --player-bar: 0px; /* barre du haut de la page de jeu (T28), redéfinie en portrait par player.css */
   --focus-offset: 8px;
@@ -84,7 +128,11 @@ html { color-scheme: dark; }
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg) repeating-linear-gradient(180deg, var(--bg) 0 32px, var(--band) 32px 64px);
+  background:
+    repeating-linear-gradient(45deg, var(--gloss-faint) 0 10px, transparent 10px 20px),
+    linear-gradient(180deg, var(--sky) 0, var(--bg) 220px, var(--bg-mid) 60%, var(--band) 100%);
+  background-attachment: fixed;
+  background-color: var(--bg);
   color: var(--text);
   font-family: var(--font-text);
   font-size: 1rem;
@@ -92,30 +140,44 @@ body {
   overflow-x: hidden;
 }
 
+/* En-tête (T41) : plaque chromée arrondie, pastille rose, titre « Clone90 » en relief (« 90 » en rose). */
 .app-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--gap);
+  gap: 14px;
   min-height: 64px;
-  padding: 8px var(--margin-x);
-  background: var(--panel);
-  border-bottom: 4px solid var(--line);
-  box-shadow: inset 0 -4px 0 var(--bevel-hi);
+  margin: 12px var(--margin-x) 0;
+  padding: 8px 20px;
+  border-radius: var(--round);
+  background: linear-gradient(180deg, var(--chrome-hi) 0%, var(--chrome) 48%, var(--chrome-lo) 52%, var(--chrome) 100%);
+  box-shadow: var(--frame-chrome);
+}
+@media (max-width: 599px) { .app-header { margin: 10px 12px 0; padding: 8px 14px; } }
+
+.header-orb {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, var(--chrome-hi) 0 12%, var(--pink-hi) 24%, var(--pink) 60%, var(--pink-lo) 100%);
+  box-shadow: 0 3px 0 var(--pink-lo), 0 5px 8px var(--shade);
 }
 
 .site-title {
+  flex: 1;
   margin: 0;
-  font-family: var(--font-pixel);
-  font-size: 1.25rem;
-  font-weight: 400;
-  color: var(--accent);
-  text-shadow: 3px 3px 0 var(--line);
+  font-family: var(--font-title);
+  font-size: 1.75rem;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--blue);
+  text-shadow: 0 1px 0 var(--chrome-hi), 0 2px 0 var(--blue-lo), 0 3px 3px var(--shade);
 }
+.site-title-90 { color: var(--pink); text-shadow: 0 1px 0 var(--chrome-hi), 0 2px 0 var(--pink-lo), 0 3px 3px var(--shade); }
 
-/* Petite jauge de 4 barres croissantes, purement décorative (aria-hidden dans index.html). */
-.header-bars { display: flex; gap: 4px; align-items: flex-end; }
-.header-bars i { width: 8px; background: var(--focus); box-shadow: 0 0 0 2px var(--line); }
+/* Petite jauge de 4 barres croissantes (réseau d'un téléphone des années 2000), purement décorative (aria-hidden dans index.html). */
+.header-bars { display: flex; gap: 3px; align-items: flex-end; }
+.header-bars i { width: 6px; border-radius: 3px; background: linear-gradient(180deg, var(--lime-hi), var(--lime) 50%, var(--lime-lo)); box-shadow: 0 0 0 1px var(--lime-lo); }
 .header-bars i:nth-child(1) { height: 10px; }
 .header-bars i:nth-child(2) { height: 16px; }
 .header-bars i:nth-child(3) { height: 22px; }
@@ -124,12 +186,12 @@ body {
 .screen { padding: 24px var(--margin-x) 48px; }
 
 .screen-title {
-  margin: 0 0 28px;
-  font-family: var(--font-pixel);
-  font-size: 1rem;
-  font-weight: 400;
-  line-height: 1.6;
-  text-shadow: 2px 2px 0 var(--line);
+  margin: 0 0 24px;
+  font-family: var(--font-title);
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1.3;
+  text-shadow: 0 1px 0 var(--bevel-hi), 0 2px 0 var(--bevel-lo), 0 3px 0 var(--bevel-lo), 0 5px 8px var(--shadow); /* texte en relief */
 }
 
 .muted, .key-hint { color: var(--text-muted); }
@@ -150,11 +212,11 @@ a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: none; }
   content: "\25B6\FE0E"; /* FE0E : forme texte, jamais l'emoji */
   content: "\25B6\FE0E" / "";
   display: none;
-  font-family: var(--font-pixel);
-  font-size: 1rem;
+  font-family: var(--font-text);
+  font-size: 1.25rem;
   line-height: 1;
   color: var(--accent);
-  text-shadow: 2px 2px 0 var(--line);
+  text-shadow: 0 0 2px var(--line), 0 2px 0 var(--accent-lo);
   animation: blink 1s steps(1) infinite;
 }
 .machine-tile::before, .game-tile::before { position: absolute; left: -6px; top: -14px; z-index: 3; }
@@ -168,7 +230,8 @@ a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: none; }
 .banner {
   margin: 0 4px 28px;
   padding: 16px 20px;
-  background: var(--panel);
+  border-radius: var(--round-sm);
+  background: var(--gloss-layer), var(--panel);
   box-shadow: var(--frame);
 }
 .banner strong { display: block; margin-bottom: 4px; color: var(--accent); }
@@ -189,29 +252,32 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
   min-height: 48px;
   padding: 12px 24px;
   border: 0;
+  border-radius: var(--pill);
   font: inherit;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   text-decoration: none;
   cursor: pointer;
   transition: transform 150ms;
 }
-.button:active, .back-button:active, .menu-button:active { transform: translate(2px, 2px); }
-.button { background: var(--accent); color: var(--on-accent); box-shadow: var(--frame-accent); }
-.back-button, .menu-button { padding: 8px 16px; background: var(--panel-2); color: var(--text); box-shadow: var(--frame); }
-.button.is-secondary { background: var(--panel-2); color: var(--text); box-shadow: var(--frame); }
-.button.is-secondary::before { color: var(--accent); text-shadow: 2px 2px 0 var(--line); }
-.dialog-button.is-danger { background: var(--danger); color: var(--text); box-shadow: var(--frame-danger); }
+/* Boutons « gel » (T41) : reflet clair en haut (--gloss-layer), tranche et ombre (--frame*), texte gravé ; appui = enfoncé de 3 px. */
+.button:active, .back-button:active, .menu-button:active { transform: translateY(3px); }
+.button { background: var(--gloss-layer), linear-gradient(180deg, var(--accent-hi), var(--accent) 55%, var(--accent-lo)); color: var(--on-accent); box-shadow: 0 0 0 2px var(--accent-lo), 0 4px 0 2px var(--accent-lo), 0 8px 14px var(--shadow), inset 0 2px 0 var(--chrome-hi); }
+.back-button, .menu-button, .button.is-secondary { background: var(--gloss-layer), var(--panel-2); color: var(--text); box-shadow: var(--frame); text-shadow: 0 -1px 0 var(--shade); }
+.back-button, .menu-button { padding: 8px 18px; }
+.button.is-secondary::before { color: var(--accent); text-shadow: 0 0 2px var(--line); }
+.dialog-button.is-danger { background: var(--gloss-layer), var(--danger); color: var(--text); box-shadow: var(--frame-danger); text-shadow: 0 -1px 0 var(--shade); }
 
 .toast {
   position: fixed;
   left: 50%;
   bottom: 28px;
   transform: translateX(-50%);
+  z-index: 50;
   max-width: calc(100vw - 40px);
-  padding: 12px 20px;
-  background: var(--panel);
+  padding: 12px 22px;
+  border-radius: var(--pill);
+  background: var(--gloss-layer), var(--panel);
   box-shadow: var(--frame);
   opacity: 0;
   pointer-events: none;
@@ -233,15 +299,19 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
   width: min(100%, 26rem);
   max-height: calc(100vh - 40px); /* T29 : le panneau des dossiers peut dépasser la hauteur de l'écran : il défile au lieu d'être coupé */
   overflow-y: auto;
+  border-radius: var(--round);
   background: var(--panel);
   box-shadow: var(--frame);
 }
+/* Barre de titre (T41) : gel bleu brillant façon fenêtre des années 2000. */
 .dialog-title {
-  margin: 4px 4px 0;
-  padding: 16px 20px;
+  margin: 0;
+  padding: 16px 22px;
+  font-family: var(--font-title);
   font-size: 1.25rem;
-  background: repeating-linear-gradient(90deg, var(--panel-2) 0 8px, var(--panel-3) 8px 16px);
-  border-bottom: 4px solid var(--line);
+  background: var(--gloss-layer), linear-gradient(180deg, var(--panel-3), var(--panel-2));
+  border-bottom: 2px solid var(--bevel-lo);
+  text-shadow: 0 -1px 0 var(--shade), 0 2px 3px var(--shade);
 }
 .dialog-body { padding: 20px 24px 28px; }
 .dialog-message { margin: 0 0 24px; color: var(--text-muted); }
@@ -262,10 +332,10 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
 .folders-status.is-ok { color: var(--accent); }
 .folders-status.is-error { color: var(--danger-text); }
 /* Pochettes (T28) : groupe à part sous les choix de dossiers, barre de progression visuelle (hors zone annoncée). */
-.dialog-button.is-separated { margin-top: 12px; padding-top: 16px; border-top: 4px dashed var(--panel-3); }
-.covers-progress { display: block; width: 100%; height: 16px; margin: 0 0 12px; appearance: none; border: 0; background: var(--panel-3); }
-.covers-progress::-webkit-progress-bar { background: var(--panel-3); }
-.covers-progress::-webkit-progress-value { background: var(--accent); }
+.dialog-button.is-separated { margin-top: 12px; padding-top: 16px; border-top: 3px dotted var(--bevel-hi); }
+.covers-progress { display: block; width: 100%; height: 16px; margin: 0 0 12px; appearance: none; border: 0; border-radius: var(--pill); overflow: hidden; background: var(--panel-3); }
+.covers-progress::-webkit-progress-bar { background: var(--panel-3); border-radius: var(--pill); }
+.covers-progress::-webkit-progress-value { background: var(--gloss-layer), var(--accent); border-radius: var(--pill); }
 .covers-progress::-moz-progress-bar { background: var(--accent); }
 .covers-progress[hidden] { display: none; }
 .dialog-button[hidden] { display: none; } /* T35 : boutons cachés pendant la mise à jour (js/ui/update-dialog.js) */

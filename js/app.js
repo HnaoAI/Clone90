@@ -6,6 +6,7 @@
 // T35 : vérification des mises à jour 5 s après l'ouverture, fenêtre js/ui/update-dialog.js.
 // T40 : après chaque import de jeux dans « Mes fichiers » (fichiers, dossier, page web) et sur un bouton, pochettes manquantes (local-covers.js) ;
 // sur le Mac, pochettes manquantes cherchées sans clic à l'ouverture et après un ajout de jeux par Clone90 (auto-covers.js, décision du 2026-11-15).
+// T41 : barre de navigation du bas (ui/bottom-nav.js), rendue une fois dans #app, onglet actif suivi à chaque route.
 import { loadData, groupGamesBySystem } from './data.js';
 import { loadLocalGames } from './local-games.js';
 import { openLocalLibrary, canUseLocalLibrary, romStoragePath, biosStoragePath, requestPersistentStorage } from './local-library.js';
@@ -17,7 +18,8 @@ import { createRouter } from './router.js';
 import { createActionSource } from './input/actions.js';
 import { createFocusNavigator } from './input/focus-nav.js';
 import { visibleSystems, resolveRoute } from './screens.js';
-import { buildMachineTiles, renderHome, FOLDERS_NAV_ID } from './ui/machine-grid.js';
+import { buildMachineTiles, renderHome } from './ui/machine-grid.js';
+import { renderBottomNav, markActiveTab, activeTabFor, FOLDERS_NAV_ID } from './ui/bottom-nav.js';
 import { fetchFolderSettings, requestFolderChoice, requestCoversDownload, fetchCoversStatus, requestLogosDownload, fetchLogosStatus } from './folders-client.js';
 import { createFoldersPanel } from './ui/folders-panel.js';
 import { createLinkScreen, LINK_INPUT_NAV_ID } from './ui/link-screen.js';
@@ -64,7 +66,12 @@ async function main() {
   let folderSettings = await fetchFolderSettings();
   let foldersPanel = null;
   let updateDialog = null;
-  const nav = createFocusNavigator({ getRoot: () => screen });
+  // T41 : la barre du bas est dans la racine de la navigation (bas depuis la dernière rangée), à côté de l'écran ; rendue une fois.
+  const appRoot = document.getElementById('app');
+  const dock = renderBottomNav({ localSupported, linksAvailable: Boolean(folderSettings) || localSupported, onOpenFolders: folderSettings ? () => openFolders() : undefined });
+  document.getElementById('dock-slot').replaceWith(dock);
+  document.body.classList.add('has-dock');
+  const nav = createFocusNavigator({ getRoot: () => appRoot });
   const router = createRouter(window);
   let current = {};
   let lastSystem = null;
@@ -90,10 +97,7 @@ async function main() {
   function showHome() {
     clear(screen);
     const tiles = buildMachineTiles(systems, gamesBySystem);
-    screen.append(renderHome({
-      tiles, gamesStatus: data.gamesStatus, skipped: data.skipped, localSupported, onOpenFolders: folderSettings ? openFolders : undefined,
-      linksAvailable: Boolean(folderSettings) || localSupported,
-    }));
+    screen.append(renderHome({ tiles, gamesStatus: data.gamesStatus, skipped: data.skipped }));
     current = {};
     if (lastSystem) nav.focusById(lastSystem); // retour d'une grille : le focus revient sur la machine quittée
   }
@@ -263,7 +267,7 @@ async function main() {
     foldersPanel.open(document.body);
     await foldersPanel.result;
     foldersPanel = null;
-    nav.focusById(FOLDERS_NAV_ID); // le bouton a été recréé par le rechargement : on lui rend le focus
+    nav.focusById(FOLDERS_NAV_ID); // T41 : l'onglet « Dossiers » de la barre du bas reprend le focus
   }
 
   function showGameGrid(machine, focus) {
@@ -279,6 +283,7 @@ async function main() {
 
   function onRoute(route) {
     const target = resolveRoute(route, systems);
+    markActiveTab(dock, activeTabFor(target.name));
     if (target.name === 'library') { window.scrollTo(0, 0); showLibrary(target.machine); return; }
     if (target.name === 'links') { window.scrollTo(0, 0); showLinks(); return; }
     if (target.name === 'home') {
@@ -294,7 +299,7 @@ async function main() {
     onWake: () => {
       setGamepadMode(true);
       toast('Manette connectée');
-      if (!foldersPanel && !screen.contains(document.activeElement)) nav.focusFirst();
+      if (!foldersPanel && !appRoot.contains(document.activeElement)) nav.focusFirst();
     },
   });
   actions.start((action, source) => {
