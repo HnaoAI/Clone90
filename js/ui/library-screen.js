@@ -2,11 +2,13 @@
 // T38 : en tête, « Choisir le dossier des jeux » range tout un dossier (un sous-dossier par machine) d'un coup (js/folder-scan.js).
 // T40 : rubrique « Pochettes » (bouton « Chercher les pochettes manquantes », phrase sur la connexion à GitHub) ; la recherche elle-même
 // est dans js/local-covers.js, lancée par app.js (après chaque import de jeux et sur ce bouton).
+// T42 : la même recherche range les vrais logos des machines (js/local-logos.js) ; ils ne sont pas listés comme fichiers de la personne.
 // Dépend de router.js, config.js, ui/dom.js, local-library.js (describeBiosStatus). Les actions (choisir, supprimer) sont transmises par app.js.
 // INVARIANT : aucune liste de machines ici, tout vient de systems.json. Chaque bouton est `data-nav` (clavier et manette via js/input/).
 import { buildHash } from '../router.js';
 import { ROMS_DIR, BIOS_DIR } from '../config.js';
 import { describeBiosStatus } from '../local-library.js';
+import { isLocalLogoPath } from '../local-logos.js';
 import { el } from './dom.js';
 
 /** data-nav-id du bouton retour et du bouton « Choisir des BIOS ». */
@@ -16,9 +18,10 @@ export const ADD_BIOS_NAV_ID = 'add-bios';
 export const SCAN_FOLDER_NAV_ID = 'scan-folder';
 /** data-nav-id du bouton « Chercher les pochettes manquantes » (T40). */
 export const FIND_COVERS_NAV_ID = 'find-covers';
-/** Ce qui part sur le réseau quand on cherche des pochettes (CLAUDE.md règle 5, exception a). */
+/** Ce qui part sur le réseau quand on cherche des pochettes (CLAUDE.md règle 5, exceptions a et b ; logos des machines : T42). */
 export const COVERS_LIBRARY_INFO = 'Après chaque ajout de jeux, et sur ce bouton, Clone90 cherche la pochette des jeux qui n\'en ont pas dans la base libre libretro-thumbnails, sur github.com, '
-  + 'et la garde dans ce navigateur. Seules des images sont téléchargées. GitHub voit l\'adresse IP de l\'appareil et les noms des jeux cherchés.';
+  + 'et la garde dans ce navigateur. Seules des images sont téléchargées. GitHub voit l\'adresse IP de l\'appareil et les noms des jeux cherchés. '
+  + 'Il télécharge aussi une fois les logos des machines (thème libre es-theme-carbon, sur github.com, aucun nom de jeu envoyé) pour l\'accueil.';
 /** data-nav-id du bouton d'ajout de jeux d'une machine. */
 export const addGamesNavId = (systemId) => `add-${systemId}`;
 
@@ -41,13 +44,14 @@ export function formatSize(bytes) {
 /**
  * Fichiers de la bibliothèque regroupés pour l'affichage : une rubrique par machine (ordre de systems.json), puis les BIOS.
  * Un chemin d'une machine inconnue (retirée de systems.json) va dans « Autres fichiers », pour pouvoir le supprimer.
+ * T42 : les logos des machines (`roms/clone90-logos/`) ne sont pas des fichiers de la personne : ils ne sont pas listés.
  * @param {{path: string, size: number}[]} entries @param {object[]} systems
  * @returns {{id: string, title: string, files: {path: string, name: string, size: number}[]}[]} rubriques non vides
  */
 export function groupLibraryEntries(entries, systems) {
   const groups = [...systems.map((s) => ({ id: s.id, title: s.name, files: [] })), { id: 'bios', title: 'BIOS', files: [] }, { id: 'other', title: 'Autres fichiers', files: [] }];
   const byId = new Map(groups.map((g) => [g.id, g]));
-  for (const e of [...entries].sort((a, b) => (a.path < b.path ? -1 : 1))) {
+  for (const e of entries.filter((x) => !isLocalLogoPath(x.path)).sort((a, b) => (a.path < b.path ? -1 : 1))) {
     const [dir, system] = e.path.split('/');
     const group = (dir === ROMS_DIR && byId.get(system) && system !== 'bios' && system !== 'other' ? byId.get(system) : null)
       ?? (dir === BIOS_DIR ? byId.get('bios') : byId.get('other'));
@@ -85,7 +89,7 @@ const secondaryButton = (text, navId, onClick, doc, extraClass = '') => el('butt
  */
 export function renderLibrary({ systems, entries, supported, machine = null, busy = false, folderPicking = false, onScanFolder = () => {}, notice = null, busyText = null, onFindCovers = () => {}, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
   const groups = groupLibraryEntries(entries, systems);
-  const total = entries.reduce((sum, e) => sum + (e.size || 0), 0);
+  const total = entries.filter((e) => !isLocalLogoPath(e.path)).reduce((sum, e) => sum + (e.size || 0), 0);
   const bios = describeBiosStatus(systems, entries.map((e) => e.path));
   const disabled = !supported || busy;
   const withDisabled = (node) => { if (disabled) node.setAttribute('disabled', ''); return node; };
@@ -133,7 +137,7 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
     el('p', { class: 'muted', text: COVERS_LIBRARY_INFO, attrs: { id: 'library-covers-info' } }, [], doc),
     withDisabled(el('button', { class: 'button', text: 'Chercher les pochettes manquantes', attrs: { type: 'button', 'aria-describedby': 'library-covers-info' },
       dataset: { nav: '', navId: FIND_COVERS_NAV_ID }, on: { click: () => onFindCovers() } }, [], doc)),
-    el('h3', { class: 'library-heading', text: `Sur cet appareil${entries.length ? ` (${formatSize(total)})` : ''}` }, [], doc),
+    el('h3', { class: 'library-heading', text: `Sur cet appareil${groups.length ? ` (${formatSize(total)})` : ''}` }, [], doc),
     groups.length === 0 ? el('p', { class: 'muted', text: 'Aucun fichier pour l\'instant.' }, [], doc) : null,
     ...groups.map((g) => el('div', { class: 'library-group' }, [
       el('h4', { class: 'library-group-title', text: g.title }, [], doc),

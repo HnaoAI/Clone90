@@ -2,10 +2,9 @@
 // INVARIANT : systems.json est la seule source de vérité des machines (CLAUDE.md règle 2) ; rien ici n'en liste.
 import { SYSTEMS_URL, GAMES_URL, EJS_VERSION_FORMAT } from './config.js';
 import { compareTitles } from './sort.js';
+import { LOGOS_DIR } from './logo-source.js';
 
 const SYSTEM_ID = /^[a-z0-9]+$/;
-/** Dossier des logos téléchargés dans le dossier des ROMs (T29) : même valeur que LOGOS_DIR de scripts/generate-games.mjs. */
-const LOGOS_DIR = 'clone90-logos';
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isNonEmptyString = (v) => typeof v === 'string' && v.length > 0;
@@ -129,11 +128,14 @@ const gamesFailureStatus = (e) => {
  *   cas normal sur GitHub Pages car gitignoré), 'offline' (serveur injoignable) ou 'invalid' (illisible ou mauvaise version).
  * - T27 : jeux de la bibliothèque locale (fichiers importés sur le téléphone) ajoutés à ceux de games.json, validés de la même façon ;
  *   un jeu de games.json garde la priorité sur un jeu local de même id. Dès qu'il y a au moins un jeu, le statut est 'ok'.
+ * - T42 : logos des machines gardés dans le navigateur (téléchargés depuis « Mes fichiers ») ajoutés en `downloadedLogo` aux machines qui
+ *   n'en ont pas déjà par games.json (le Mac garde la priorité). Même contrôle que games.json : seul `roms/clone90-logos/<id>.svg` est gardé.
  * @param {(url: string) => Promise<unknown>} [fetchJson] injectable pour les tests
  * @param {(systems: object[]) => Promise<object[]>} [loadLocal] jeux locaux (js/local-games.js, loadLocalGames) ; absent = aucun
+ * @param {(systems: object[]) => Promise<Record<string, string>>} [loadLocalLogos] logos locaux (js/local-logos.js, loadLocalLogos) ; absent = aucun
  * @returns {Promise<{systems: object[], games: object[], gamesStatus: string, skipped: number, localCount: number}>}
  */
-export async function loadData(fetchJson = defaultFetchJson, loadLocal = null) {
+export async function loadData(fetchJson = defaultFetchJson, loadLocal = null, loadLocalLogos = null) {
   let systems;
   try {
     systems = validateSystems(await fetchJson(SYSTEMS_URL));
@@ -148,9 +150,17 @@ export async function loadData(fetchJson = defaultFetchJson, loadLocal = null) {
   } catch (e) {
     result = { systems, games: [], skipped: 0, gamesStatus: gamesFailureStatus(e) };
   }
+  if (loadLocalLogos) result.systems = await withLocalLogos(result.systems, loadLocalLogos);
   const local = loadLocal ? await localGames(loadLocal, systems, result.games) : [];
   if (!local.length) return { ...result, localCount: 0 };
   return { ...result, games: [...result.games, ...local], gamesStatus: 'ok', localCount: local.length };
+}
+
+/** Logos du navigateur (T42) pour les machines sans logo du Mac. Une erreur de la bibliothèque laisse les machines telles quelles. */
+async function withLocalLogos(systems, loadLocalLogos) {
+  let logos;
+  try { logos = validateLogos(await loadLocalLogos(systems), systems.map((s) => s.id)); } catch { return systems; }
+  return systems.map((s) => (!s.downloadedLogo && logos[s.id] ? { ...s, downloadedLogo: logos[s.id] } : s));
 }
 
 /** Jeux locaux valides et d'id libre (T27). Une erreur de la bibliothèque n'empêche jamais l'accueil : liste vide. */
