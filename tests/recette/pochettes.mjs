@@ -2,6 +2,8 @@
 // Montage autonome comme scan-dossier.mjs (application SANS roms/, bios/ ni games.json, comme GitHub Pages ou un téléphone).
 // GitHub est remplacé par un faux (interception Playwright de api.github.com et raw.githubusercontent.com, avec l'en-tête CORS du vrai) :
 // on vérifie le parcours (import, pochette gardée, tuile, jeu sans pochette, relance, sans réseau), pas la base réelle.
+// T42 : la même recherche range aussi les logos des machines (thème es-theme-carbon) : le faux GitHub les sert (SVG), ils sont comptés à part
+// (tests/recette/logos-telephone.mjs les vérifie) et leurs lectures sont admises à côté des images libretro-thumbnails.
 // Usage : PLAYWRIGHT_PATH=... node tests/recette/pochettes.mjs [dossier de captures]
 import { cp, mkdtemp, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -27,6 +29,9 @@ const BASE = `http://localhost:${port}`;
 const browser = await pw.chromium.launch();
 const shot = async (p, name) => { if (captures) await p.screenshot({ path: join(captures, `${name}.png`), fullPage: true }); };
 const CORS = { 'access-control-allow-origin': '*' };
+/** T42 : logos des machines (thème es-theme-carbon, commit figé), lus avec les pochettes. */
+const THEME_LOGO = /^https:\/\/raw\.githubusercontent\.com\/RetroPie\/es-theme-carbon\/[0-9a-f]{40}\/[a-z0-9-]+\/art\/system\.svg$/;
+const LOGO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>';
 
 /** Faux GitHub : base Amiga avec Gods et Zool (Mon jeu maison absent). `online: false` = GitHub injoignable. Renvoie les adresses demandées. */
 async function fakeGithub(context, { online = true } = {}) {
@@ -46,6 +51,7 @@ async function fakeGithub(context, { online = true } = {}) {
   await context.route('https://raw.githubusercontent.com/**', (route) => {
     seen.push(route.request().url());
     if (!online) return route.abort('internetdisconnected');
+    if (THEME_LOGO.test(route.request().url())) return route.fulfill({ headers: { ...CORS, 'content-type': 'image/svg+xml' }, body: LOGO_SVG }); // T42
     return route.fulfill({ headers: { ...CORS, 'content-type': 'image/png' }, body: COVER });
   });
   return seen;
@@ -63,9 +69,10 @@ async function importAmiga(page, files) {
   return notice.textContent();
 }
 
+/** Fichiers de la bibliothèque, sans les logos des machines (T42, vérifiés par logos-telephone.mjs). */
 const storedKeys = (page) => page.evaluate(() => new Promise((resolve) => {
   const req = indexedDB.open('clone90-local', 1);
-  req.onsuccess = () => { const all = req.result.transaction('files').objectStore('files').getAllKeys(); all.onsuccess = () => resolve(all.result.sort()); };
+  req.onsuccess = () => { const all = req.result.transaction('files').objectStore('files').getAllKeys(); all.onsuccess = () => resolve(all.result.filter((k) => !k.startsWith('roms/clone90-logos/')).sort()); };
 }));
 
 try {
@@ -112,8 +119,8 @@ try {
     verdict('T40-focus-bouton', await page.evaluate(() => document.activeElement?.dataset?.navId === 'find-covers'), '', label);
 
     // 4. Seules des lectures d'images libretro-thumbnails sont sorties de l'appareil.
-    const outside = seen.filter((u) => !/^https:\/\/(api\.github\.com\/repos|raw\.githubusercontent\.com)\/libretro-thumbnails\//.test(u));
-    verdict('T40-seulement-github-images', outside.length === 0 && seen.filter((u) => u.startsWith('https://raw.')).every((u) => /\/Named_Boxarts\/[^/]+\.png$/.test(u)), outside.join(' '), label);
+    const outside = seen.filter((u) => !THEME_LOGO.test(u) && !/^https:\/\/(api\.github\.com\/repos|raw\.githubusercontent\.com)\/libretro-thumbnails\//.test(u));
+    verdict('T40-seulement-github-images', outside.length === 0 && seen.filter((u) => u.startsWith('https://raw.') && !THEME_LOGO.test(u)).every((u) => /\/Named_Boxarts\/[^/]+\.png$/.test(u)), outside.join(' '), label);
     await context.close();
 
     // 5. Sans réseau vers GitHub : l'import réussit quand même, la tuile garde son nom.
