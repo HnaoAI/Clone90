@@ -2,6 +2,7 @@
 
 Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (guillemets conservés).
 
+- `sync-plan.test.mjs`, `sync-server.test.mjs` : synchronisation Mac -> téléphone (T43) : règles, téléphone (association, copie, remplacement, retrait, place, jamais un fichier de la personne), écrans, appairage, certificats (vrai openssl), serveur HTTPS en lecture seule, commande du Mac.
 - `local-logos.test.mjs` : logos des machines sur le téléphone (T42) : téléchargement et rangement, source commune avec le Mac, relance, SVG refusé, sans réseau, logos ajoutés par `loadData` (priorité au Mac), « Mes fichiers » sans les logos.
 - `systems.test.mjs` : validité de `systems.json` (schéma, ids uniques, amiga et neogeo complets).
 - `serve.test.mjs` : serveur local (index.html, MIME, 404, Range, refus de `../`, noms de fichiers spéciaux, liens symboliques hors racine, nosniff) (T1, T11).

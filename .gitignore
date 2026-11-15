@@ -15,3 +15,7 @@ node_modules/
 *.log
 # Cache des listes de pochettes (T28)
 clone90.covers-cache.json
+# Partage avec le téléphone (T43) : appairage et certificats de ce Mac
+clone90.sync.json
+clone90.sync.json.tmp
+.clone90-sync/
