@@ -1,12 +1,13 @@
 // Recette T41 « style Y2K et barre du bas » : vrai navigateur, téléphone (Pixel 7) et ordinateur, sur une copie de l'application avec un
 // games.json généré depuis des fichiers factices (on regarde l'affichage, pas l'émulation). Mode Mac simulé : api/settings répond
 // (onglet « Dossiers »). Vérifie la barre (onglets, onglet actif, cibles, contenu jamais caché dessous), le clavier, la page de jeu sans
-// barre, la réduction des animations, et prend les captures.
+// barre, la réduction des animations, et prend les captures. T45 : numéro de version sous « Clone90 » sur le téléphone, caché sur ordinateur.
 // Usage : PLAYWRIGHT_PATH=... node tests/recette/style-y2k.mjs [dossier de captures]
 import { cp, mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pw, verdict, results } from './lib.mjs';
+import { contrastScan } from './page-fns.mjs';
 import { PROJECT_ROOT } from '../../scripts/project-root.mjs';
 import { createStaticServer } from '../../scripts/serve.mjs';
 import { runGenerate } from '../../scripts/generate-games.mjs';
@@ -25,6 +26,32 @@ for (const [machine, n] of Object.entries(roms)) {
 }
 await mkdir(join(root, 'bios'), { recursive: true });
 await runGenerate({ root, log: () => {} });
+
+/**
+ * T45 : numéro de version sous « Clone90 ». Téléphone : visible, juste sous le titre, dans l'en-tête, lisible (AA, y compris sur la bande
+ * la plus sombre du chrome, --chrome-lo, sous la pastille) ; ordinateur : caché (le numéro reste en bas de l'accueil).
+ */
+async function checkHeaderVersion(page, label, where) {
+  const m = await page.evaluate(() => {
+    const v = document.querySelector('.site-version'); const t = document.querySelector('.site-title'); const h = document.querySelector('.app-header');
+    const [rv, rt, rh] = [v, t, h].map((e) => e.getBoundingClientRect());
+    return { text: v.textContent, shown: getComputedStyle(v).display !== 'none' && rv.height > 0, below: rv.top >= rt.bottom - 1 && rv.top - rt.bottom < 12,
+      left: Math.abs(rv.left - rt.left) < 2, inside: rv.top >= rh.top && rv.bottom <= rh.bottom && rv.right <= rh.right, top: rv.top };
+  });
+  if (label === 'ordinateur') { verdict(`T45-CA3-cache-sur-ordinateur-${where}`, !m.shown, JSON.stringify(m), label); return; }
+  verdict(`T45-CA1-visible-${where}`, m.shown && /^v0\.\d+\.\d+ - \d{2}\/\d{2}\/\d{4}$/.test(m.text) && m.top < 100, JSON.stringify(m), label);
+  verdict(`T45-CA1-sous-le-titre-${where}`, m.below && m.left, JSON.stringify(m), label);
+  verdict(`T45-CA2-dans-l-en-tete-${where}`, m.inside, JSON.stringify(m), label);
+  const low = (await page.evaluate(contrastScan)).filter((x) => /site-version/.test(x.el));
+  // Pire cas : pastille blanche à 60 % posée sur --chrome-lo (#6d7a8c), texte --ink (#16133a).
+  const worst = await page.evaluate(() => {
+    const lum = (r, g, b) => [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+    const mix = (c, w) => c * 0.4 + 255 * 0.6;
+    const bg = lum(mix(0x6d), mix(0x7a), mix(0x8c)); const fg = lum(0x16, 0x13, 0x3a);
+    return (bg + 0.05) / (fg + 0.05);
+  });
+  verdict(`T45-CA2-lisible-${where}`, low.length === 0 && worst >= 4.5, `${JSON.stringify(low)} pire ${worst.toFixed(2)}`, label);
+}
 
 const server = createStaticServer({ root });
 const port = await new Promise((r) => server.listen(0, '127.0.0.1', () => r(server.address().port)));
@@ -64,6 +91,7 @@ try {
     const colors = await page.evaluate(() => [...document.querySelectorAll('.machine-tile')].slice(0, 4).map((t) => getComputedStyle(t).getPropertyValue('--gel').trim()));
     verdict('T41-CA5-quatre-couleurs', new Set(colors).size === 4, colors.join(','), label);
     verdict('T41-CA3-police-arrondie', /Trebuchet|Arial Rounded/.test(await page.evaluate(() => getComputedStyle(document.querySelector('.screen-title')).fontFamily)), '', label);
+    await checkHeaderVersion(page, label, 'accueil');
     await shot(page, `${label}-1-accueil`);
 
     // Contenu jamais caché sous la barre : tout en bas, la version (dernier élément) est au-dessus de la barre.
@@ -85,6 +113,7 @@ try {
     await page.locator('.dock-tab.library-link').click();
     await waitHash(page, /#\/fichiers/);
     verdict('T41-CA7-actif-mes-fichiers', JSON.stringify(await currentTab(page)) === '["library"]', '', label);
+    await checkHeaderVersion(page, label, 'mes-fichiers');
     await shot(page, `${label}-4-mes-fichiers`);
     await page.locator('.dock-tab.links-button').click();
     await waitHash(page, /#\/telecharger/);
@@ -93,6 +122,7 @@ try {
     await page.locator('.machine-tile').first().waitFor();
     await page.locator('.machine-tile').first().click();
     await waitHash(page, /#\/amiga/);
+    await checkHeaderVersion(page, label, 'grille');
     verdict('T41-CA7-grille-machines', JSON.stringify(await currentTab(page)) === '["dock-home"]', '', label);
     await shot(page, `${label}-5-grille`);
 
