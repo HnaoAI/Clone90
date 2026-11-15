@@ -304,6 +304,10 @@ La recherche de 7.4 est dans `js/cover-match.js` (pur), partagée par `scripts/c
 4. **Rangement** : `library.put('roms/<machine>/<nom du jeu>.png', Blob image/png)` (`localCoverPath` = `roms/` + `coverTargetPath`), jamais si un fichier de ce nom existe (relu juste avant l'écriture). `buildLocalGames` la voit comme une jaquette, `sw.js` la sert (T27), `gameFilePaths` l'efface avec le jeu (T39).
 5. **Erreurs** : jamais d'exception ; introuvable, ambigu, refusé, GitHub injoignable ou limite atteinte = compteurs du résumé (`describeCoversResult`, une ligne : « Pochettes : 3 ajoutées, 1 introuvable »).
 
+### 7.4c Pochettes automatiques sur le Mac (T40, décision du 2026-11-15)
+
+`js/auto-covers.js` (pur, API injectée) : `countMissingCovers` compte les jeux du disque sans pochette d'une machine avec `thumbnailsRepo` ; `runAutoCovers` lance alors `POST /api/covers/download` (le même travail que le bouton de 7.4) et lit `GET /api/covers` chaque seconde jusqu'à la fin (abandon après 5 lectures sans réponse) ; occupé ou refusé = rien. Appelé par `app.js` : à l'ouverture (une fois par onglet, juste après la vérification des mises à jour de T35, jamais si une mise à jour est proposée), après un choix de dossier et après un téléchargement « Depuis une page web » sur le Mac. Fin traitée par `onDownloadDone` (données rechargées si des pochettes sont ajoutées) ; message (`autoCoversToast`) seulement dans ce cas. Les jeux introuvables restent cherchés à chaque ouverture, mais sans connexion tant que la liste en cache (7 jours) est valable.
+
 ## 7.5 scripts/machine-logos.mjs (T29, logos des machines)
 
 Même mécanisme que les pochettes (7.4), plus simple : pas de liste à lire ni de correspondance à deviner.

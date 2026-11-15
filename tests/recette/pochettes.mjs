@@ -129,6 +129,49 @@ try {
     await shot(page2, `${label}-3-sans-reseau`);
     await offline.close();
   }
+
+  // 6. Mac (T40, « Passe en automatique sur mac ») : API locale simulée. Jeu du disque sans pochette : téléchargement lancé SANS clic après
+  //    la vérification des mises à jour, message, tuile avec image ; tout a sa pochette : aucune demande.
+  for (const missing of [true, false]) {
+    const label = missing ? 'mac-sans-pochette' : 'mac-complet';
+    // Service worker bloqué : sinon ses requêtes échappent aux interceptions de Playwright (il n'apporte rien à ce scénario).
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+    await context.route('https://cdn.emulatorjs.org/**', (r) => r.abort());
+    const calls = { download: 0, status: 0 };
+    let done = !missing;
+    const gamesJson = () => ({ version: 1, games: [{ id: 'amiga/gods', system: 'amiga', title: 'Gods', file: 'roms/amiga/Gods.adf', cover: done ? 'roms/amiga/Gods.png' : null }] });
+    await context.route(/\/games\.json(\?.*)?$/, (r) => r.fulfill({ json: gamesJson() }));
+    await context.route(/\/roms\/amiga\/Gods\.png$/, (r) => r.fulfill({ headers: { 'content-type': 'image/png' }, body: COVER }));
+    await context.route(/\/api\//, (r) => {
+      const url = new URL(r.request().url());
+      if (url.pathname.endsWith('/api/settings')) return r.fulfill({ json: { romsDir: '/Users/h/roms', biosDir: '/Users/h/bios', romsIsDefault: true, biosIsDefault: true } });
+      if (url.pathname.endsWith('/api/update/check')) return r.fulfill({ json: { status: 'uptodate', current: '0.40.0', latest: '0.40.0' } });
+      if (url.pathname.endsWith('/api/covers/download')) { calls.download += 1; return r.fulfill({ status: 202, json: { status: 'started' } }); }
+      if (url.pathname.endsWith('/api/covers')) {
+        calls.status += 1;
+        if (calls.status < 3) return r.fulfill({ json: { status: 'running', id: 7, progress: { phase: 'downloading', done: 0, total: 1 } } });
+        done = true;
+        return r.fulfill({ json: { status: 'done', id: 7, found: 1, lines: ['Pochettes téléchargées : 1'] } });
+      }
+      return r.fulfill({ json: { status: 'idle' } });
+    });
+    const page = await context.newPage();
+    await page.goto(`${BASE}/index.html#/amiga`);
+    if (missing) {
+      const toastText = await page.locator('#toast').filter({ hasText: 'Pochettes téléchargées' }).textContent({ timeout: 15000 }).catch(() => '');
+      verdict('T40-mac-auto-lance', calls.download === 1, `${calls.download} lancement(s)`, label);
+      verdict('T40-mac-auto-message', /Pochettes téléchargées : 1/.test(toastText), toastText, label);
+      await page.reload(); // même adresse : goto ne rechargerait pas la page
+      await page.locator('.game-tile').first().waitFor();
+      await page.waitForFunction(() => [...document.querySelectorAll('.game-cover > img')].every((i) => i.complete));
+      verdict('T40-mac-auto-tuile', await page.locator('.game-cover > img').evaluateAll((all) => all.length === 1 && all[0].naturalWidth > 0), '', label);
+      await shot(page, 'mac-1-pochette-auto');
+    } else {
+      await page.waitForTimeout(8000);
+      verdict('T40-mac-auto-rien-a-faire', calls.download === 0 && calls.status === 0, JSON.stringify(calls), label);
+    }
+    await context.close();
+  }
 } finally {
   await browser.close();
   server.close();
