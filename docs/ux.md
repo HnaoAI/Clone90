@@ -108,6 +108,8 @@ Quatre choix puis Fermer, en colonne : haut/bas pour naviguer (sans boucler), co
 
 **Logos des machines (T29).** Juste après « Télécharger les pochettes », dans le même groupe, le bouton **Télécharger les logos des machines**, avec son texte d'information (github.com uniquement au clic, adresse IP vue par GitHub, aucun nom de jeu envoyé, logos jamais publiés), relié par `aria-describedby`. Même suivi que les pochettes (barre, annonces « Téléchargement des logos : 3 sur 12... », résumé « Logos téléchargés : 12 », « Déjà présents : 12 », « Échecs : 1 »). Sur l'accueil, un vrai logo est posé sur une plaque claire (`--logo-plaque`) car plusieurs logos sont sombres (Game Boy, Neo Geo) ; machines sans jeu : même plaque, grisée et estompée. Repli : vrai logo, puis logo maison, puis nom de la machine. La boîte du panneau défile si elle dépasse la hauteur de l'écran.
 
+**Logos sur le téléphone (T42).** Dans « Mes fichiers », la recherche des pochettes (après un ajout de jeux, ou « Chercher les pochettes manquantes ») télécharge aussi, une fois, les vrais logos des machines ; la phrase sous la rubrique « Pochettes » le dit. Aucun message : les logos apparaissent sur l'accueil, dans la bulle blanche, comme sur le Mac. Ils ne sont pas listés dans « Sur cet appareil ».
+
 ### 3.2 Grille de jeux
 
 En-tête : bouton "< Machines" (retour), nom + logo de la machine, nombre de jeux. Pas de recherche en v1 (à prévoir si une machine dépasse ~40 jeux, voir questions).

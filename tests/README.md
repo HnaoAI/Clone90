@@ -2,6 +2,7 @@
 
 Tests `node:test`, sans dépendance. Lancer : `node --test "tests/*.test.mjs"` (guillemets conservés).
 
+- `local-logos.test.mjs` : logos des machines sur le téléphone (T42) : téléchargement et rangement, source commune avec le Mac, relance, SVG refusé, sans réseau, logos ajoutés par `loadData` (priorité au Mac), « Mes fichiers » sans les logos.
 - `systems.test.mjs` : validité de `systems.json` (schéma, ids uniques, amiga et neogeo complets).
 - `serve.test.mjs` : serveur local (index.html, MIME, 404, Range, refus de `../`, noms de fichiers spéciaux, liens symboliques hors racine, nosniff) (T1, T11).
 - `serve-port.test.mjs` : choix du port (`--port`, `PORT`, défaut 8080) et de l'hôte (`--host`, `HOST`) (T20).

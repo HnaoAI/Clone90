@@ -321,6 +321,8 @@ Même mécanisme que les pochettes (7.4), plus simple : pas de liste à lire ni 
 
 API : `GET /api/logos` et `POST /api/logos/download`, mêmes règles que les pochettes (corps `{}`, 202 puis suivi, `id` de travail commun aux deux, verrou partagé : un seul téléchargement à la fois, pochettes ou logos). Panneau : `DOWNLOADS` (js/ui/folders-panel.js) décrit les deux boutons, une seule implémentation du lancement et du suivi.
 
+**T42 (téléphone, « Mes fichiers »)** : la source (`logoUrl`, `logoTargetPath`, `checkSvg`, `MAX_LOGO_BYTES`) est dans `js/logo-source.js`, partagée avec le navigateur. `js/local-logos.js` (`findLocalLogos`) télécharge depuis le navigateur (CORS de raw.githubusercontent.com) le logo de chaque machine qui a un `logoTheme` et ne l'a pas encore, avec la recherche des pochettes de T40 (après un ajout de jeux, bouton « Chercher les pochettes manquantes »), et le range dans la bibliothèque IndexedDB à `roms/clone90-logos/<id>.svg` (même chemin que sur le Mac, servi par `sw.js`). `loadData` reçoit `loadLocalLogos` et ajoute `downloadedLogo` aux machines qui n'en ont pas par `games.json`. Aucun message ; les logos ne sont pas listés dans « Mes fichiers ».
+
 INVARIANT : seules des lectures vers `raw.githubusercontent.com`, uniquement au clic ou par la commande. Exception à la règle 5 étendue le 2026-11-12 à la demande de Hicham (CLAUDE.md).
 
 ## 8. Application web

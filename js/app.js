@@ -11,6 +11,7 @@ import { loadData, groupGamesBySystem } from './data.js';
 import { loadLocalGames } from './local-games.js';
 import { openLocalLibrary, canUseLocalLibrary, romStoragePath, biosStoragePath, requestPersistentStorage } from './local-library.js';
 import { findLocalCovers, describeCoversResult } from './local-covers.js';
+import { findLocalLogos, loadLocalLogos } from './local-logos.js';
 import { runAutoCovers, autoCoversToast } from './auto-covers.js';
 import { renderLibrary, pickFiles, pickFolder, describeImport, addGamesNavId, ADD_BIOS_NAV_ID, LIBRARY_BACK_NAV_ID, SCAN_FOLDER_NAV_ID, FIND_COVERS_NAV_ID } from './ui/library-screen.js';
 import { planFolderImport, summarizePlan, describeFolderImport, folderPickingSupported } from './folder-scan.js';
@@ -42,7 +43,7 @@ const localSupported = canUseLocalLibrary(window);
 /** T35 : délai avant la vérification des mises à jour, et marque « déjà vérifié dans cet onglet ». */
 const UPDATE_CHECK_DELAY_MS = 5000;
 const UPDATE_CHECKED_KEY = 'clone90-update-checked';
-const loadAll = () => loadData(undefined, localSupported ? (systems) => loadLocalGames(systems) : null);
+const loadAll = () => loadData(undefined, localSupported ? (systems) => loadLocalGames(systems) : null, localSupported ? (systems) => loadLocalLogos(systems) : null); // T42 : logos gardés dans le navigateur
 
 async function main() {
   let data;
@@ -86,11 +87,14 @@ async function main() {
   }
 
   /** T40 : pochettes des jeux de « Mes fichiers » qui n'en ont pas ; données rechargées si des images ont été ajoutées. Ne lève jamais.
+   *  T42 : puis les vrais logos des machines qui manquent (une fois par machine), sans message : ils apparaissent sur l'accueil.
    *  @returns {Promise<string|null>} résumé d'une ligne, null s'il n'y avait rien à chercher */
   async function addLocalCovers(library, onProgress) {
     await reload(); // les jeux tout juste importés doivent être dans data.games
     const summary = await findLocalCovers({ systems: data.systems, games: data.games, library, onProgress });
-    if (summary.found.length) await reload();
+    const logos = await findLocalLogos({ systems: data.systems, library });
+    if (logos.failed.length) console.warn('Logos des machines non téléchargés :', logos.failed);
+    if (summary.found.length || logos.found.length) await reload();
     return describeCoversResult(summary);
   }
 
