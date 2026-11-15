@@ -11,59 +11,11 @@ import { PROJECT_ROOT } from './project-root.mjs';
 import { readLocalSettings } from './local-settings.mjs';
 import { readSystems, runGenerate, LOGOS_DIR } from './generate-games.mjs';
 import { defaultFetchBytes } from './covers.mjs';
+import { MAX_LOGO_BYTES, logoUrl, logoTargetPath, checkSvg } from '../js/logo-source.js';
 
-export const MAX_LOGO_BYTES = 256 * 1024;
-/** Commit du thème es-theme-carbon (RetroPie) vérifié le 2026-11-12 : l'adresse figée garantit que le contenu ne change pas sans nous. */
-export const LOGO_THEME_COMMIT = 'b09973e0b0c589cb11fe772c169a6ff5d588b390';
-const SAFE_NAME = /^[a-z0-9]+$/;
-/** Dossier du thème : comme SAFE_NAME, avec des tirets entre les mots (T30 : `tg-cd`, le thème n'a pas de dossier `pcenginecd` à ce commit). */
-const SAFE_THEME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export { MAX_LOGO_BYTES, LOGO_THEME_COMMIT, logoUrl, logoTargetPath, checkSvg } from '../js/logo-source.js';
 /** Dossier des logos, DANS le dossier des ROMs (jamais dans le dépôt : roms/ est ignoré par git). */
 export { LOGOS_DIR };
-
-/** Seule fabrique d'adresses : hôte fixe, commit fixe, dossier du thème contrôlé. @throws {Error} si le nom est invalide */
-export function logoUrl(themeDir) {
-  if (!SAFE_THEME.test(themeDir ?? '')) throw new Error(`Dossier de logo invalide : ${themeDir}`);
-  return `https://raw.githubusercontent.com/RetroPie/es-theme-carbon/${LOGO_THEME_COMMIT}/${themeDir}/art/system.svg`;
-}
-
-/** Chemin du logo d'une machine, relatif au dossier des ROMs. @throws {Error} si l'id est invalide */
-export function logoTargetPath(systemId) {
-  if (!SAFE_NAME.test(systemId ?? '')) throw new Error(`Identifiant de machine invalide : ${systemId}`);
-  return `${LOGOS_DIR}/${systemId}.svg`;
-}
-
-// Un logo est une image : rien qui exécute du code, charge une autre ressource ou lise un fichier (entités XML).
-const FORBIDDEN = [
-  [/<\s*script/i, 'script'],
-  [/<\s*(foreignObject|iframe|embed|object)\b/i, 'contenu HTML'],
-  [/\son[a-z]+\s*=/i, 'gestionnaire d\'événement'],
-  [/javascript\s*:/i, 'lien javascript'],
-  [/@import/i, 'feuille de style externe'],
-  [/url\(\s*['"]?\s*(?!#|data:image\/)/i, 'ressource externe'],
-];
-// Entités : seules les définitions internes en texte simple (en-tête des fichiers d'Adobe Illustrator : `<!ENTITY ns_ai "http://ns.adobe.com/...">`) sont admises ;
-// une entité externe (SYSTEM, PUBLIC), paramètre (%) ou qui en contient une autre (expansion en chaîne) est refusée.
-const ENTITY = /<!ENTITY([^>]*)>/gi;
-const SIMPLE_ENTITY = /^\s+[A-Za-z_][\w.-]*\s+("[^"&%<]*"|'[^'&%<]*')\s*$/;
-const HREF = /\b(?:xlink:)?href\s*=\s*(["'])(.*?)\1/gi;
-
-/**
- * Vérifie qu'un texte est un logo SVG inoffensif.
- * @param {string} text contenu reçu
- * @returns {string|null} null si accepté, sinon la raison en français (« refusé : ... »)
- */
-export function checkSvg(text) {
-  const body = (text ?? '').replace(/^﻿/, '').trim();
-  for (const [pattern, what] of FORBIDDEN) if (pattern.test(body)) return `refusé : ${what}`;
-  for (const [, definition] of body.matchAll(ENTITY)) if (!SIMPLE_ENTITY.test(definition)) return 'refusé : entité XML';
-  const start = body.replace(/^(<\?xml[^>]*\?>|<!--[\s\S]*?-->|<!DOCTYPE[^[>]*(\[[\s\S]*?\])?\s*>|\s)+/gi, ''); // en-tête XML, commentaires, DOCTYPE
-  if (!/^<svg[\s>]/i.test(start)) return 'le fichier reçu n\'est pas un logo SVG';
-  for (const [, , target] of body.matchAll(HREF)) {
-    if (!target.startsWith('#') && !/^data:image\/(png|jpeg|gif);/i.test(target)) return 'refusé : lien externe';
-  }
-  return null;
-}
 
 const exists = (path) => access(path).then(() => true, () => false);
 const errorText = (err) => err?.message ?? String(err);
