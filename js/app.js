@@ -5,6 +5,7 @@
 // T34 : écran « Depuis une page web » (#/telecharger), source Mac (API locale) si elle répond, sinon navigateur (bibliothèque locale).
 // T35 : vérification des mises à jour 5 s après l'ouverture, fenêtre js/ui/update-dialog.js.
 // T43 : synchronisation Mac -> téléphone (js/sync-client.js) à l'ouverture et dans « Mes fichiers » ; panneau du partage sur le Mac (ui/sync-panel.js).
+// T44 : « Envoyer mes jeux au Mac » dans « Mes fichiers » (sendGamesToMac), au clic seulement.
 // T40 : après chaque import de jeux dans « Mes fichiers » (fichiers, dossier, page web) et sur un bouton, pochettes manquantes (local-covers.js) ;
 // sur le Mac, pochettes manquantes cherchées sans clic à l'ouverture et après un ajout de jeux par Clone90 (auto-covers.js, décision du 2026-11-15).
 // T41 : barre de navigation du bas (ui/bottom-nav.js), rendue une fois dans #app, onglet actif suivi à chaque route.
@@ -34,7 +35,7 @@ import { createToast } from './ui/toast.js';
 import { clear } from './ui/dom.js';
 import { setGamepadMode, watchPointer } from './ui/input-mode.js';
 import { registerServiceWorker } from './pwa.js';
-import { readSyncPairing, pairWithMac, syncFromMac, forgetSyncPairing } from './sync-client.js';
+import { readSyncPairing, pairWithMac, syncFromMac, sendGamesToMac, forgetSyncPairing } from './sync-client.js';
 import { createSyncPanel, fetchSyncStatus } from './ui/sync-panel.js';
 import { SYNC_NAV } from './ui/sync-section.js';
 
@@ -129,7 +130,7 @@ async function main() {
         onAddGames: (systemId) => importFiles((file) => ({ path: romStoragePath(systemId, file.name) }), addGamesNavId(systemId), true),
         onFindCovers: () => findCovers(FIND_COVERS_NAV_ID),
         // T43 : rubrique du téléphone seulement (sur le Mac, c'est le Mac qui partage)
-        sync: folderSettings ? null : { pairing: readSyncPairing(), message: syncMessage, onPair: (address, code) => pairAndSync(address, code), onSyncNow: () => syncNow(SYNC_NAV.now),
+        sync: folderSettings ? null : { pairing: readSyncPairing(), message: syncMessage, onPair: (address, code) => pairAndSync(address, code), onSyncNow: () => syncNow(SYNC_NAV.now), onSend: () => sendToMac(),
           onForget: () => { if (window.confirm('Oublier ce Mac ? Les fichiers déjà copiés restent sur ce téléphone.')) { forgetSyncPairing(); showLibrary(machine, SYNC_NAV.address); } } },
         onAddBios: () => importFiles((file) => biosStoragePath(file.name, data.systems), ADD_BIOS_NAV_ID),
         onRemove: async (path) => {
@@ -187,6 +188,24 @@ async function main() {
       if (result.changed) { requestPersistentStorage(); await reload(); }
       syncNotice = result.text;
       showLibrary(machine, returnFocus);
+    }
+    /** T44 : envoi des jeux du téléphone au Mac, avec avancement dans l'écran, puis nouveau rendu avec le résumé. */
+    async function sendToMac() {
+      libraryBusy = true;
+      libraryBusyText = 'Lecture de la liste du Mac…';
+      render(null);
+      let result;
+      try {
+        result = await sendGamesToMac({ library, systems: data.systems, onProgress: (p) => {
+          libraryBusyText = p.total ? `Envoi au Mac : ${Math.min(p.done + 1, p.total)} sur ${p.total}${p.name ? ` (${p.name})` : ''}…` : 'Envoi au Mac…';
+          render(null);
+        } });
+      } finally {
+        libraryBusy = false;
+        libraryBusyText = null;
+      }
+      syncNotice = result.text;
+      showLibrary(machine, SYNC_NAV.send);
     }
     /** Copie les fichiers choisis dans la bibliothèque. `target(file)` : {path, known?} ou null (nom inutilisable). `covers` : jeux (T40). */
     async function importFiles(target, returnFocus, covers = false) {

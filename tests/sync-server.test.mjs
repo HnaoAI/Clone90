@@ -63,7 +63,7 @@ test('T43 appairage : oublier les téléphones invalide leurs jetons ; état ill
   assert.equal(pairing.isValidToken('d'.repeat(64)), false);
   assert.equal((await readSyncState(root)).enabled, true);
   await writeFile(join(root, SYNC_STATE_FILE), '{pas du json');
-  assert.deepEqual(await readSyncState(root), { enabled: false, devices: [] });
+  assert.deepEqual(await readSyncState(root), { enabled: false, acceptUploads: false, devices: [] });
 });
 
 // --- Certificats ---

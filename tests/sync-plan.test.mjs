@@ -332,7 +332,7 @@ test('T43 panneau du Mac : « Activer le partage » envoie POST api/sync/enable 
   const fetchFn = async (url, init) => { calls.push({ url, init }); return { ok: true, status: 200, json: async () => STATUS }; };
   const panel = createSyncPanel({ fetchFn, initial: { ...STATUS, running: false, enabled: false, addresses: [], code: null, devices: 0 }, now: () => 1000 }, doc);
   panel.open(doc.body);
-  assert.deepEqual(panel.buttons.map((b) => b.textContent), [SYNC_BUTTONS.enable, SYNC_BUTTONS.pair, SYNC_BUTTONS.forget, SYNC_BUTTONS.close]);
+  assert.deepEqual(panel.buttons.map((b) => b.textContent), [SYNC_BUTTONS.enable, SYNC_BUTTONS.pair, SYNC_BUTTONS.forget, SYNC_BUTTONS.uploadsOn, SYNC_BUTTONS.close]);
   assert.equal(panel.buttons[1].attrs['aria-disabled'], 'true', 'pas de code sans partage');
   panel.handleAction('confirm');
   await new Promise((r) => setTimeout(r, 0));
