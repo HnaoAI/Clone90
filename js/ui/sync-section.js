@@ -1,10 +1,13 @@
 // Rubrique « Synchroniser avec le Mac » de l'écran « Mes fichiers » (T43, téléphone) : association (adresse du Mac + code à 6 chiffres),
-// puis « Synchroniser maintenant » et « Oublier ce Mac ». Les actions sont fournies par app.js (js/sync-client.js) ; aucun réseau ici.
+// puis « Synchroniser maintenant », « Envoyer mes jeux au Mac » (T44) et « Oublier ce Mac ». Les actions sont fournies par app.js (js/sync-client.js) ; aucun réseau ici.
 // Dépend de ui/dom.js. INVARIANT : chaque champ et bouton est `data-nav` (clavier et manette via js/input/).
 import { el } from './dom.js';
 
 /** data-nav-id des éléments de la rubrique. */
-export const SYNC_NAV = Object.freeze({ address: 'sync-address', code: 'sync-code', pair: 'sync-pair', now: 'sync-now', forget: 'sync-forget' });
+export const SYNC_NAV = Object.freeze({ address: 'sync-address', code: 'sync-code', pair: 'sync-pair', now: 'sync-now', send: 'sync-send', forget: 'sync-forget' });
+/** T44 : ce que fait « Envoyer mes jeux au Mac ». */
+export const SEND_INFO = '« Envoyer mes jeux au Mac » copie sur le Mac les jeux ajoutés sur ce téléphone qu\'il n\'a pas encore (pas les BIOS ni les pochettes). '
+  + 'Ensuite, ils suivent le Mac : supprimés sur le Mac, ils sont retirés de ce téléphone.';
 /** Ce que fait la synchronisation, dit avant l'association. */
 export const SYNC_SECTION_INFO = 'Copiez sur ce téléphone les jeux, pochettes, logos et BIOS de votre Mac, par le Wi-Fi. Sur le Mac : « Dossiers », '
   + '« Partager avec le téléphone », puis « Associer un téléphone ». Il faut installer une fois le certificat du Mac sur ce téléphone. '
@@ -20,11 +23,11 @@ export function describeLastSync(time) {
 /**
  * Rubrique complète.
  * @param {{pairing: {url: string, lastSync: number|null}|null, disabled?: boolean, message?: string|null, onPair: (address: string, code: string) => void,
- *   onSyncNow: () => void, onForget: () => void}} model
+ *   onSyncNow: () => void, onSend?: () => void, onForget: () => void}} model  `onSend` (T44) : « Envoyer mes jeux au Mac »
  * @param {Document} [doc]
  * @returns {HTMLElement[]}
  */
-export function renderSyncSection({ pairing, disabled = false, message = null, onPair, onSyncNow, onForget }, doc = globalThis.document) {
+export function renderSyncSection({ pairing, disabled = false, message = null, onPair, onSyncNow, onSend = () => {}, onForget }, doc = globalThis.document) {
   const note = message ? [el('p', { class: 'library-notice', attrs: { role: 'status' }, text: message }, [], doc)] : [];
   const off = (node) => { if (disabled) node.setAttribute('disabled', ''); return node; };
   const heading = el('h3', { class: 'library-heading', text: 'Synchroniser avec le Mac' }, [], doc);
@@ -33,8 +36,9 @@ export function renderSyncSection({ pairing, disabled = false, message = null, o
       el('p', { class: 'muted' }, ['Associé au Mac ', el('code', { text: pairing.url }, [], doc), `. ${describeLastSync(pairing.lastSync)}`], doc),
       el('div', { class: 'link-row' }, [
         off(el('button', { class: 'button', text: 'Synchroniser maintenant', attrs: { type: 'button' }, dataset: { nav: '', navId: SYNC_NAV.now }, on: { click: () => onSyncNow() } }, [], doc)),
+        off(el('button', { class: 'button', text: 'Envoyer mes jeux au Mac', attrs: { type: 'button' }, dataset: { nav: '', navId: SYNC_NAV.send }, on: { click: () => onSend() } }, [], doc)),
         off(el('button', { class: 'back-button', text: 'Oublier ce Mac', attrs: { type: 'button' }, dataset: { nav: '', navId: SYNC_NAV.forget }, on: { click: () => onForget() } }, [], doc)),
-      ], doc), ...note];
+      ], doc), el('p', { class: 'muted', text: SEND_INFO }, [], doc), ...note];
   }
   const field = (id, navId, label, attrs) => [
     el('label', { class: 'link-label', text: label, attrs: { for: id } }, [], doc),

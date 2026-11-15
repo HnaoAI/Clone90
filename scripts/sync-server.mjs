@@ -1,15 +1,18 @@
-// Serveur de partage Mac -> téléphone (T43) : HTTPS sur le réseau local (port 8443), LECTURE SEULE, réservé aux téléphones associés.
+// Serveur de partage Mac <-> téléphone (T43, T44) : HTTPS sur le réseau local (port 8443), réservé aux téléphones associés.
 // Routes : GET / (page d'aide), GET /clone90-ca.crt (autorité à installer sur le téléphone), POST /sync/pair ({code} -> {token}),
-// GET /sync/manifest (liste des jeux, pochettes, logos et BIOS), GET /sync/file?path=... (un fichier). Démarré par sync-api.mjs.
-// Dépend de js/sync-plan.js (fichiers partagés, partagé avec le téléphone), sync-pairing.mjs (codes, jetons), local-settings.mjs (dossiers).
-// INVARIANT (sécurité, décision de Hicham du 2026-11-15, option 1) : ce serveur n'écrit, n'efface et ne télécharge RIEN ; il ne sert que
-//   les fichiers des dossiers des jeux et des BIOS acceptés par `syncTargetPath` (chemin réel vérifié : un lien qui sort du dossier est
-//   refusé) ; liste et fichiers exigent le jeton d'un téléphone associé (Authorization: Bearer) ; aucune route de l'API du Mac (api/...) ici.
+// GET /sync/manifest (liste des jeux, pochettes, logos et BIOS, + `uploads` : réception permise), GET /sync/file?path=... (un fichier),
+// T44 : POST /sync/upload?path=roms/<machine>/<fichier> (un jeu du téléphone, voir sync-upload.mjs). Démarré par sync-api.mjs.
+// Dépend de js/sync-plan.js (fichiers partagés, partagé avec le téléphone), sync-pairing.mjs (codes, jetons), sync-upload.mjs, local-settings.mjs.
+// INVARIANT (sécurité, décisions de Hicham du 2026-11-15) : ce serveur n'efface et ne télécharge RIEN ; il ne sert que les fichiers des
+//   dossiers des jeux et des BIOS acceptés par `syncTargetPath` (chemin réel vérifié : un lien qui sort du dossier est refusé) ; sa SEULE
+//   écriture est l'ajout d'un jeu (T44), seulement si la personne a coché « Accepter les jeux du téléphone » sur le Mac, sans jamais
+//   remplacer un fichier ; liste, fichiers et envoi exigent le jeton d'un téléphone associé (Authorization: Bearer) ; aucune route api/ ici.
 import https from 'node:https';
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { join, sep } from 'node:path';
 import { syncTargetPath, SYNC_ROUTES, isPairingCode } from '../js/sync-plan.js';
+import { receiveUpload } from './sync-upload.mjs';
 import { ROMS_DIR, BIOS_DIR } from '../js/config.js';
 import { LOGOS_DIR } from '../js/logo-source.js';
 
@@ -20,7 +23,7 @@ const MAX_PAIR_BODY = 256;
 export const HELP_PAGE = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clone90 - partage</title><style>body{font:18px/1.5 sans-serif;margin:24px;max-width:40em}a{display:inline-block;padding:12px 16px;background:#1239b0;color:#fff;border-radius:24px;text-decoration:none}</style></head>
 <body><h1>Clone90 : partage avec le téléphone</h1>
-<p>Ce Mac partage ses jeux, pochettes et logos avec les téléphones associés, en lecture seule.</p>
+<p>Ce Mac partage ses jeux, pochettes et logos avec les téléphones associés.</p>
 <p>1. Téléchargez le certificat de ce Mac :</p><p><a href="${SYNC_ROUTES.ca.slice(1)}" download="clone90-ca.crt">Télécharger le certificat</a></p>
 <p>2. Installez-le : Paramètres &gt; Sécurité (ou « Sécurité et confidentialité ») &gt; Autres paramètres de sécurité &gt; Installer depuis la mémoire
 (ou « Chiffrement et identifiants » &gt; « Installer un certificat ») &gt; <strong>Certificat CA</strong>, puis choisissez <code>clone90-ca.crt</code>.</p>
@@ -85,11 +88,13 @@ function readBody(req, limit) {
 
 /**
  * Gestionnaire des requêtes du serveur de partage (testable sans HTTPS).
- * @param {{pairing: {tryCode: Function, isValidToken: Function}, getDirs: () => Promise<{romsDir: string, biosDir: string}>,
- *   getSystemIds: () => Promise<string[]>, getCa: () => string}} options
+ * @param {{pairing: {tryCode: Function, isValidToken: Function, acceptUploads?: boolean}, getDirs: () => Promise<{romsDir: string, biosDir: string}>,
+ *   getSystemIds: () => Promise<string[]>, getCa: () => string, onUploaded?: () => void, getFreeBytes?: (dir: string) => Promise<number>}} options
+ *   `onUploaded` (T44) : appelé après chaque jeu reçu (régénère games.json) ; `getFreeBytes` : injectable pour les tests
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>}
  */
-export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa }) {
+export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa, onUploaded = () => {}, getFreeBytes }) {
+  let uploading = false; // T44 : un seul envoi à la fois
   return async (req, res) => {
     // CORS : le téléphone appelle depuis le site de Clone90 (GitHub Pages) ; toute origine est acceptée, la protection est le jeton.
     const origin = typeof req.headers.origin === 'string' ? req.headers.origin : null;
@@ -125,25 +130,62 @@ export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa }) {
         return send(403, { error: result.error, message: result.error === 'no-code'
           ? 'Aucun code en cours sur le Mac : demandez-en un (« Associer un téléphone »).' : 'Code incorrect.' });
       }
+      if (route === SYNC_ROUTES.upload) return await handleUpload(req, url, send);
       if (route !== SYNC_ROUTES.manifest && route !== SYNC_ROUTES.file) return send(404, { message: 'Introuvable' });
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(405, { message: 'Méthode non autorisée' }, { Allow: 'GET, HEAD' });
-      const token = /^Bearer ([0-9a-f]{64})$/.exec(req.headers.authorization ?? '')?.[1];
-      if (!pairing.isValidToken(token)) return send(401, { error: 'not-paired', message: 'Ce téléphone n\'est pas (ou plus) associé à ce Mac.' });
+      if (!hasToken(req)) return send(401, NOT_PAIRED);
       const dirs = await getDirs();
       const systemIds = await getSystemIds();
-      if (route === SYNC_ROUTES.manifest) return send(200, { version: 1, files: await buildManifest({ ...dirs, systemIds }) });
+      if (route === SYNC_ROUTES.manifest) return send(200, { version: 1, uploads: pairing.acceptUploads === true, files: await buildManifest({ ...dirs, systemIds }) });
       const shared = await resolveSharedFile(url.searchParams.get('path') ?? '', { ...dirs, systemIds });
       if (!shared) return send(404, { message: 'Fichier introuvable' });
       res.writeHead(200, { ...BASE_HEADERS, ...cors, 'Content-Type': 'application/octet-stream', 'Content-Length': shared.size, 'Access-Control-Expose-Headers': 'Content-Length' });
       if (req.method === 'HEAD' || shared.size === 0) return res.end();
       createReadStream(shared.file).on('error', () => res.destroy()).pipe(res);
     } catch (err) {
+      if (!req.complete) res.setHeader?.('Connection', 'close');
       console.error('Partage avec le téléphone :', err.message);
       if (!res.headersSent) send(500, { message: 'Erreur interne' });
       else res.destroy();
     }
   };
+
+  /**
+   * T44 : un jeu envoyé par le téléphone. Un refus avant lecture du corps ferme la connexion (le reste du fichier n'est pas lu).
+   * @returns {Promise<void>}
+   */
+  async function handleUpload(req, url, send) {
+    const reply = (status, body) => {
+      if (!req.complete) { send(status, body, { Connection: 'close' }); req.resume(); return undefined; }
+      return send(status, body);
+    };
+    if (req.method !== 'POST') return reply(405, { message: 'Méthode non autorisée' });
+    if (!hasToken(req)) return reply(401, NOT_PAIRED);
+    if (pairing.acceptUploads !== true) return reply(403, { error: 'uploads-off', message: UPLOADS_OFF });
+    if (uploading) return reply(429, { error: 'busy', message: 'Un autre envoi est en cours.' });
+    uploading = true;
+    try {
+      const [{ romsDir }, systemIds] = await Promise.all([getDirs(), getSystemIds()]);
+      const result = await receiveUpload(req, { path: url.searchParams.get('path') ?? '', romsDir, systemIds, ...(getFreeBytes && { getFreeBytes }) });
+      if (result.status === 201) {
+        console.log(`Partage : jeu reçu du téléphone : ${result.body.path}`);
+        try { onUploaded(); } catch { /* la liste des jeux sera refaite au prochain ajout */ }
+      }
+      return reply(result.status, result.body);
+    } finally {
+      uploading = false;
+    }
+  }
+
+  /** Vrai si la requête porte le jeton d'un téléphone associé. */
+  function hasToken(req) {
+    return pairing.isValidToken(/^Bearer ([0-9a-f]{64})$/.exec(req.headers.authorization ?? '')?.[1]);
+  }
 }
+
+const NOT_PAIRED = { error: 'not-paired', message: 'Ce téléphone n\'est pas (ou plus) associé à ce Mac.' };
+/** T44 : réponse quand la réception n'est pas permise sur le Mac. */
+export const UPLOADS_OFF = 'Le Mac n\'accepte pas les jeux du téléphone : sur le Mac, « Dossiers », « Partager avec le téléphone », « Accepter les jeux du téléphone ».';
 
 /** systems.json -> ids des machines. */
 export async function readSystemIds(root) {
@@ -158,7 +200,8 @@ export async function readSystemIds(root) {
  */
 export function startSyncServer({ tls, port, host = '0.0.0.0', handler }) {
   return new Promise((resolve, reject) => {
-    const server = https.createServer({ key: tls.key, cert: tls.cert }, handler);
+    // T44 : un jeu de 1 Go par le Wi-Fi peut dépasser les 5 minutes par défaut de Node (requestTimeout) : 1 heure.
+    const server = https.createServer({ key: tls.key, cert: tls.cert, requestTimeout: 60 * 60 * 1000 }, handler);
     server.once('error', reject);
     server.listen(port, host, () => { server.off('error', reject); resolve(server); });
   });

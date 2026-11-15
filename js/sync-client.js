@@ -1,11 +1,14 @@
 // Synchronisation Mac -> téléphone, côté téléphone (T43) : association avec le Mac (adresse + code), puis copie dans la bibliothèque du
 // navigateur (IndexedDB `clone90-local`, comme « Mes fichiers ») de ce qui manque : jeux, pochettes, logos et BIOS du Mac.
+// T44 : « Envoyer mes jeux au Mac » (sendGamesToMac), jeux du téléphone absents du Mac, au clic seulement ; un jeu envoyé devient « venu du
+//   Mac » (liste `files`) : supprimé ensuite sur le Mac, il est retiré du téléphone à la synchronisation suivante (choix de Hicham du 2026-11-15).
 // Automatique à chaque ouverture de Clone90 sur le téléphone (app.js), et sur le bouton « Synchroniser maintenant ».
 // Dépend de sync-plan.js (règles partagées avec le Mac). Réseau, bibliothèque, stockage et place disponible injectables (tests sans navigateur).
 // INVARIANT (CLAUDE.md règle 5, exception e) : le téléphone ne parle qu'au Mac dont la personne a saisi l'adresse (réseau local privé, HTTPS) ;
-//   il ne lui envoie que le jeton d'association et les chemins des fichiers demandés ; rien n'est envoyé ailleurs.
+//   il ne lui envoie que le jeton d'association, les chemins des fichiers demandés et, au clic sur « Envoyer mes jeux au Mac » (T44), les
+//   jeux du téléphone que le Mac n'a pas ; rien n'est envoyé ailleurs.
 // INVARIANT : ne remplace ni n'efface jamais un fichier que la personne a mis elle-même sur le téléphone (voir planSync) ; ne lève jamais.
-import { normalizeMacAddress, isPairingCode, readManifest, planSync, describeSyncResult, SYNC_ROUTES } from './sync-plan.js';
+import { normalizeMacAddress, isPairingCode, readManifest, planSync, describeSyncResult, planUpload, describeUploadResult, SYNC_ROUTES } from './sync-plan.js';
 
 /** Clé du stockage local : {url, token, files: {cheminTéléphone: {size, mtime}}, lastSync}. */
 export const SYNC_STORAGE_KEY = 'clone90-sync';
@@ -123,3 +126,73 @@ export async function syncFromMac({ library, systems, fetchFn = globalThis.fetch
     running = false;
   }
 }
+
+/** T44 : erreurs du Mac qui arrêtent tout l'envoi (les suivants échoueraient de même). */
+const STOP_ERRORS = new Set(['uploads-off', 'not-paired', 'no-folder']);
+
+/**
+ * T44 : envoie au Mac les jeux mis par la personne sur ce téléphone et absents du Mac (même chemin), du plus petit au plus gros.
+ * Jamais les BIOS, pochettes ni logos ; jamais un jeu venu du Mac ; le Mac ne remplace jamais un fichier existant.
+ * @param {{library: {list: Function, get: Function}, systems: object[], fetchFn?: typeof fetch, storage?: Storage,
+ *   onProgress?: (p: {done: number, total: number, name?: string}) => void}} input
+ * @returns {Promise<{status: 'done'|'unpaired'|'unreachable'|'refused'|'busy'|'error', text: string|null, sent: number}>} ne lève jamais
+ *   `refused` : le Mac n'accepte pas les jeux (case à cocher sur le Mac)
+ */
+export async function sendGamesToMac({ library, systems, fetchFn = globalThis.fetch, storage = globalThis.localStorage, onProgress = () => {} }) {
+  const pairing = readSyncPairing(storage);
+  if (!pairing) return { status: 'unpaired', text: null, sent: 0 };
+  if (running) return { status: 'busy', text: 'Une synchronisation est déjà en cours.', sent: 0 };
+  running = true;
+  try {
+    let res;
+    try { res = await fetchFn(`${pairing.url}${SYNC_ROUTES.manifest}`, READ_INIT(pairing.token)); } catch {
+      return { status: 'unreachable', text: unreachableText(pairing.url), sent: 0 };
+    }
+    if (res.status === 401) return { status: 'unpaired', text: 'Ce téléphone n\'est plus associé au Mac : associez-le de nouveau avec un nouveau code.', sent: 0 };
+    const body = res.ok ? await res.json().catch(() => null) : null;
+    const systemIds = systems.map((s) => s.id);
+    const remote = readManifest(body, systemIds);
+    if (!remote) return { status: 'error', text: `Réponse inattendue du Mac (${res.status}).`, sent: 0 };
+    if (body.uploads !== true) return { status: 'refused', text: UPLOADS_OFF_TEXT, sent: 0 };
+    const plan = planUpload({ remote, local: await library.list(), synced: pairing.files, systemIds });
+    const result = { sent: 0, already: plan.already, tooBig: plan.tooBig, noSpace: 0, failed: 0 };
+    const files = { ...pairing.files };
+    let stop = null;
+    for (const [i, entry] of plan.send.entries()) {
+      onProgress({ done: i, total: plan.send.length, name: entry.path.split('/').pop() });
+      try {
+        const blob = await library.get(entry.path);
+        if (!blob) throw new Error('fichier absent');
+        const up = await fetchFn(`${pairing.url}${SYNC_ROUTES.upload}?path=${encodeURIComponent(entry.path)}`, {
+          ...READ_INIT(pairing.token), method: 'POST', headers: { Authorization: `Bearer ${pairing.token}`, 'Content-Type': 'application/octet-stream' }, body: blob });
+        const answer = await up.json().catch(() => null);
+        if (up.status === 201 && Number.isSafeInteger(answer?.size) && Number.isFinite(answer?.mtime)) {
+          files[entry.path] = { size: answer.size, mtime: answer.mtime };
+          saveSyncPairing({ ...pairing, files }, storage);
+          result.sent += 1;
+        } else if (answer?.error === 'exists') result.already += 1;
+        else if (answer?.error === 'no-space') result.noSpace += 1;
+        else if (answer?.error === 'too-big') result.tooBig += 1;
+        else {
+          result.failed += 1;
+          if (STOP_ERRORS.has(answer?.error) || up.status === 401) { stop = answer?.error === 'uploads-off' ? UPLOADS_OFF_TEXT : (answer?.message ?? null); break; }
+        }
+      } catch (err) {
+        console.warn('Envoi au Mac :', entry.path, err.message);
+        result.failed += 1;
+      }
+    }
+    onProgress({ done: plan.send.length, total: plan.send.length });
+    const text = describeUploadResult(result);
+    return { status: 'done', text: stop ? `${text} ${stop}` : text, sent: result.sent };
+  } catch (err) {
+    console.error('Envoi au Mac impossible :', err);
+    return { status: 'error', text: 'L\'envoi au Mac a échoué.', sent: 0 };
+  } finally {
+    running = false;
+  }
+}
+
+/** T44 : message quand la réception n'est pas permise sur le Mac. */
+export const UPLOADS_OFF_TEXT = 'Le Mac n\'accepte pas encore les jeux du téléphone. Sur le Mac : « Dossiers », « Partager avec le téléphone », '
+  + '« Accepter les jeux du téléphone », puis réessayez.';

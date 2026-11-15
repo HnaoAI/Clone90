@@ -1,6 +1,6 @@
 // Appairage des téléphones pour le partage Mac -> téléphone (T43) : code à 6 chiffres affiché sur le Mac, jeton remis au téléphone qui
 // donne le bon code, liste des téléphones associés. État gardé dans `clone90.sync.json` (ignoré par git) : partage activé ou non, et
-// EMPREINTES (SHA-256) des jetons, jamais les jetons eux-mêmes.
+// EMPREINTES (SHA-256) des jetons, jamais les jetons eux-mêmes. T44 : `acceptUploads`, réception des jeux du téléphone (éteinte par défaut).
 // INVARIANT (sécurité) : un code n'existe que si la personne l'a demandé sur le Mac, vaut 5 minutes et PAIRING_MAX_TRIES essais en tout
 //   (au-delà il est annulé) ; un code accepté est aussitôt annulé (un seul téléphone par code). Comparaisons à temps constant.
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
@@ -19,15 +19,18 @@ const sameText = (a, b) => {
   return x.length === y.length && timingSafeEqual(x, y);
 };
 
-/** Lit l'état. @returns {Promise<{enabled: boolean, devices: {hash: string, pairedAt: number}[]}>} défaut : partage arrêté, aucun téléphone */
+/**
+ * Lit l'état. @returns {Promise<{enabled: boolean, acceptUploads: boolean, devices: {hash: string, pairedAt: number}[]}>}
+ *   défaut : partage arrêté, réception des jeux du téléphone éteinte (T44), aucun téléphone
+ */
 export async function readSyncState(root) {
   try {
     const data = JSON.parse(await readFile(join(root, SYNC_STATE_FILE), 'utf8'));
     const devices = Array.isArray(data?.devices)
       ? data.devices.filter((d) => d && /^[0-9a-f]{64}$/.test(d.hash) && Number.isFinite(d.pairedAt)).slice(-MAX_DEVICES) : [];
-    return { enabled: data?.enabled === true, devices };
+    return { enabled: data?.enabled === true, acceptUploads: data?.acceptUploads === true, devices };
   } catch {
-    return { enabled: false, devices: [] };
+    return { enabled: false, acceptUploads: false, devices: [] };
   }
 }
 
@@ -35,7 +38,7 @@ export async function readSyncState(root) {
 export async function writeSyncState(root, state) {
   const target = join(root, SYNC_STATE_FILE);
   const tmp = `${target}.tmp`;
-  await writeFile(tmp, `${JSON.stringify({ enabled: state.enabled, devices: state.devices }, null, 2)}\n`, { mode: 0o600 });
+  await writeFile(tmp, `${JSON.stringify({ enabled: state.enabled, acceptUploads: state.acceptUploads === true, devices: state.devices }, null, 2)}\n`, { mode: 0o600 });
   await rename(tmp, target);
 }
 
@@ -52,6 +55,12 @@ export async function createPairing({ root, now = Date.now, makeCode = () => Str
   return {
     get enabled() { return state.enabled; },
     get deviceCount() { return state.devices.length; },
+    /** T44 : vrai si la personne a permis, sur le Mac, de recevoir les jeux des téléphones associés. */
+    get acceptUploads() { return state.acceptUploads; },
+    async setAcceptUploads(accept) {
+      state = { ...state, acceptUploads: accept === true };
+      await save();
+    },
     async setEnabled(enabled) {
       state = { ...state, enabled };
       if (!enabled) code = null;

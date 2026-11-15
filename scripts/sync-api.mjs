@@ -1,18 +1,21 @@
 // Commande du partage Mac -> téléphone (T43) depuis Clone90 sur le Mac : GET /api/sync (état), POST /api/sync/enable, POST /api/sync/disable,
-// POST /api/sync/pair (nouveau code à 6 chiffres), POST /api/sync/forget (oublier les téléphones). Corps `{}` seulement.
+// POST /api/sync/pair (nouveau code à 6 chiffres), POST /api/sync/forget (oublier les téléphones), T44 : POST /api/sync/uploads-on et
+// /api/sync/uploads-off (accepter ou non les jeux envoyés par les téléphones associés). Corps `{}` seulement.
 // Branchée par serve.mjs, comme settings-api.mjs, et soumise aux MÊMES contrôles (checkRequestOrigin : Host localhost, Origin, X-Clone90) :
 // seul le navigateur du Mac peut activer le partage ou afficher un code. Le serveur de partage lui-même est dans sync-server.mjs.
 // INVARIANT (sécurité) : rien n'est ouvert au réseau local tant que la personne n'a pas cliqué « Activer le partage » (état gardé dans
-//   clone90.sync.json, repris au lancement suivant de Clone90) ; « Arrêter le partage » ferme le port.
+//   clone90.sync.json, repris au lancement suivant de Clone90) ; « Arrêter le partage » ferme le port. T44 : la réception des jeux du
+//   téléphone est éteinte par défaut et ne s'allume que par « Accepter les jeux du téléphone » sur le Mac.
 import { hostname as osHostname, networkInterfaces } from 'node:os';
 import { checkRequestOrigin, MAX_BODY_BYTES } from './settings-api.mjs';
 import { createPairing } from './sync-pairing.mjs';
 import { ensureCertificates } from './sync-cert.mjs';
 import { createSyncHandler, startSyncServer, readSystemIds } from './sync-server.mjs';
 import { readLocalSettings } from './local-settings.mjs';
+import { runGenerate } from './generate-games.mjs';
 import { SYNC_PORT } from '../js/sync-plan.js';
 
-const ROUTES = ['/api/sync', '/api/sync/enable', '/api/sync/disable', '/api/sync/pair', '/api/sync/forget'];
+const ROUTES = ['/api/sync', '/api/sync/enable', '/api/sync/disable', '/api/sync/pair', '/api/sync/forget', '/api/sync/uploads-on', '/api/sync/uploads-off'];
 const ERRORS = {
   openssl: 'Le certificat n\'a pas pu être créé (commande openssl du Mac introuvable ?).',
   port: `Le port ${SYNC_PORT} est déjà utilisé sur ce Mac : le partage n'a pas pu démarrer.`,
@@ -33,9 +36,11 @@ export function lanAddresses(interfaces = networkInterfaces()) {
  * @param {number} [options.syncPort] @param {() => string[]} [options.getAddresses] @param {() => string} [options.getHostname]
  * @param {typeof ensureCertificates} [options.certificates] @param {typeof startSyncServer} [options.start] injectables pour les tests
  * @param {object} [options.pairing] appairage déjà créé (tests)
+ * @param {() => Promise<unknown>} [options.regenerate] T44 : régénère games.json après un jeu reçu du téléphone (le vrai générateur par défaut)
  */
 export async function createSyncController({ root, enabled, getPort, syncPort = SYNC_PORT, getAddresses = () => lanAddresses(), getHostname = () => osHostname(),
-  certificates = ensureCertificates, start = startSyncServer, pairing: givenPairing, baseHeaders = { 'X-Content-Type-Options': 'nosniff' } }) {
+  certificates = ensureCertificates, start = startSyncServer, pairing: givenPairing, baseHeaders = { 'X-Content-Type-Options': 'nosniff' },
+  regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }) }) {
   const pairing = givenPairing ?? await createPairing({ root });
   let server = null;
   let tls = null;
@@ -47,6 +52,7 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
     getDirs: async () => { const s = await readLocalSettings(root); return { romsDir: s.romsDir, biosDir: s.biosDir }; },
     getSystemIds: () => readSystemIds(root),
     getCa: () => tls?.ca ?? '',
+    onUploaded: () => { regenerate().catch(() => {}); },
   });
 
   /** Certificat à jour pour les adresses actuelles (autre Wi-Fi : nouveau certificat, même autorité). */
@@ -81,7 +87,7 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
   async function status() {
     if (server) await refreshTls().catch(() => {});
     return {
-      enabled: pairing.enabled, running: Boolean(server), port: syncPort,
+      enabled: pairing.enabled, running: Boolean(server), port: syncPort, acceptUploads: pairing.acceptUploads === true,
       addresses: server ? getAddresses().map((a) => `https://${a}:${syncPort}`) : [],
       code: server ? pairing.currentCode() : null, devices: pairing.deviceCount, error,
     };
@@ -134,6 +140,8 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
             await stopServer();
             await pairing.setEnabled(false);
             error = null;
+          } else if (path === '/api/sync/uploads-on' || path === '/api/sync/uploads-off') {
+            await pairing.setAcceptUploads(path === '/api/sync/uploads-on');
           } else if (path === '/api/sync/pair') {
             if (!server) return send(res, 409, { ...(await status()), message: ERRORS.notRunning });
             pairing.newCode();
