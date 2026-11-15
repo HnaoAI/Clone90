@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, readFile, readdir, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { uploadTargetPath, planUpload, describeUploadResult, planSync, MAX_UPLOAD_BYTES } from '../js/sync-plan.js';
+import { uploadTargetPath, planUpload, describeUploadResult, planSync, MAX_UPLOAD_BYTES, MAX_COVER_UPLOAD_BYTES, maxUploadBytes } from '../js/sync-plan.js';
 import { sendGamesToMac, syncFromMac, saveSyncPairing, readSyncPairing, UPLOADS_OFF_TEXT } from '../js/sync-client.js';
 import { renderSyncSection, SYNC_NAV, SEND_INFO } from '../js/ui/sync-section.js';
 import { describeSyncStatus } from '../js/ui/sync-panel.js';
@@ -22,31 +22,38 @@ const TOKEN = 'a'.repeat(64);
 const hasOpenssl = (() => { try { execFileSync('openssl', ['version']); return true; } catch { return false; } })();
 
 // --- Règles pures ---
-test('T44 jeux acceptés par le Mac : seulement roms/<machine connue>/<fichier>, ni BIOS, ni logo, ni pochette, ni fichier caché', () => {
+test('T44 jeux et pochettes acceptés par le Mac : seulement roms/<machine connue>/<fichier>, ni BIOS, ni logo, ni fichier caché', () => {
   assert.equal(uploadTargetPath('roms/nes/Mario.nes', IDS), 'roms/nes/Mario.nes');
   assert.equal(uploadTargetPath('roms/amiga/Leander (Disk 1).adf', IDS), 'roms/amiga/Leander (Disk 1).adf');
-  for (const p of ['bios/neogeo.zip', 'roms/clone90-logos/nes.svg', 'roms/nes/Mario.png', 'roms/nes/Mario.JPG', 'roms/nes/.DS_Store', 'roms/psx/jeu.bin',
+  assert.equal(uploadTargetPath('roms/nes/Mario.png', IDS), 'roms/nes/Mario.png');
+  assert.equal(uploadTargetPath('roms/nes/Mario.JPG', IDS), 'roms/nes/Mario.JPG');
+  assert.equal(maxUploadBytes('roms/nes/Mario.png'), MAX_COVER_UPLOAD_BYTES);
+  assert.equal(maxUploadBytes('roms/nes/Mario.nes'), MAX_UPLOAD_BYTES);
+  for (const p of ['bios/neogeo.zip', 'roms/clone90-logos/nes.svg', 'roms/clone90-logos/nes.png', 'roms/nes/.DS_Store', 'roms/nes/.x.png', 'roms/psx/jeu.bin',
     'roms/nes/../x.nes', 'roms/../x', 'roms/nes/sous/x.nes', 'roms/nes/', 'roms/nes/a\\b.nes', 'games.json', '', null, `roms/nes/${'x'.repeat(300)}.nes`]) {
     assert.equal(uploadTargetPath(p, IDS), null, String(p));
   }
 });
 
-test('T44 plan d\'envoi : seulement les jeux mis sur le téléphone et absents du Mac ; même nom sur le Mac = non envoyé, signalé', () => {
+test('T44 plan d\'envoi : jeux puis pochettes mis sur le téléphone et absents du Mac ; même nom de jeu sur le Mac = non envoyé, signalé', () => {
   const local = [{ path: 'roms/nes/AMoi.nes', size: 30 }, { path: 'roms/nes/Petit.nes', size: 2 }, { path: 'roms/nes/Mario.nes', size: 9 },
     { path: 'roms/nes/VenuDuMac.nes', size: 4 }, { path: 'bios/neogeo.zip', size: 5 }, { path: 'roms/nes/AMoi.png', size: 3 },
-    { path: 'roms/clone90-logos/nes.svg', size: 1 }, { path: 'roms/nes/Enorme.nes', size: MAX_UPLOAD_BYTES + 1 }];
-  const remote = [{ target: 'roms/nes/Mario.nes' }, { target: 'roms/nes/VenuDuMac.nes' }];
+    { path: 'roms/clone90-logos/nes.svg', size: 1 }, { path: 'roms/nes/Enorme.nes', size: MAX_UPLOAD_BYTES + 1 },
+    { path: 'roms/nes/Mario.png', size: 7 }, { path: 'roms/nes/Geante.png', size: MAX_COVER_UPLOAD_BYTES + 1 }];
+  const remote = [{ target: 'roms/nes/Mario.nes' }, { target: 'roms/nes/VenuDuMac.nes' }, { target: 'roms/nes/Mario.png' }];
   const plan = planUpload({ remote, local, synced: { 'roms/nes/VenuDuMac.nes': { size: 4, mtime: 1 } }, systemIds: IDS });
-  assert.deepEqual(plan.send.map((e) => e.path), ['roms/nes/Petit.nes', 'roms/nes/AMoi.nes'], 'du plus petit au plus gros');
-  assert.equal(plan.already, 1);
-  assert.equal(plan.tooBig, 1);
+  assert.deepEqual(plan.send.map((e) => e.path), ['roms/nes/Petit.nes', 'roms/nes/AMoi.nes', 'roms/nes/AMoi.png'], 'jeux du plus petit au plus gros, puis pochettes');
+  assert.deepEqual(plan.send.map((e) => e.cover), [false, false, true]);
+  assert.equal(plan.already, 1, 'une pochette déjà sur le Mac est gardée sans message');
+  assert.equal(plan.tooBig, 2, 'jeu de plus de 1 Go, pochette de plus de 10 Mo');
   assert.deepEqual(planUpload({ remote: [], local: [], synced: {}, systemIds: IDS }), { send: [], already: 0, tooBig: 0 });
 });
 
 test('T44 message de fin de l\'envoi', () => {
-  assert.equal(describeUploadResult({}), 'Envoi : le Mac a déjà tous les jeux de ce téléphone.');
+  assert.equal(describeUploadResult({}), 'Envoi : le Mac a déjà tous les jeux et pochettes de ce téléphone.');
+  assert.equal(describeUploadResult({ sent: 1, covers: 2 }), 'Envoi : 1 jeu envoyé au Mac ; 2 pochettes envoyées au Mac.');
   assert.equal(describeUploadResult({ sent: 2, already: 1 }), 'Envoi : 2 jeux envoyés au Mac ; 1 jeu non envoyé : un fichier du même nom est déjà sur le Mac.');
-  assert.match(describeUploadResult({ sent: 1, noSpace: 2, failed: 1, tooBig: 1 }), /1 jeu envoyé.*1 jeu trop gros.*2 jeux non envoyés : plus assez de place sur le Mac.*1 jeu en échec/);
+  assert.match(describeUploadResult({ sent: 1, noSpace: 2, failed: 1, tooBig: 1 }), /1 jeu envoyé.*1 fichier trop gros.*2 fichiers non envoyés : plus assez de place sur le Mac.*1 fichier en échec/);
 });
 
 // --- Téléphone ---
@@ -81,7 +88,7 @@ function fakeMac({ files = [], uploads = true, answers = {}, log = [] } = {}) {
   return { fetchFn, disk, log };
 }
 
-test('T44 téléphone : envoie ses jeux absents du Mac, avec le jeton, seulement au Mac associé ; ni BIOS, ni pochettes, ni jeux venus du Mac', async () => {
+test('T44 téléphone : envoie ses jeux puis ses pochettes absents du Mac, avec le jeton, seulement au Mac associé ; ni BIOS, ni fichiers venus du Mac', async () => {
   const storage = paired({ 'roms/nes/DuMac.nes': { size: 3, mtime: 1 } });
   const library = fakeLibrary({ 'roms/nes/AMoi.nes': blobOf(5), 'roms/nes/AMoi.png': blobOf(2), 'bios/neogeo.zip': blobOf(4), 'roms/nes/DuMac.nes': blobOf(3),
     'roms/nes/Mario.nes': blobOf(6) });
@@ -89,13 +96,14 @@ test('T44 téléphone : envoie ses jeux absents du Mac, avec le jeton, seulement
   const progress = [];
   const out = await sendGamesToMac({ library, systems: SYSTEMS, fetchFn: mac.fetchFn, storage, onProgress: (p) => progress.push(p) });
   assert.equal(out.status, 'done');
-  assert.equal(out.sent, 1);
-  assert.equal(out.text, 'Envoi : 1 jeu envoyé au Mac ; 1 jeu non envoyé : un fichier du même nom est déjà sur le Mac.');
+  assert.equal(out.sent, 2);
+  assert.equal(out.text, 'Envoi : 1 jeu envoyé au Mac ; 1 pochette envoyée au Mac ; 1 jeu non envoyé : un fichier du même nom est déjà sur le Mac.');
   const uploads = mac.log.filter((c) => c.url.includes('/sync/upload'));
-  assert.deepEqual(uploads.map((c) => new URL(c.url).searchParams.get('path')), ['roms/nes/AMoi.nes']);
+  assert.deepEqual(uploads.map((c) => new URL(c.url).searchParams.get('path')), ['roms/nes/AMoi.nes', 'roms/nes/AMoi.png']);
+  assert.deepEqual(readSyncPairing(storage).files['roms/nes/AMoi.png'], { size: 2, mtime: 77 }, 'la pochette suit ensuite le Mac');
   assert.ok(mac.log.every((c) => c.url.startsWith('https://192.168.1.20:8443/') && c.init.headers.Authorization === `Bearer ${TOKEN}` && c.init.credentials === 'omit'));
   assert.equal(uploads[0].init.method, 'POST');
-  assert.deepEqual(progress.at(-1), { done: 1, total: 1 });
+  assert.deepEqual(progress.at(-1), { done: 2, total: 2 });
 });
 
 test('T44 téléphone : un jeu envoyé devient géré par le Mac : supprimé sur le Mac, il est retiré du téléphone à la synchronisation suivante', async () => {
@@ -128,7 +136,7 @@ test('T44 téléphone : place manquante, fichier existant et refus du Mac compt�
   const mac = fakeMac({ answers: { 'roms/nes/A.nes': { status: 507, body: { error: 'no-space' } }, 'roms/nes/B.nes': { status: 409, body: { error: 'exists' } },
     'roms/nes/C.nes': { status: 403, body: { error: 'uploads-off' } } } });
   const out = await sendGamesToMac({ library, systems: SYSTEMS, fetchFn: mac.fetchFn, storage: paired() });
-  assert.match(out.text, /1 jeu non envoyé : un fichier du même nom.*1 jeu non envoyé : plus assez de place sur le Mac.*1 jeu en échec/);
+  assert.match(out.text, /1 jeu non envoyé : un fichier du même nom.*1 fichier non envoyé : plus assez de place sur le Mac.*1 fichier en échec/);
   assert.match(out.text, /Accepter les jeux du téléphone/);
   assert.equal(mac.log.some((c) => c.url.includes('D.nes')), false, 'arrêté après le refus');
 });
@@ -218,6 +226,19 @@ test('T44 Mac : jeu reçu rangé dans le dossier de la machine, liste des jeux r
   } finally { await m.close(); }
 });
 
+test('T44 Mac : pochette reçue à côté du jeu, liste des jeux refaite ; une pochette existante n\'est jamais remplacée', { skip }, async () => {
+  const m = await startMac();
+  try {
+    const res = await m.upload('roms/nes/Zelda.png', 'PNG-TEL');
+    assert.equal(res.status, 201);
+    assert.equal(await readFile(join(m.romsDir, 'nes', 'Zelda.png'), 'utf8'), 'PNG-TEL');
+    assert.equal(m.regenerated(), 1);
+    const again = await m.upload('roms/nes/Zelda.png', 'AUTRE');
+    assert.equal(again.status, 409);
+    assert.equal(await readFile(join(m.romsDir, 'nes', 'Zelda.png'), 'utf8'), 'PNG-TEL');
+  } finally { await m.close(); }
+});
+
 test('T44 Mac : rien n\'est reçu tant que « Accepter les jeux du téléphone » n\'est pas coché (éteint par défaut)', { skip }, async () => {
   const m = await startMac({ accept: false });
   try {
@@ -251,10 +272,10 @@ test('T44 Mac : jamais d\'écrasement d\'un fichier existant', { skip }, async (
   } finally { await m.close(); }
 });
 
-test('T44 Mac : seulement des jeux de machines connues ; ni BIOS, logo, pochette, fichier caché, .., ni dossier lié hors du dossier des jeux', { skip }, async () => {
+test('T44 Mac : seulement des jeux et pochettes de machines connues ; ni BIOS, logo, fichier caché, .., ni dossier lié hors du dossier des jeux', { skip }, async () => {
   const m = await startMac();
   try {
-    for (const p of ['bios/neogeo.zip', 'roms/clone90-logos/nes.svg', 'roms/nes/Mario.png', 'roms/nes/.cache', 'roms/../evil.nes', 'roms/nes/../../evil.nes',
+    for (const p of ['bios/neogeo.zip', 'roms/clone90-logos/nes.svg', 'roms/nes/.cache', 'roms/nes/.x.png', 'roms/../evil.nes', 'roms/nes/../../evil.nes',
       'roms/psx/jeu.bin', 'roms/nes/sous/x.nes', 'systems.json', '']) {
       const res = await m.upload(p, 'X');
       assert.equal(res.status, 400, p);
@@ -267,11 +288,14 @@ test('T44 Mac : seulement des jeux de machines connues ; ni BIOS, logo, pochette
   } finally { await m.close(); }
 });
 
-test('T44 Mac : taille obligatoire et limitée à 1 Go ; place libre vérifiée', { skip }, async () => {
+test('T44 Mac : taille obligatoire et limitée (jeu 1 Go, pochette 10 Mo) ; place libre vérifiée', { skip }, async () => {
   const m = await startMac();
   try {
     const tooBig = await m.upload('roms/nes/Gros.nes', undefined, { 'Content-Length': String(MAX_UPLOAD_BYTES + 1) });
     assert.equal(tooBig.status, 413);
+    const bigCover = await m.upload('roms/nes/Grosse.png', undefined, { 'Content-Length': String(MAX_COVER_UPLOAD_BYTES + 1) });
+    assert.equal(bigCover.status, 413);
+    assert.match(bigCover.body.message, /Pochette trop grosse/);
     const chunked = await m.upload('roms/nes/Sans.nes', undefined, { 'Transfer-Encoding': 'chunked' });
     assert.equal(chunked.status, 411);
   } finally { await m.close(); }

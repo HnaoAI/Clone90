@@ -1,12 +1,13 @@
 // Synchronisation Mac -> téléphone, côté téléphone (T43) : association avec le Mac (adresse + code), puis copie dans la bibliothèque du
 // navigateur (IndexedDB `clone90-local`, comme « Mes fichiers ») de ce qui manque : jeux, pochettes, logos et BIOS du Mac.
-// T44 : « Envoyer mes jeux au Mac » (sendGamesToMac), jeux du téléphone absents du Mac, au clic seulement ; un jeu envoyé devient « venu du
-//   Mac » (liste `files`) : supprimé ensuite sur le Mac, il est retiré du téléphone à la synchronisation suivante (choix de Hicham du 2026-11-15).
+// T44 : « Envoyer mes jeux au Mac » (sendGamesToMac), jeux et pochettes du téléphone absents du Mac, au clic seulement ; un fichier envoyé
+//   devient « venu du Mac » (liste `files`) : supprimé ensuite sur le Mac, il est retiré du téléphone à la synchronisation suivante (choix de
+//   Hicham du 2026-11-15).
 // Automatique à chaque ouverture de Clone90 sur le téléphone (app.js), et sur le bouton « Synchroniser maintenant ».
 // Dépend de sync-plan.js (règles partagées avec le Mac). Réseau, bibliothèque, stockage et place disponible injectables (tests sans navigateur).
 // INVARIANT (CLAUDE.md règle 5, exception e) : le téléphone ne parle qu'au Mac dont la personne a saisi l'adresse (réseau local privé, HTTPS) ;
 //   il ne lui envoie que le jeton d'association, les chemins des fichiers demandés et, au clic sur « Envoyer mes jeux au Mac » (T44), les
-//   jeux du téléphone que le Mac n'a pas ; rien n'est envoyé ailleurs.
+//   jeux et pochettes du téléphone que le Mac n'a pas ; rien n'est envoyé ailleurs.
 // INVARIANT : ne remplace ni n'efface jamais un fichier que la personne a mis elle-même sur le téléphone (voir planSync) ; ne lève jamais.
 import { normalizeMacAddress, isPairingCode, readManifest, planSync, describeSyncResult, planUpload, describeUploadResult, SYNC_ROUTES } from './sync-plan.js';
 
@@ -131,8 +132,8 @@ export async function syncFromMac({ library, systems, fetchFn = globalThis.fetch
 const STOP_ERRORS = new Set(['uploads-off', 'not-paired', 'no-folder']);
 
 /**
- * T44 : envoie au Mac les jeux mis par la personne sur ce téléphone et absents du Mac (même chemin), du plus petit au plus gros.
- * Jamais les BIOS, pochettes ni logos ; jamais un jeu venu du Mac ; le Mac ne remplace jamais un fichier existant.
+ * T44 : envoie au Mac les jeux puis les pochettes mis par la personne sur ce téléphone et absents du Mac (même chemin), du plus petit au plus gros.
+ * Jamais les BIOS ni les logos ; jamais un jeu venu du Mac ; le Mac ne remplace jamais un fichier existant.
  * @param {{library: {list: Function, get: Function}, systems: object[], fetchFn?: typeof fetch, storage?: Storage,
  *   onProgress?: (p: {done: number, total: number, name?: string}) => void}} input
  * @returns {Promise<{status: 'done'|'unpaired'|'unreachable'|'refused'|'busy'|'error', text: string|null, sent: number}>} ne lève jamais
@@ -155,7 +156,7 @@ export async function sendGamesToMac({ library, systems, fetchFn = globalThis.fe
     if (!remote) return { status: 'error', text: `Réponse inattendue du Mac (${res.status}).`, sent: 0 };
     if (body.uploads !== true) return { status: 'refused', text: UPLOADS_OFF_TEXT, sent: 0 };
     const plan = planUpload({ remote, local: await library.list(), synced: pairing.files, systemIds });
-    const result = { sent: 0, already: plan.already, tooBig: plan.tooBig, noSpace: 0, failed: 0 };
+    const result = { sent: 0, covers: 0, already: plan.already, tooBig: plan.tooBig, noSpace: 0, failed: 0 };
     const files = { ...pairing.files };
     let stop = null;
     for (const [i, entry] of plan.send.entries()) {
@@ -169,8 +170,8 @@ export async function sendGamesToMac({ library, systems, fetchFn = globalThis.fe
         if (up.status === 201 && Number.isSafeInteger(answer?.size) && Number.isFinite(answer?.mtime)) {
           files[entry.path] = { size: answer.size, mtime: answer.mtime };
           saveSyncPairing({ ...pairing, files }, storage);
-          result.sent += 1;
-        } else if (answer?.error === 'exists') result.already += 1;
+          result[entry.cover ? 'covers' : 'sent'] += 1;
+        } else if (answer?.error === 'exists') { if (!entry.cover) result.already += 1; }
         else if (answer?.error === 'no-space') result.noSpace += 1;
         else if (answer?.error === 'too-big') result.tooBig += 1;
         else {
@@ -184,7 +185,7 @@ export async function sendGamesToMac({ library, systems, fetchFn = globalThis.fe
     }
     onProgress({ done: plan.send.length, total: plan.send.length });
     const text = describeUploadResult(result);
-    return { status: 'done', text: stop ? `${text} ${stop}` : text, sent: result.sent };
+    return { status: 'done', text: stop ? `${text} ${stop}` : text, sent: result.sent + result.covers };
   } catch (err) {
     console.error('Envoi au Mac impossible :', err);
     return { status: 'error', text: 'L\'envoi au Mac a échoué.', sent: 0 };

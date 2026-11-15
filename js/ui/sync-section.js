@@ -6,7 +6,7 @@ import { el } from './dom.js';
 /** data-nav-id des éléments de la rubrique. */
 export const SYNC_NAV = Object.freeze({ address: 'sync-address', code: 'sync-code', pair: 'sync-pair', now: 'sync-now', send: 'sync-send', forget: 'sync-forget' });
 /** T44 : ce que fait « Envoyer mes jeux au Mac ». */
-export const SEND_INFO = '« Envoyer mes jeux au Mac » copie sur le Mac les jeux ajoutés sur ce téléphone qu\'il n\'a pas encore (pas les BIOS ni les pochettes). '
+export const SEND_INFO = '« Envoyer mes jeux au Mac » copie sur le Mac les jeux et pochettes ajoutés sur ce téléphone qu\'il n\'a pas encore (pas les BIOS). '
   + 'Ensuite, ils suivent le Mac : supprimés sur le Mac, ils sont retirés de ce téléphone.';
 /** Ce que fait la synchronisation, dit avant l'association. */
 export const SYNC_SECTION_INFO = 'Copiez sur ce téléphone les jeux, pochettes, logos et BIOS de votre Mac, par le Wi-Fi. Sur le Mac : « Dossiers », '

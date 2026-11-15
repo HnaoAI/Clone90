@@ -27,7 +27,6 @@ async function appCopy(prefix) {
 const macRoot = await appCopy('clone90-recette-mac-');
 const phoneRoot = await appCopy('clone90-recette-tel-');
 const COVER = await readFile(join(PROJECT_ROOT, 'assets/icons/icon-192.png'));
-void COVER;
 for (const d of ['roms/nes', 'bios']) await mkdir(join(macRoot, d), { recursive: true });
 await writeFile(join(macRoot, 'roms/nes/Mario.nes'), 'NES-MARIO');
 await writeFile(join(macRoot, 'roms/nes/Doublon.nes'), 'NES-DOUBLON-MAC');
@@ -80,7 +79,7 @@ const putLocal = (page, files) => page.evaluate((list) => new Promise((resolve) 
   const req = indexedDB.open('clone90-local', 1);
   req.onsuccess = () => {
     const tx = req.result.transaction('files', 'readwrite');
-    for (const [path, text] of list) { const blob = new Blob([text]); tx.objectStore('files').put({ path, blob, size: blob.size, addedAt: Date.now() }); }
+    for (const [path, data] of list) { const blob = new Blob([typeof data === 'string' ? data : new Uint8Array(data)]); tx.objectStore('files').put({ path, blob, size: blob.size, addedAt: Date.now() }); }
     tx.oncomplete = () => resolve();
   };
 }), files);
@@ -104,12 +103,12 @@ try {
   await mac.getByText('Partage actif sur le Wi-Fi.').waitFor({ timeout: 30000 });
   verdict('T44-reception-eteinte-par-defaut', await mac.getByText('Ce Mac n\'accepte pas les jeux des téléphones.').count() === 1
     && await mac.getByRole('button', { name: 'Accepter les jeux du téléphone' }).count() === 1, '');
-  verdict('T44-texte-securite', /AJOUTER ses jeux.*sans jamais remplacer/.test(await mac.locator('#sync-info').textContent()), '');
+  verdict('T44-texte-securite', /AJOUTER ses jeux et pochettes.*sans jamais remplacer/.test(await mac.locator('#sync-info').textContent()), '');
   await mac.getByRole('button', { name: 'Associer un téléphone' }).click();
   await mac.locator('.sync-code').waitFor();
   const code = (await mac.locator('.sync-code').textContent()).trim();
 
-  // 2. Téléphone : association (copie du Mac), puis jeux mis à la main : un nouveau, un doublon de nom, une pochette, un BIOS.
+  // 2. Téléphone : association (copie du Mac), puis fichiers mis à la main : un jeu nouveau et sa pochette, un doublon de nom, un BIOS.
   const phoneContext = await browser.newContext({ ...pw.devices['Pixel 7'], ignoreHTTPSErrors: true });
   const outside = [];
   phoneContext.on('request', (r) => { const u = new URL(r.url()); if (u.origin !== PHONE && u.host !== `${LAN}:${SYNC_PORT}`) outside.push(r.url()); });
@@ -121,7 +120,7 @@ try {
   await phone.evaluate(() => navigator.serviceWorker.ready);
   await phone.goto(`${PHONE}/index.html#/fichiers`);
   await phone.locator('#sync-address').waitFor();
-  await putLocal(phone, [['roms/nes/Perso.nes', 'NES-PERSO-TEL'], ['roms/nes/Doublon.nes', 'NES-DOUBLON-TEL'], ['roms/nes/Perso.png', 'PNG'], ['bios/tel.bin', 'BIOS-TEL']]);
+  await putLocal(phone, [['roms/nes/Perso.nes', 'NES-PERSO-TEL'], ['roms/nes/Doublon.nes', 'NES-DOUBLON-TEL'], ['roms/nes/Perso.png', [...COVER]], ['bios/tel.bin', 'BIOS-TEL']]);
   await phone.locator('#sync-address').fill(`${LAN}:${SYNC_PORT}`);
   await phone.locator('#sync-code').fill(code);
   await phone.getByRole('button', { name: 'Associer' }).click();
@@ -138,25 +137,29 @@ try {
   // 4. Mac : « Accepter les jeux du téléphone ».
   await mac.getByRole('button', { name: 'Accepter les jeux du téléphone' }).click();
   await mac.getByRole('button', { name: 'Ne plus accepter les jeux du téléphone' }).waitFor({ timeout: 5000 });
-  verdict('T44-reception-allumee', await mac.getByText(/Ce Mac accepte les jeux envoyés/).count() === 1, '');
+  verdict('T44-reception-allumee', await mac.getByText(/Ce Mac accepte les jeux et pochettes envoyés/).count() === 1, '');
   await shot(mac, 'mac-1-accepter');
 
-  // 5. Téléphone : envoi ; seul le jeu nouveau part, le doublon de nom est signalé, ni pochette ni BIOS.
+  // 5. Téléphone : envoi ; le jeu nouveau puis sa pochette partent, le doublon de nom est signalé, pas le BIOS.
   await phone.getByRole('button', { name: 'Envoyer mes jeux au Mac' }).click();
   await phone.getByText(/jeu envoyé au Mac/).waitFor({ timeout: 15000 });
   const result = await phone.locator('.library-notice').textContent();
-  verdict('T44-message-envoi', /1 jeu envoyé au Mac ; 1 jeu non envoyé : un fichier du même nom est déjà sur le Mac/.test(result), result);
+  verdict('T44-message-envoi', /1 jeu envoyé au Mac ; 1 pochette envoyée au Mac ; 1 jeu non envoyé : un fichier du même nom est déjà sur le Mac/.test(result), result);
   verdict('T44-jeu-sur-le-mac', await exists('roms/nes/Perso.nes') === 'NES-PERSO-TEL', '');
   verdict('T44-jamais-ecrase', await exists('roms/nes/Doublon.nes') === 'NES-DOUBLON-MAC', '');
-  verdict('T44-ni-pochette-ni-bios', await exists('roms/nes/Perso.png') === null && await exists('bios/tel.bin') === null, '');
+  verdict('T44-pochette-sur-le-mac', (await readFile(join(macRoot, 'roms/nes/Perso.png')).catch(() => Buffer.alloc(0))).equals(COVER), '');
+  verdict('T44-pas-de-bios', await exists('bios/tel.bin') === null, '');
   await shot(phone, 'telephone-1-envoi');
 
-  // 6. Mac : le jeu reçu apparaît dans Clone90 (liste des jeux refaite).
+  // 6. Mac : le jeu reçu apparaît dans Clone90 avec sa pochette (liste des jeux refaite).
   await mac.waitForTimeout(1000);
   await mac.goto(`${MAC}/index.html#/nes`);
   await mac.reload(); // la liste des jeux est lue au chargement de la page
   await mac.locator('.game-tile').first().waitFor();
   verdict('T44-jeu-visible-sur-mac', await mac.locator('.game-tile[aria-label="Perso"]').count() === 1, '');
+  await mac.waitForFunction(() => [...document.querySelectorAll('.game-cover img')].every((i) => i.complete));
+  const cover = await mac.locator('.game-tile[aria-label="Perso"] .game-cover > img').evaluate((img) => img.naturalWidth > 0).catch(() => false);
+  verdict('T44-pochette-visible-sur-mac', cover, '');
   await shot(mac, 'mac-2-grille-nes');
 
   // 7. Mac : le jeu est supprimé ; le téléphone le retire à l'ouverture suivante (il suit le Mac).
@@ -172,7 +175,7 @@ try {
 
   // 8. Le téléphone n'a parlé qu'à son site et au Mac associé ; envoi seulement au clic.
   verdict('T44-rien-ailleurs', outside.length === 0, outside.join(' '));
-  verdict('T44-un-seul-envoi', lanLog.filter((l) => l === 'POST /sync/upload').length === 1, lanLog.filter((l) => l.includes('upload')).join(', '));
+  verdict('T44-envois-au-clic', lanLog.filter((l) => l === 'POST /sync/upload').length === 2, lanLog.filter((l) => l.includes('upload')).join(', '));
 } finally {
   await browser.close();
   await sync.stop();

@@ -1,7 +1,8 @@
 // Synchronisation Mac -> téléphone par le Wi-Fi (T43) : règles PURES partagées par le serveur de partage du Mac (scripts/sync-server.mjs)
 // et par le téléphone (js/sync-client.js) : fichiers partagés et leur chemin sur le téléphone, adresse du Mac, code d'appairage,
 // liste reçue du Mac, plan de copie (ce qu'il faut copier, remplacer ou retirer) et message de fin.
-// T44 : envoi téléphone -> Mac (jeux seulement) : chemins acceptés par le Mac (`uploadTargetPath`), plan d'envoi (`planUpload`), message.
+// T44 : envoi téléphone -> Mac (jeux et pochettes, jamais les BIOS ni les logos) : chemins acceptés par le Mac (`uploadTargetPath`),
+// taille permise (`maxUploadBytes`), plan d'envoi (`planUpload`), message.
 // Dépend de config.js (ROMS_DIR, BIOS_DIR) et logo-source.js (LOGOS_DIR). Aucun accès réseau ni disque ici.
 // INVARIANT : le téléphone ne retire QUE des fichiers venus du Mac par cette synchronisation (liste `synced`) ; un fichier importé à la main
 //   (« Mes fichiers », dossier, page web, pochette cherchée par le téléphone) n'est jamais remplacé ni effacé.
@@ -14,6 +15,8 @@ export const SYNC_PORT = 8443;
 export const SYNC_ROUTES = Object.freeze({ pair: '/sync/pair', manifest: '/sync/manifest', file: '/sync/file', upload: '/sync/upload', ca: '/clone90-ca.crt' });
 /** T44 : taille maximale d'un jeu envoyé par le téléphone (comme un fichier téléchargé depuis une page web, T34). */
 export const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
+/** T44 : taille maximale d'une pochette envoyée par le téléphone. */
+export const MAX_COVER_UPLOAD_BYTES = 10 * 1024 * 1024;
 /** Durée de validité d'un code d'appairage affiché sur le Mac. */
 export const PAIRING_CODE_TTL_MS = 5 * 60 * 1000;
 /** Nombre d'essais de code permis avant que le code soit annulé (il faut en demander un autre sur le Mac). */
@@ -146,30 +149,38 @@ export function describeSyncResult({ copied = 0, replaced = 0, removed = 0, fail
   return `Synchronisation : ${parts.join(' ; ')}.`;
 }
 
-/** T44 : extensions d'images (pochettes) : jamais envoyées au Mac, qui cherche ses propres pochettes. */
-const IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i;
+/** T44 : extensions des pochettes (mêmes que IMAGE_EXTENSIONS de games-builder.js, qui les reconnaît à côté du jeu). */
+const COVER_EXT = /\.(png|jpe?g|webp)$/i;
+
+/** T44 : vrai pour une pochette (image rangée à côté des jeux d'une machine). @param {string} path */
+export const isCoverPath = (path) => typeof path === 'string' && COVER_EXT.test(path);
 
 /**
- * T44 : chemin d'un JEU que le Mac accepte de recevoir du téléphone, ou null.
- * Accepté : `roms/<machine de systems.json>/<fichier>` exactement (bibliothèque du téléphone rangée à plat, T38).
- * Refusés (décision de Hicham du 2026-11-15, « tout sauf le BIOS ») : BIOS, logos, pochettes (images), fichier caché, `..`, sous-dossier.
+ * T44 : chemin d'un jeu ou d'une pochette que le Mac accepte de recevoir du téléphone, ou null.
+ * Accepté : `roms/<machine de systems.json>/<fichier>` exactement (bibliothèque du téléphone rangée à plat, T38) ; une image
+ * (png, jpg, webp) est une pochette (décision de Hicham du 2026-11-15 : « Il faut synchroniser les pochettes aussi »).
+ * Refusés (« tout sauf le BIOS ») : BIOS, logos, fichier caché, `..`, sous-dossier, machine inconnue.
  * @param {string} path @param {Iterable<string>} systemIds @returns {string|null}
  */
 export function uploadTargetPath(path, systemIds) {
   if (typeof path !== 'string' || path.length > 1024) return null;
   const parts = path.split('/');
   if (parts.length !== 3 || parts[0] !== ROMS_DIR || !parts.every(NAME_OK)) return null;
-  if (parts[1] === LOGOS_DIR || !new Set(systemIds).has(parts[1]) || IMAGE_EXT.test(parts[2])) return null;
+  if (parts[1] === LOGOS_DIR || !new Set(systemIds).has(parts[1])) return null;
   return path;
 }
 
+/** T44 : taille maximale permise pour un fichier envoyé (pochette : 10 Mo, jeu : 1 Go). @param {string} path */
+export const maxUploadBytes = (path) => (isCoverPath(path) ? MAX_COVER_UPLOAD_BYTES : MAX_UPLOAD_BYTES);
+
 /**
- * T44 : plan d'envoi des jeux du téléphone vers le Mac (rien n'est fait ici).
- * Envoyés : les jeux mis par la personne sur le téléphone (pas ceux venus du Mac, liste `synced`) que le Mac n'a pas au même chemin.
+ * T44 : plan d'envoi des jeux et pochettes du téléphone vers le Mac (rien n'est fait ici).
+ * Envoyés : les fichiers mis par la personne sur le téléphone (pas ceux venus du Mac, liste `synced`) que le Mac n'a pas au même chemin ;
+ * les jeux d'abord, puis les pochettes (chacun du plus petit au plus gros).
  * @param {{remote: {target: string}[], local: {path: string, size: number}[], synced: Record<string, unknown>, systemIds: Iterable<string>}} input
  *   `remote` : liste du Mac (readManifest), `local` : bibliothèque du téléphone
- * @returns {{send: {path: string, size: number}[], already: number, tooBig: number}} `send` du plus petit au plus gros ; `already` : même nom
- *   déjà sur le Mac (jamais remplacé) ; `tooBig` : plus gros que MAX_UPLOAD_BYTES
+ * @returns {{send: {path: string, size: number, cover: boolean}[], already: number, tooBig: number}} `already` : JEU de même nom déjà sur
+ *   le Mac (jamais remplacé, signalé ; une pochette déjà sur le Mac est simplement gardée, sans message) ; `tooBig` : au-delà de maxUploadBytes
  */
 export function planUpload({ remote, local, synced = {}, systemIds }) {
   const ids = [...systemIds];
@@ -179,26 +190,29 @@ export function planUpload({ remote, local, synced = {}, systemIds }) {
   let tooBig = 0;
   for (const entry of local) {
     if (!uploadTargetPath(entry.path, ids) || Object.hasOwn(synced, entry.path)) continue;
-    if (onMac.has(entry.path)) already += 1;
-    else if (!Number.isSafeInteger(entry.size) || entry.size > MAX_UPLOAD_BYTES) tooBig += 1;
-    else send.push({ path: entry.path, size: entry.size });
+    const cover = isCoverPath(entry.path);
+    if (onMac.has(entry.path)) { if (!cover) already += 1; } else if (!Number.isSafeInteger(entry.size) || entry.size > maxUploadBytes(entry.path)) tooBig += 1;
+    else send.push({ path: entry.path, size: entry.size, cover });
   }
-  send.sort((a, b) => a.size - b.size || (a.path < b.path ? -1 : 1));
+  send.sort((a, b) => Number(a.cover) - Number(b.cover) || a.size - b.size || (a.path < b.path ? -1 : 1));
   return { send, already, tooBig };
 }
 
 /**
  * T44 : message de fin d'un envoi vers le Mac.
- * @param {{sent?: number, already?: number, tooBig?: number, noSpace?: number, failed?: number}} result @returns {string}
+ * @param {{sent?: number, covers?: number, already?: number, tooBig?: number, noSpace?: number, failed?: number}} result
+ *   `sent` : jeux envoyés, `covers` : pochettes envoyées ; les autres comptes valent pour les jeux et les pochettes
+ * @returns {string}
  */
-export function describeUploadResult({ sent = 0, already = 0, tooBig = 0, noSpace = 0, failed = 0 }) {
+export function describeUploadResult({ sent = 0, covers = 0, already = 0, tooBig = 0, noSpace = 0, failed = 0 }) {
   const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
   const parts = [];
   if (sent) parts.push(`${plural(sent, 'jeu envoyé', 'jeux envoyés')} au Mac`);
+  if (covers) parts.push(`${plural(covers, 'pochette envoyée', 'pochettes envoyées')} au Mac`);
   if (already) parts.push(`${plural(already, 'jeu non envoyé', 'jeux non envoyés')} : un fichier du même nom est déjà sur le Mac`);
-  if (tooBig) parts.push(`${plural(tooBig, 'jeu trop gros', 'jeux trop gros')} (plus de 1 Go)`);
-  if (noSpace) parts.push(`${plural(noSpace, 'jeu non envoyé', 'jeux non envoyés')} : plus assez de place sur le Mac`);
-  if (failed) parts.push(plural(failed, 'jeu en échec', 'jeux en échec'));
-  if (!parts.length) return 'Envoi : le Mac a déjà tous les jeux de ce téléphone.';
+  if (tooBig) parts.push(`${plural(tooBig, 'fichier trop gros', 'fichiers trop gros')} (jeu de plus de 1 Go ou pochette de plus de 10 Mo)`);
+  if (noSpace) parts.push(`${plural(noSpace, 'fichier non envoyé', 'fichiers non envoyés')} : plus assez de place sur le Mac`);
+  if (failed) parts.push(plural(failed, 'fichier en échec', 'fichiers en échec'));
+  if (!parts.length) return 'Envoi : le Mac a déjà tous les jeux et pochettes de ce téléphone.';
   return `Envoi : ${parts.join(' ; ')}.`;
 }

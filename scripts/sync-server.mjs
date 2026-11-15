@@ -1,11 +1,11 @@
 // Serveur de partage Mac <-> téléphone (T43, T44) : HTTPS sur le réseau local (port 8443), réservé aux téléphones associés.
 // Routes : GET / (page d'aide), GET /clone90-ca.crt (autorité à installer sur le téléphone), POST /sync/pair ({code} -> {token}),
 // GET /sync/manifest (liste des jeux, pochettes, logos et BIOS, + `uploads` : réception permise), GET /sync/file?path=... (un fichier),
-// T44 : POST /sync/upload?path=roms/<machine>/<fichier> (un jeu du téléphone, voir sync-upload.mjs). Démarré par sync-api.mjs.
+// T44 : POST /sync/upload?path=roms/<machine>/<fichier> (un jeu ou une pochette du téléphone, voir sync-upload.mjs). Démarré par sync-api.mjs.
 // Dépend de js/sync-plan.js (fichiers partagés, partagé avec le téléphone), sync-pairing.mjs (codes, jetons), sync-upload.mjs, local-settings.mjs.
 // INVARIANT (sécurité, décisions de Hicham du 2026-11-15) : ce serveur n'efface et ne télécharge RIEN ; il ne sert que les fichiers des
 //   dossiers des jeux et des BIOS acceptés par `syncTargetPath` (chemin réel vérifié : un lien qui sort du dossier est refusé) ; sa SEULE
-//   écriture est l'ajout d'un jeu (T44), seulement si la personne a coché « Accepter les jeux du téléphone » sur le Mac, sans jamais
+//   écriture est l'ajout d'un jeu ou d'une pochette (T44), seulement si la personne a coché « Accepter les jeux du téléphone » sur le Mac, sans jamais
 //   remplacer un fichier ; liste, fichiers et envoi exigent le jeton d'un téléphone associé (Authorization: Bearer) ; aucune route api/ ici.
 import https from 'node:https';
 import { createReadStream } from 'node:fs';
@@ -90,7 +90,7 @@ function readBody(req, limit) {
  * Gestionnaire des requêtes du serveur de partage (testable sans HTTPS).
  * @param {{pairing: {tryCode: Function, isValidToken: Function, acceptUploads?: boolean}, getDirs: () => Promise<{romsDir: string, biosDir: string}>,
  *   getSystemIds: () => Promise<string[]>, getCa: () => string, onUploaded?: () => void, getFreeBytes?: (dir: string) => Promise<number>}} options
- *   `onUploaded` (T44) : appelé après chaque jeu reçu (régénère games.json) ; `getFreeBytes` : injectable pour les tests
+ *   `onUploaded` (T44) : appelé après chaque fichier reçu (régénère games.json) ; `getFreeBytes` : injectable pour les tests
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>}
  */
 export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa, onUploaded = () => {}, getFreeBytes }) {
@@ -151,7 +151,7 @@ export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa, onUpl
   };
 
   /**
-   * T44 : un jeu envoyé par le téléphone. Un refus avant lecture du corps ferme la connexion (le reste du fichier n'est pas lu).
+   * T44 : un jeu ou une pochette envoyés par le téléphone. Un refus avant lecture du corps ferme la connexion (le reste du fichier n'est pas lu).
    * @returns {Promise<void>}
    */
   async function handleUpload(req, url, send) {
@@ -168,7 +168,7 @@ export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa, onUpl
       const [{ romsDir }, systemIds] = await Promise.all([getDirs(), getSystemIds()]);
       const result = await receiveUpload(req, { path: url.searchParams.get('path') ?? '', romsDir, systemIds, ...(getFreeBytes && { getFreeBytes }) });
       if (result.status === 201) {
-        console.log(`Partage : jeu reçu du téléphone : ${result.body.path}`);
+        console.log(`Partage : fichier reçu du téléphone : ${result.body.path}`);
         try { onUploaded(); } catch { /* la liste des jeux sera refaite au prochain ajout */ }
       }
       return reply(result.status, result.body);

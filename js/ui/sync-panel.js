@@ -10,7 +10,7 @@ const UNREACHABLE = 'Impossible de joindre Clone90. Le serveur est-il toujours l
 /** Ce qui est ouvert au réseau, dit avant le premier clic (sécurité, décision de Hicham du 2026-11-15). */
 export const SYNC_INFO = 'Le partage ouvre ce Mac au Wi-Fi, en lecture seule par défaut : un téléphone associé (code à 6 chiffres) peut copier vos jeux, '
   + 'pochettes, logos et BIOS. Rien ne peut être modifié ni effacé sur le Mac. Si vous cliquez « Accepter les jeux du téléphone », un téléphone associé '
-  + 'peut aussi AJOUTER ses jeux dans le dossier des jeux de ce Mac, sans jamais remplacer un fichier. Les autres appareils du Wi-Fi ne voient que la page '
+  + 'peut aussi AJOUTER ses jeux et pochettes dans le dossier des jeux de ce Mac, sans jamais remplacer un fichier. Les autres appareils du Wi-Fi ne voient que la page '
   + 'd\'aide et le certificat. Le partage reste actif aux prochains lancements de Clone90, jusqu\'à « Arrêter le partage ».';
 /** Libellés des boutons, dans l'ordre. */
 export const SYNC_BUTTONS = { enable: 'Activer le partage', disable: 'Arrêter le partage', pair: 'Associer un téléphone', forget: 'Oublier les téléphones associés',
@@ -65,7 +65,7 @@ export function describeSyncStatus(status, now = Date.now()) {
     codeNote: status.code ? `Code valable ${minutesLeft(status.code.expiresAt, now)} min, pour un seul téléphone.` : null,
     devices: n === 0 ? 'Aucun téléphone associé.' : `${n} téléphone${n > 1 ? 's' : ''} associé${n > 1 ? 's' : ''}.`,
     uploads: status.acceptUploads === true
-      ? 'Ce Mac accepte les jeux envoyés par les téléphones associés (« Envoyer mes jeux au Mac » dans « Mes fichiers » du téléphone).'
+      ? 'Ce Mac accepte les jeux et pochettes envoyés par les téléphones associés (« Envoyer mes jeux au Mac » dans « Mes fichiers » du téléphone).'
       : 'Ce Mac n\'accepte pas les jeux des téléphones.',
     error: status.error ?? null,
     steps: status.running ? [
