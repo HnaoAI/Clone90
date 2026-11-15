@@ -2,6 +2,7 @@
 // T38 : en tête, « Choisir le dossier des jeux » range tout un dossier (un sous-dossier par machine) d'un coup (js/folder-scan.js).
 // T40 : rubrique « Pochettes » (bouton « Chercher les pochettes manquantes », phrase sur la connexion à GitHub) ; la recherche elle-même
 // est dans js/local-covers.js, lancée par app.js (après chaque import de jeux et sur ce bouton).
+// T43 : rubrique « Synchroniser avec le Mac » (js/ui/sync-section.js) si l'hôte fournit `sync`.
 // T42 : la même recherche range les vrais logos des machines (js/local-logos.js) ; ils ne sont pas listés comme fichiers de la personne.
 // Dépend de router.js, config.js, ui/dom.js, local-library.js (describeBiosStatus). Les actions (choisir, supprimer) sont transmises par app.js.
 // INVARIANT : aucune liste de machines ici, tout vient de systems.json. Chaque bouton est `data-nav` (clavier et manette via js/input/).
@@ -10,6 +11,7 @@ import { ROMS_DIR, BIOS_DIR } from '../config.js';
 import { describeBiosStatus } from '../local-library.js';
 import { isLocalLogoPath } from '../local-logos.js';
 import { el } from './dom.js';
+import { renderSyncSection } from './sync-section.js';
 
 /** data-nav-id du bouton retour et du bouton « Choisir des BIOS ». */
 export const LIBRARY_BACK_NAV_ID = 'back';
@@ -84,10 +86,11 @@ const secondaryButton = (text, navId, onClick, doc, extraClass = '') => el('butt
  *   `machine` : machine mise en avant (arrivée depuis sa grille vide) ; `busy` : import en cours (boutons désactivés) ;
  *   `folderPicking` : le navigateur sait choisir un dossier (T38), sinon une phrase remplace le bouton ; `notice` : résultat du dernier scan
  *   (et des pochettes, T40) ; `busyText` : avancement affiché pendant `busy` (T40, défaut « Copie des fichiers en cours… »)
+ *   `sync` (T43) : modèle de la rubrique « Synchroniser avec le Mac » (voir renderSyncSection, sans `disabled`) ; absent : pas de rubrique
  * @param {Document} [doc]
  * @returns {HTMLElement}
  */
-export function renderLibrary({ systems, entries, supported, machine = null, busy = false, folderPicking = false, onScanFolder = () => {}, notice = null, busyText = null, onFindCovers = () => {}, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
+export function renderLibrary({ systems, entries, supported, machine = null, busy = false, folderPicking = false, onScanFolder = () => {}, notice = null, busyText = null, onFindCovers = () => {}, sync = null, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
   const groups = groupLibraryEntries(entries, systems);
   const total = entries.filter((e) => !isLocalLogoPath(e.path)).reduce((sum, e) => sum + (e.size || 0), 0);
   const bios = describeBiosStatus(systems, entries.map((e) => e.path));
@@ -109,6 +112,7 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
       el('p', { text: 'Ouvrez le site en HTTPS dans Chrome ou Firefox, hors navigation privée.' }, [], doc),
     ], doc),
     busy && el('p', { class: 'banner', attrs: { role: 'status' }, text: busyText ?? 'Copie des fichiers en cours…' }, [], doc),
+    ...(sync && supported ? renderSyncSection({ ...sync, disabled }, doc) : []),
     el('h3', { class: 'library-heading', text: 'Importer tout un dossier' }, [], doc),
     el('p', { class: 'muted', text: 'Choisissez le dossier qui contient un sous-dossier par machine (amiga, neogeo, nes…), comme le dossier roms du Mac, et bios s\'il existe. Chaque jeu est rangé dans sa machine ; neogeo.zip va dans les BIOS. Les fichiers déjà présents ne sont pas recopiés.' }, [], doc),
     folderPicking

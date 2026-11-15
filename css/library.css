@@ -67,3 +67,6 @@ button[disabled], .back-button[disabled] { opacity: 0.5; cursor: not-allowed; }
 .link-file-page { padding-left: 36px; font-size: 0.8125rem; overflow-wrap: anywhere; }
 .link-stop[hidden] { display: none; }
 .link-file-label .link-toggle { flex: 0 0 auto; }
+
+/* T43 : code d'appairage du partage avec le téléphone, gros chiffres lisibles de loin. */
+.sync-code { margin: 8px 0; font-family: var(--font-title); font-size: 2.5rem; font-weight: 900; letter-spacing: 0.3em; color: var(--text); text-align: center; }

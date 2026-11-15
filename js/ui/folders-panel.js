@@ -22,6 +22,8 @@ export const LOGOS_LABEL = 'Télécharger les logos des machines';
 export const LOGOS_INFO = 'Logos : même principe (github.com, thème libre es-theme-carbon), uniquement quand vous cliquez sur ce bouton. '
   + 'GitHub voit votre adresse IP, aucun nom de jeu n\'est envoyé. Les logos restent dans votre dossier des ROMs et ne sont jamais publiés.';
 const COVERS_POLL_MS = 1000;
+/** T43 : bouton qui ouvre le panneau « Partager avec le téléphone » (js/ui/sync-panel.js), seulement si l'hôte fournit `onOpenSync`. */
+export const SYNC_LABEL = 'Partager avec le téléphone';
 export const PENDING_TEXT = 'Une fenêtre de choix s\'est ouverte sur votre Mac.';
 const SAVING_TEXT = 'Enregistrement en cours...';
 const CLOSE_LABEL = 'Fermer';
@@ -104,12 +106,13 @@ const renderLine = (line, doc) => el('li', { class: 'folder-line' }, [
  * @param {boolean} [options.coversRunning] un téléchargement était déjà en cours à l'ouverture : on reprend son suivi
  * @param {{start: Function, status: Function}} [options.logos] API des logos des machines (T29), même forme que `covers` ; sans elle, pas de bouton
  * @param {boolean} [options.logosRunning] @param {(state: object) => void} [options.onLogosDone] comme pour les pochettes
+ * @param {() => void} [options.onOpenSync] T43 : ouvre le panneau du partage avec le téléphone (le panneau des dossiers se ferme d'abord) ; sans elle, pas de bouton
  * @param {(ms: number) => Promise<void>} [options.wait] pause entre deux lectures de l'état (injectable)
  * @param {Document} [doc]
  * @returns {ReturnType<typeof createDialog>} `open(parent)`, `handleAction(action)`, `result` (résolu à la fermeture)
  */
 export function createFoldersPanel(options, doc = globalThis.document) {
-  const { settings, choose, onChanged, wait = (ms) => new Promise((r) => { setTimeout(r, ms); }) } = options;
+  const { settings, choose, onChanged, onOpenSync = null, wait = (ms) => new Promise((r) => { setTimeout(r, ms); }) } = options;
   let busy = false;
   const downloads = DOWNLOADS.filter((d) => options[d.api]).map((d) => ({ ...d, client: options[d.api], onDone: options[d.done] ?? (() => {}) }));
   const list = el('ul', { class: 'folder-list' }, describeFolderLines(settings).map((l) => renderLine(l, doc)), doc);
@@ -121,12 +124,14 @@ export function createFoldersPanel(options, doc = globalThis.document) {
     title: 'Dossiers des jeux',
     content: [el('p', { class: 'dialog-message', text: 'Clone90 cherche vos jeux et vos BIOS dans ces dossiers.', attrs: { id: 'folders-intro' } }, [], doc), list,
       ...downloads.map((d) => el('p', { class: 'dialog-message covers-info', text: d.info, attrs: { id: d.infoId } }, [], doc)), bar, status],
-    buttons: [...FOLDER_CHOICES.map((c) => ({ label: c.label })), ...downloads.map((d, i) => ({ label: d.label, separated: i === 0 })), { label: CLOSE_LABEL, secondary: true }],
+    buttons: [...FOLDER_CHOICES.map((c) => ({ label: c.label })), ...downloads.map((d, i) => ({ label: d.label, separated: i === 0 })),
+      ...(onOpenSync ? [{ label: SYNC_LABEL, separated: true }] : []), { label: CLOSE_LABEL, secondary: true }],
     vertical: true,
     boxClass: 'is-wide',
     describedBy: ['folders-intro', ...downloads.map((d) => d.infoId)].join(' '),
     onPress: (index, { close }) => {
       if (index === dialog.buttons.length - 1) close(true);
+      else if (onOpenSync && index === dialog.buttons.length - 2) { close(true); onOpenSync(); } // T43 : le panneau du partage remplace celui-ci
       else if (busy) return;
       else if (index >= FOLDER_CHOICES.length) runDownload(downloads[index - FOLDER_CHOICES.length]);
       else run(FOLDER_CHOICES[index].kind);

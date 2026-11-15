@@ -4,6 +4,7 @@
 // T27 : écran « Mes fichiers » (#/fichiers) ; après un ajout ou une suppression, les données sont rechargées (reload) sans recharger la page.
 // T34 : écran « Depuis une page web » (#/telecharger), source Mac (API locale) si elle répond, sinon navigateur (bibliothèque locale).
 // T35 : vérification des mises à jour 5 s après l'ouverture, fenêtre js/ui/update-dialog.js.
+// T43 : synchronisation Mac -> téléphone (js/sync-client.js) à l'ouverture et dans « Mes fichiers » ; panneau du partage sur le Mac (ui/sync-panel.js).
 // T40 : après chaque import de jeux dans « Mes fichiers » (fichiers, dossier, page web) et sur un bouton, pochettes manquantes (local-covers.js) ;
 // sur le Mac, pochettes manquantes cherchées sans clic à l'ouverture et après un ajout de jeux par Clone90 (auto-covers.js, décision du 2026-11-15).
 // T41 : barre de navigation du bas (ui/bottom-nav.js), rendue une fois dans #app, onglet actif suivi à chaque route.
@@ -33,6 +34,9 @@ import { createToast } from './ui/toast.js';
 import { clear } from './ui/dom.js';
 import { setGamepadMode, watchPointer } from './ui/input-mode.js';
 import { registerServiceWorker } from './pwa.js';
+import { readSyncPairing, pairWithMac, syncFromMac, forgetSyncPairing } from './sync-client.js';
+import { createSyncPanel, fetchSyncStatus } from './ui/sync-panel.js';
+import { SYNC_NAV } from './ui/sync-section.js';
 
 const screen = document.getElementById('screen');
 const toast = createToast(document.getElementById('toast'));
@@ -78,6 +82,8 @@ async function main() {
   let lastSystem = null;
   let libraryBusy = false;
   let libraryBusyText = null; // T40 : avancement de la recherche des pochettes
+  let syncNotice = null; // T43 : résultat de la dernière synchronisation, affiché une fois dans « Mes fichiers »
+  let openSyncNext = false; // T43 : le panneau des dossiers a demandé le panneau du partage
 
   /** Relit games.json et la bibliothèque locale (T27, après un ajout ou une suppression). Garde les données d'avant en cas d'échec. */
   async function reload() {
@@ -110,6 +116,8 @@ async function main() {
   async function showLibrary(machine, focusId = null, notice = null) { // T38 : `notice` = résultat du dernier scan, affiché dans l'écran
     let entries = [];
     let library = null;
+    const syncMessage = syncNotice;
+    syncNotice = null;
     if (localSupported) {
       try { library = await openLocalLibrary(); entries = await library.list(); } catch (e) { console.error('Bibliothèque locale illisible :', e); }
     }
@@ -120,6 +128,9 @@ async function main() {
         folderPicking: folderPickingSupported(window), onScanFolder: () => importFolder(), notice,
         onAddGames: (systemId) => importFiles((file) => ({ path: romStoragePath(systemId, file.name) }), addGamesNavId(systemId), true),
         onFindCovers: () => findCovers(FIND_COVERS_NAV_ID),
+        // T43 : rubrique du téléphone seulement (sur le Mac, c'est le Mac qui partage)
+        sync: folderSettings ? null : { pairing: readSyncPairing(), message: syncMessage, onPair: (address, code) => pairAndSync(address, code), onSyncNow: () => syncNow(SYNC_NAV.now),
+          onForget: () => { if (window.confirm('Oublier ce Mac ? Les fichiers déjà copiés restent sur ce téléphone.')) { forgetSyncPairing(); showLibrary(machine, SYNC_NAV.address); } } },
         onAddBios: () => importFiles((file) => biosStoragePath(file.name, data.systems), ADD_BIOS_NAV_ID),
         onRemove: async (path) => {
           if (!window.confirm(`Supprimer ${path.split('/').pop()} de cet appareil ?`)) return;
@@ -146,6 +157,36 @@ async function main() {
         libraryBusyText = null;
       }
       showLibrary(machine, returnFocus, [before, text ?? (before ? null : 'Pochettes : aucun jeu sans pochette.')].filter(Boolean).join('. ') || null);
+    }
+    /** T43 : association avec le Mac, puis première synchronisation. */
+    async function pairAndSync(address, code) {
+      libraryBusy = true;
+      libraryBusyText = 'Association avec le Mac…';
+      render(null);
+      const paired = await pairWithMac({ address, code });
+      libraryBusy = false;
+      libraryBusyText = null;
+      if (!paired.ok) { syncNotice = paired.message; showLibrary(machine, SYNC_NAV.address); return; }
+      await syncNow(SYNC_NAV.now);
+    }
+    /** T43 : copie depuis le Mac avec avancement dans l'écran, puis nouveau rendu avec le résumé. */
+    async function syncNow(returnFocus) {
+      libraryBusy = true;
+      libraryBusyText = 'Lecture de la liste du Mac…';
+      render(null);
+      let result;
+      try {
+        result = await syncFromMac({ library, systems: data.systems, onProgress: (p) => {
+          libraryBusyText = p.total ? `Copie depuis le Mac : ${Math.min(p.done + 1, p.total)} sur ${p.total}${p.name ? ` (${p.name})` : ''}…` : 'Copie depuis le Mac…';
+          render(null);
+        } });
+      } finally {
+        libraryBusy = false;
+        libraryBusyText = null;
+      }
+      if (result.changed) { requestPersistentStorage(); await reload(); }
+      syncNotice = result.text;
+      showLibrary(machine, returnFocus);
     }
     /** Copie les fichiers choisis dans la bibliothèque. `target(file)` : {path, known?} ou null (nom inutilisable). `covers` : jeux (T40). */
     async function importFiles(target, returnFocus, covers = false) {
@@ -264,6 +305,7 @@ async function main() {
     // T28, T29 : un téléchargement lancé avant la fermeture du panneau continue ; on reprend son suivi
     const [coversRunning, logosRunning] = (await Promise.all([fetchCoversStatus(), fetchLogosStatus()])).map((s) => s?.status === 'running');
     foldersPanel = createFoldersPanel({
+      onOpenSync: () => { openSyncNext = true; },
       settings: folderSettings, choose: (kind) => requestFolderChoice(kind), onChanged: reloadGames,
       covers: { start: () => requestCoversDownload(), status: () => fetchCoversStatus() }, coversRunning, onCoversDone: onDownloadDone,
       logos: { start: () => requestLogosDownload(), status: () => fetchLogosStatus() }, logosRunning, onLogosDone: onDownloadDone,
@@ -271,7 +313,31 @@ async function main() {
     foldersPanel.open(document.body);
     await foldersPanel.result;
     foldersPanel = null;
+    if (openSyncNext) { openSyncNext = false; await openSyncPanel(); return; }
     nav.focusById(FOLDERS_NAV_ID); // T41 : l'onglet « Dossiers » de la barre du bas reprend le focus
+  }
+
+  /** T43 (Mac) : panneau « Partager avec le téléphone », ouvert depuis le panneau des dossiers ; capte les actions comme lui. */
+  async function openSyncPanel() {
+    foldersPanel = createSyncPanel({ initial: await fetchSyncStatus() });
+    foldersPanel.open(document.body);
+    await foldersPanel.result;
+    foldersPanel = null;
+    nav.focusById(FOLDERS_NAV_ID);
+  }
+
+  /** T43 (téléphone associé) : synchronisation sans clic à l'ouverture ; message seulement si quelque chose a changé ou échoué. Ne lève jamais. */
+  async function autoSync() {
+    if (folderSettings || !localSupported || !readSyncPairing()) return;
+    try {
+      const result = await syncFromMac({ library: await openLocalLibrary(), systems: data.systems, quiet: true });
+      if (result.changed) {
+        requestPersistentStorage();
+        await reload();
+        if (screen.querySelector('.home')) showHome();
+      }
+      if (result.text) toast(result.text);
+    } catch (e) { console.error('Synchronisation automatique impossible :', e); }
   }
 
   function showGameGrid(machine, focus) {
@@ -329,7 +395,7 @@ async function main() {
     setTimeout(async () => {
       const source = folderSettings ? createMacUpdateSource() : createBrowserUpdateSource();
       const update = await source.check();
-      if (update.status !== 'available') { autoCovers(); return; } // T40 : après la vérification, jamais pendant une mise à jour
+      if (update.status !== 'available') { autoCovers(); autoSync(); return; } // T43 : synchronisation avec le Mac, après la vérification // T40 : après la vérification, jamais pendant une mise à jour
       if (foldersPanel) return;
       const { dialog, done } = openUpdateDialog({ update, source, parent: document.body });
       updateDialog = dialog;
