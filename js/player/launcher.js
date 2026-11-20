@@ -16,6 +16,9 @@ import { createStartFailureWatch, hookCoreOutput } from './ejs-start-watch.js';
 import { assetUrl, assetPathFromUrl, isRelativePath } from '../data.js';
 import { stickDirections, RELEASED } from './virtual-stick.js';
 
+// T46 : fichiers du CDN à garder pour jouer hors ligne (utilisés par js/offline-engine.js, bouton « Préparer le jeu hors ligne »).
+export { ejsCoreFor, engineVersionOf, engineReportUrl, engineFiles, ENGINE_BASE_FILES } from './ejs-files.js';
+
 /** Délai (ms) après EJS_onGameStart pendant lequel le menu des disques peut encore "sélectionner" le disque courant tout seul (voir guardDiskMenuStartup). */
 export const STARTUP_GRACE_MS = 2000;
 
@@ -377,7 +380,7 @@ export async function loadEmulator(plan, { win = globalThis.window, doc = global
     const script = doc.createElement('script');
     script.src = plan.loaderUrl;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error('EmulatorJS inaccessible : vérifiez la connexion internet (le moteur est chargé depuis son CDN).'));
+    script.onerror = () => reject(new Error('EmulatorJS inaccessible : vérifiez la connexion internet (le moteur est chargé depuis son CDN). Pour jouer sans réseau, touchez d\'abord « Préparer le jeu hors ligne » dans Mes fichiers, avec du réseau.'));
     doc.head.append(script);
   });
 }

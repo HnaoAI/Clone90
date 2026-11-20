@@ -4,6 +4,7 @@
 // est dans js/local-covers.js, lancée par app.js (après chaque import de jeux et sur ce bouton).
 // T43 : rubrique « Synchroniser avec le Mac » (js/ui/sync-section.js) si l'hôte fournit `sync`.
 // T42 : la même recherche range les vrais logos des machines (js/local-logos.js) ; ils ne sont pas listés comme fichiers de la personne.
+// T46 : rubrique « Jouer sans réseau » (bouton « Préparer le jeu hors ligne ») ; la préparation est dans js/offline-engine.js, lancée par app.js.
 // Dépend de router.js, config.js, ui/dom.js, local-library.js (describeBiosStatus). Les actions (choisir, supprimer) sont transmises par app.js.
 // INVARIANT : aucune liste de machines ici, tout vient de systems.json. Chaque bouton est `data-nav` (clavier et manette via js/input/).
 import { buildHash } from '../router.js';
@@ -24,6 +25,12 @@ export const FIND_COVERS_NAV_ID = 'find-covers';
 export const COVERS_LIBRARY_INFO = 'Après chaque ajout de jeux, et sur ce bouton, Clone90 cherche la pochette des jeux qui n\'en ont pas dans la base libre libretro-thumbnails, sur github.com, '
   + 'et la garde dans ce navigateur. Seules des images sont téléchargées. GitHub voit l\'adresse IP de l\'appareil et les noms des jeux cherchés. '
   + 'Il télécharge aussi une fois les logos des machines (thème libre es-theme-carbon, sur github.com, aucun nom de jeu envoyé) pour l\'accueil.';
+/** data-nav-id du bouton « Préparer le jeu hors ligne » (T46). */
+export const PREPARE_OFFLINE_NAV_ID = 'prepare-offline';
+/** Ce que fait « Préparer le jeu hors ligne » et ce qui part sur le réseau (T46 : lectures du CDN, aucune donnée de la personne). */
+export const OFFLINE_LIBRARY_INFO = 'Le moteur d\'émulation vient d\'internet (cdn.emulatorjs.org). Ce bouton le garde sur cet appareil, avec le cœur de chaque machine '
+  + 'qui a des jeux (environ 1 Mo par machine, 4 Mo pour l\'Amiga, 8 Mo pour l\'arcade et la Neo Geo). Il se garde aussi tout seul à la première partie '
+  + 'jouée avec du réseau. Ensuite, les jeux de cet appareil se lancent sans réseau.';
 /** data-nav-id du bouton d'ajout de jeux d'une machine. */
 export const addGamesNavId = (systemId) => `add-${systemId}`;
 
@@ -87,10 +94,11 @@ const secondaryButton = (text, navId, onClick, doc, extraClass = '') => el('butt
  *   `folderPicking` : le navigateur sait choisir un dossier (T38), sinon une phrase remplace le bouton ; `notice` : résultat du dernier scan
  *   (et des pochettes, T40) ; `busyText` : avancement affiché pendant `busy` (T40, défaut « Copie des fichiers en cours… »)
  *   `sync` (T43) : modèle de la rubrique « Synchroniser avec le Mac » (voir renderSyncSection, sans `disabled`) ; absent : pas de rubrique
+ *   `offlineSupported` (T46) : le navigateur peut garder le moteur (Cache Storage), sinon une phrase remplace le bouton ; `onPrepareOffline` : son action
  * @param {Document} [doc]
  * @returns {HTMLElement}
  */
-export function renderLibrary({ systems, entries, supported, machine = null, busy = false, folderPicking = false, onScanFolder = () => {}, notice = null, busyText = null, onFindCovers = () => {}, sync = null, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
+export function renderLibrary({ systems, entries, supported, machine = null, busy = false, folderPicking = false, onScanFolder = () => {}, notice = null, busyText = null, onFindCovers = () => {}, sync = null, offlineSupported = false, onPrepareOffline = () => {}, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
   const groups = groupLibraryEntries(entries, systems);
   const total = entries.filter((e) => !isLocalLogoPath(e.path)).reduce((sum, e) => sum + (e.size || 0), 0);
   const bios = describeBiosStatus(systems, entries.map((e) => e.path));
@@ -106,7 +114,7 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
   const highlighted = systems.find((s) => s.id === machine);
   return el('section', { class: 'library' }, [
     header,
-    el('p', { class: 'library-intro', text: 'Ajoutez vos jeux et vos BIOS depuis cet appareil (téléphone, tablette ou ordinateur). Ils restent dans ce navigateur : rien n\'est envoyé sur internet. Il faut internet seulement pour le moteur d\'émulation.' }, [], doc),
+    el('p', { class: 'library-intro', text: 'Ajoutez vos jeux et vos BIOS depuis cet appareil (téléphone, tablette ou ordinateur). Ils restent dans ce navigateur : rien n\'est envoyé sur internet. Le moteur d\'émulation vient d\'internet, sauf s\'il est préparé pour jouer sans réseau (plus bas).' }, [], doc),
     !supported && el('div', { class: 'banner', attrs: { role: 'status' } }, [
       el('strong', { text: 'Ce navigateur ne peut pas garder de fichiers' }, [], doc),
       el('p', { text: 'Ouvrez le site en HTTPS dans Chrome ou Firefox, hors navigation privée.' }, [], doc),
@@ -141,6 +149,12 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
     el('p', { class: 'muted', text: COVERS_LIBRARY_INFO, attrs: { id: 'library-covers-info' } }, [], doc),
     withDisabled(el('button', { class: 'button', text: 'Chercher les pochettes manquantes', attrs: { type: 'button', 'aria-describedby': 'library-covers-info' },
       dataset: { nav: '', navId: FIND_COVERS_NAV_ID }, on: { click: () => onFindCovers() } }, [], doc)),
+    el('h3', { class: 'library-heading', text: 'Jouer sans réseau' }, [], doc),
+    el('p', { class: 'muted', text: OFFLINE_LIBRARY_INFO, attrs: { id: 'library-offline-info' } }, [], doc),
+    offlineSupported
+      ? withDisabled(el('button', { class: 'button', text: 'Préparer le jeu hors ligne', attrs: { type: 'button', 'aria-describedby': 'library-offline-info' },
+        dataset: { nav: '', navId: PREPARE_OFFLINE_NAV_ID }, on: { click: () => onPrepareOffline() } }, [], doc))
+      : el('p', { class: 'muted', text: 'Ce navigateur ne peut pas garder le moteur d\'émulation : il faut le site en HTTPS, hors navigation privée.' }, [], doc),
     el('h3', { class: 'library-heading', text: `Sur cet appareil${groups.length ? ` (${formatSize(total)})` : ''}` }, [], doc),
     groups.length === 0 ? el('p', { class: 'muted', text: 'Aucun fichier pour l\'instant.' }, [], doc) : null,
     ...groups.map((g) => el('div', { class: 'library-group' }, [

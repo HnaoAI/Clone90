@@ -223,8 +223,8 @@ Le guide de publication sur GitHub Pages est dans [docs/guide.md](docs/guide.md)
 
 ## Installation PWA et hors ligne (T8)
 
-- Le service worker (`sw.js`) ne met en cache que la coquille de l'application (pages, CSS, JS, icônes). Jamais `roms/`, `bios/`, `games.json` ni le CDN EmulatorJS.
-- Hors ligne, on ouvre l'application, mais la liste des jeux (`games.json`) et les jeux demandent le serveur local. La reprise hors ligne d'un cœur EmulatorJS déjà chargé dépend du cache propre d'EmulatorJS : non vérifié (à tester en T9).
+- Le service worker (`sw.js`) met en cache la coquille de l'application (pages, CSS, JS, icônes) et, depuis T46, le moteur EmulatorJS (fichiers versionnés du CDN, cache `clone90-ejs-<version>`). Jamais `roms/`, `bios/` ni `games.json`.
+- Hors ligne (T46) : les jeux de « Mes fichiers » se lancent sans réseau si le moteur a été gardé : à la première partie jouée avec du réseau, ou d'avance avec « Mes fichiers » > « Préparer le jeu hors ligne » (environ 1 Mo par machine, 4 Mo l'Amiga, 8 Mo l'arcade et la Neo Geo). Les jeux du Mac demandent toujours le Mac (ou une synchronisation, T43). Le cache propre d'EmulatorJS, lui, ne sert pas sans réseau.
 - Installation : localhost ou HTTPS seulement (pas en HTTP sur le réseau local).
 
 ## Notes techniques
@@ -248,7 +248,7 @@ Deux versions sont utilisées, toutes deux épinglées (jamais `stable`, `latest
 
 ## Relever la version d'EmulatorJS
 
-1. Changer `EJS_CDN_VERSION` (toutes les machines sans `ejsVersion`) ou l'`ejsVersion` d'une machine. Format `x.y.z` obligatoire. Lancer ensuite un jeu Amiga multi-disquettes (ex. Gods, Leander) et un jeu Neo Geo en vrai.
+1. Changer `EJS_CDN_VERSION` (toutes les machines sans `ejsVersion`) ou l'`ejsVersion` d'une machine. Format `x.y.z` obligatoire. Relire `js/player/ejs-files.js` (noms des fichiers et des cœurs d'EmulatorJS, jeu hors ligne T46). Lancer ensuite un jeu Amiga multi-disquettes (ex. Gods, Leander) et un jeu Neo Geo en vrai.
 2. Relire dans le source de la nouvelle version (`https://cdn.emulatorjs.org/<version>/data/` : `loader.js`, `src/emulator.js`, `src/GameManager.js`) les points dont dépendent nos contournements : `getRetroArchCfg`, `allSettings`, `handleSpecialOptions`, `getCurrentDisk` / `getDiskCount` / `setCurrentDisk`, `EJS_externalFiles`, `EJS_defaultOptions`, `EJS_disableLocalStorage`, `EJS_onGameStart`, `EJS_Runtime` (print / printErr). La liste vérifiée pour 4.2.1 est dans `tickets/T21-amiga-ejs-421.md`.
 3. Retester les contournements de `guardDiskMenuStartup` dans `js/player/launcher.js` : (a) le jeu démarre sans « Failed to start game », (b) pas de plantage au démarrage, (c) un changement de disquette par le menu « Disks » fonctionne du premier coup, sans « unreachable ».
 4. Retirer un contournement devenu inutile (et son test dans `tests/launcher.test.mjs`) ; ne garder que ceux dont le défaut existe encore.
