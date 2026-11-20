@@ -1,12 +1,16 @@
 // Service worker de Clone90 (T8) : met en cache la COQUILLE de l'application seulement, pour l'installer et l'ouvrir hors ligne.
 // Fichier classique (pas un module : Firefox et d'anciens Safari ne gèrent pas les service workers en module).
 // Les fonctions pures sont exposées dans `self.Clone90SW` pour être testées sous Node (tests/sw.test.mjs, via node:vm).
-// INVARIANT (CLAUDE.md règle 6) : JAMAIS de roms/, bios/, games.json, api/ (T25) ni de ressource d'une autre origine (CDN EmulatorJS)
-// dans le cache. games.json, api/ et le CDN vont directement au réseau.
+// INVARIANT (CLAUDE.md règle 6) : JAMAIS de roms/, bios/, games.json, api/ (T25) dans le cache, ni de ressource d'une autre origine,
+// sauf le moteur EmulatorJS (T46, ci-dessous). games.json et api/ vont directement au réseau.
+// T46 (jouer hors ligne, exception écrite au journal du CLAUDE.md) : les fichiers VERSIONNÉS du CDN EmulatorJS (https://cdn.emulatorjs.org/<x.y.z>/data/...)
+// sont gardés dans un cache à part, `clone90-ejs-<x.y.z>`, cache d'abord (le contenu d'une version ne change pas). Rempli au premier lancement
+// d'un jeu avec du réseau, ou d'avance par « Préparer le jeu hors ligne » (js/offline-engine.js, même cache). Jamais vidé par une mise à jour
+// de Clone90 (staleCacheNames ne touche que la coquille) ; les anciennes versions du moteur sont effacées par offline-engine.js.
+// Pourquoi pas le cache d'EmulatorJS : il relit cores/reports/<cœur>.json au réseau avant de s'en servir, et l'ignore si la lecture échoue.
 // T27 (jouer sur téléphone sans le Mac) : une requête GET ou HEAD vers roms/ ou bios/ est d'abord cherchée dans la bibliothèque locale
 // (IndexedDB `clone90-local`, fichiers que la personne a choisis sur son appareil, voir js/local-library.js) ; absente, elle part au réseau
 // telle quelle (Mac : rien ne change). Ces réponses ne sont JAMAIS écrites dans le cache (Cache Storage) : rien n'est téléchargé ni copié.
-// Décision (architecture 8.4) : EmulatorJS garde lui-même ses cœurs en cache navigateur ; le CDN n'est pas pris en charge ici.
 // INVARIANT : tout fichier de js/, css/ ou assets/icons/ ou assets/fonts/ doit figurer dans SHELL_FILES (les logos de assets/logos/ viennent de systems.json, voir logoPaths) (vérifié par tests/sw.test.mjs).
 // Nom du cache (T16) : `clone90-shell-v<APP_VERSION>`. La version vient de js/version.js (source unique) par l'adresse d'enregistrement
 // `sw.js?v=<version>` (js/pwa.js) : un script classique ne peut pas importer un module ES. Relever APP_VERSION à chaque livraison suffit donc
@@ -25,11 +29,11 @@ const SHELL_FILES = [
   './', 'index.html', 'player.html', 'manifest.webmanifest', 'systems.json',
   'css/base.css', 'css/home.css', 'css/grid.css', 'css/library.css', 'css/player.css', 'css/dock.css',
   'js/app.js', 'js/config.js', 'js/data.js', 'js/folders-client.js', 'js/router.js', 'js/screens.js', 'js/sort.js', 'js/version.js',
-  'js/games-builder.js', 'js/posix-path.js', 'js/local-library.js', 'js/cover-match.js', 'js/local-covers.js', 'js/logo-source.js', 'js/local-logos.js', 'js/auto-covers.js', 'js/sync-plan.js', 'js/sync-client.js', 'js/ui/sync-panel.js', 'js/ui/sync-section.js', 'js/local-games.js', 'js/local-game-delete.js', 'js/folder-scan.js', 'js/link-finder.js', 'js/link-explorer.js', 'js/link-download.js', 'js/update-check.js',
+  'js/games-builder.js', 'js/posix-path.js', 'js/local-library.js', 'js/cover-match.js', 'js/local-covers.js', 'js/logo-source.js', 'js/local-logos.js', 'js/auto-covers.js', 'js/sync-plan.js', 'js/sync-client.js', 'js/ui/sync-panel.js', 'js/ui/sync-section.js', 'js/local-games.js', 'js/local-game-delete.js', 'js/folder-scan.js', 'js/link-finder.js', 'js/link-explorer.js', 'js/link-download.js', 'js/update-check.js', 'js/offline-engine.js',
   'js/input/actions.js', 'js/input/focus-nav.js',
   'js/ui/bottom-nav.js', 'js/ui/dialog.js', 'js/ui/dom.js', 'js/ui/error-screen.js', 'js/ui/folders-panel.js', 'js/ui/format.js', 'js/ui/game-grid.js',
   'js/ui/input-mode.js', 'js/ui/library-screen.js', 'js/ui/link-screen.js', 'js/ui/update-dialog.js', 'js/ui/logo.js', 'js/ui/machine-grid.js', 'js/ui/toast.js',
-  'js/player/diagnostic-log.js', 'js/player/diagnostic-panel.js', 'js/player/disk-shortcut.js', 'js/player/ejs-start-watch.js', 'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/game-scale.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js', 'js/player/retroarch-cfg.js', 'js/player/virtual-stick.js',
+  'js/player/diagnostic-log.js', 'js/player/ejs-files.js', 'js/player/diagnostic-panel.js', 'js/player/disk-shortcut.js', 'js/player/ejs-start-watch.js', 'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/game-scale.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js', 'js/player/retroarch-cfg.js', 'js/player/virtual-stick.js',
   'js/pwa.js',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/icon-192-maskable.png', 'assets/icons/icon-512-maskable.png',
   'assets/icons/dock-machines.svg', 'assets/icons/dock-files.svg', 'assets/icons/dock-web.svg', 'assets/icons/dock-folders.svg',
@@ -101,7 +105,49 @@ function localResponseInit(record) {
   return { status: 200, headers: { 'Content-Type': record.blob?.type || 'application/octet-stream', 'Content-Length': String(record.size ?? record.blob?.size ?? 0), 'Cache-Control': 'no-store' } };
 }
 
-self.Clone90SW = { CACHE_VERSION, NETWORK_FETCH_INIT, SHELL_FILES, NEVER_CACHED, LOCAL_DB, LOCAL_PREFIXES, scopedPath, isNeverCached, isShellPath, shouldHandle, logoPaths, staleCacheNames, localLibraryPath, localResponseInit };
+/** Origine du CDN EmulatorJS. INVARIANT : celle de ejsDataUrl (js/config.js), vérifié par tests/sw.test.mjs. */
+const ENGINE_ORIGIN = 'https://cdn.emulatorjs.org';
+/** Préfixe des caches du moteur (T46). INVARIANT : identique à ENGINE_CACHE_PREFIX de js/offline-engine.js. */
+const ENGINE_CACHE_PREFIX = 'clone90-ejs-';
+/** Lecture du CDN pour le cache : CORS (réponse lisible, statut contrôlé avant d'être gardée), sans cookies. */
+const ENGINE_FETCH_INIT = { mode: 'cors', credentials: 'omit' };
+
+/** Adresse sans paramètres ni ancre : clé du cache du moteur. */
+const engineCacheKey = (url) => url.split('#')[0].split('?')[0];
+
+/**
+ * Cache du moteur pour cette requête : `clone90-ejs-<x.y.z>` pour un GET vers https://cdn.emulatorjs.org/<x.y.z>/data/<fichier>, sinon null
+ * (« stable » et « latest » changent de contenu : jamais gardés ; « .. » refusé, même encodé).
+ */
+function engineCacheFor(method, url) {
+  if (method !== 'GET') return null;
+  let u;
+  try { u = new URL(url); } catch { return null; }
+  if (u.origin !== ENGINE_ORIGIN) return null;
+  const match = /^\/(\d+\.\d+\.\d+)\/data\/(.+)$/.exec(u.pathname);
+  if (!match) return null;
+  let path;
+  try { path = decodeURIComponent(match[2]); } catch { return null; }
+  return path.split('/').some((seg) => seg === '..' || seg === '.' || seg === '') ? null : `${ENGINE_CACHE_PREFIX}${match[1]}`;
+}
+
+/**
+ * Réponse d'un fichier du moteur (T46) : cache d'abord ; absent, lu au réseau en CORS et gardé s'il est ok (jamais une erreur).
+ * Si le CDN refuse le CORS, la requête d'origine part telle quelle (en ligne rien ne change), sans rien garder.
+ * Sans réseau et absent du cache : rejet, comme sans service worker (le lecteur affiche son message).
+ * @param {{url: string}} request @param {{match: Function, put: Function}} cache @param {typeof fetch} fetchFn
+ */
+async function serveEngine(request, cache, fetchFn) {
+  const key = engineCacheKey(request.url);
+  const cached = await cache.match(key);
+  if (cached) return cached;
+  let res;
+  try { res = await fetchFn(request.url, ENGINE_FETCH_INIT); } catch { return fetchFn(request); }
+  if (res.ok) await cache.put(key, res.clone()).catch(() => {});
+  return res;
+}
+
+self.Clone90SW = { ENGINE_ORIGIN, ENGINE_CACHE_PREFIX, engineCacheFor, serveEngine, CACHE_VERSION, NETWORK_FETCH_INIT, SHELL_FILES, NEVER_CACHED, LOCAL_DB, LOCAL_PREFIXES, scopedPath, isNeverCached, isShellPath, shouldHandle, logoPaths, staleCacheNames, localLibraryPath, localResponseInit };
 
 if (typeof ServiceWorkerGlobalScope !== 'undefined' && self instanceof ServiceWorkerGlobalScope) {
   const scope = () => self.registration.scope;
@@ -162,6 +208,11 @@ if (typeof ServiceWorkerGlobalScope !== 'undefined' && self instanceof ServiceWo
   // Réseau d'abord, cache en secours : le développeur et le joueur voient toujours la dernière version quand le réseau répond.
   self.addEventListener('fetch', (event) => {
     const { request } = event;
+    const engineCache = engineCacheFor(request.method, request.url);
+    if (engineCache !== null) { // T46 : moteur EmulatorJS, cache d'abord
+      event.respondWith(caches.open(engineCache).then((cache) => serveEngine(request, cache, fetch)));
+      return;
+    }
     const localPath = localLibraryPath(request.method, request.url, scope());
     if (localPath !== null) { // T27 : fichier importé sur cet appareil, sinon réseau ; jamais de cache
       event.respondWith((async () => {

@@ -16,7 +16,8 @@ import { openLocalLibrary, canUseLocalLibrary, romStoragePath, biosStoragePath, 
 import { findLocalCovers, describeCoversResult } from './local-covers.js';
 import { findLocalLogos, loadLocalLogos } from './local-logos.js';
 import { runAutoCovers, autoCoversToast } from './auto-covers.js';
-import { renderLibrary, pickFiles, pickFolder, describeImport, addGamesNavId, ADD_BIOS_NAV_ID, LIBRARY_BACK_NAV_ID, SCAN_FOLDER_NAV_ID, FIND_COVERS_NAV_ID } from './ui/library-screen.js';
+import { renderLibrary, pickFiles, pickFolder, describeImport, addGamesNavId, ADD_BIOS_NAV_ID, LIBRARY_BACK_NAV_ID, SCAN_FOLDER_NAV_ID, FIND_COVERS_NAV_ID, PREPARE_OFFLINE_NAV_ID } from './ui/library-screen.js';
+import { prepareOfflineEngine, describeOfflineResult, offlineEngineSupported } from './offline-engine.js';
 import { planFolderImport, summarizePlan, describeFolderImport, folderPickingSupported } from './folder-scan.js';
 import { createRouter } from './router.js';
 import { createActionSource } from './input/actions.js';
@@ -49,6 +50,10 @@ const localSupported = canUseLocalLibrary(window);
 /** T35 : délai avant la vérification des mises à jour, et marque « déjà vérifié dans cet onglet ». */
 const UPDATE_CHECK_DELAY_MS = 5000;
 const UPDATE_CHECKED_KEY = 'clone90-update-checked';
+/** T46 : l'appareil sait-il faire du WebGL 2 (choisit la variante du cœur, comme EmulatorJS) ? */
+const hasWebgl2 = () => { try { return Boolean(document.createElement('canvas').getContext('webgl2')); } catch { return false; } };
+/** T46 : langue de l'appareil telle qu'EmulatorJS la lit (loader.js), pour garder sa traduction si elle existe. */
+const deviceLocale = () => { try { return Intl.DateTimeFormat().resolvedOptions().locale; } catch { return undefined; } };
 const loadAll = () => loadData(undefined, localSupported ? (systems) => loadLocalGames(systems) : null, localSupported ? (systems) => loadLocalLogos(systems) : null); // T42 : logos gardés dans le navigateur
 
 async function main() {
@@ -133,6 +138,7 @@ async function main() {
         folderPicking: folderPickingSupported(window), onScanFolder: () => importFolder(), notice,
         onAddGames: (systemId) => importFiles((file) => ({ path: romStoragePath(systemId, file.name) }), addGamesNavId(systemId), true),
         onFindCovers: () => findCovers(FIND_COVERS_NAV_ID),
+        offlineSupported: offlineEngineSupported(window), onPrepareOffline: () => prepareOffline(),
         // T43 : rubrique du téléphone seulement (sur le Mac, c'est le Mac qui partage)
         sync: folderSettings ? null : { pairing: readSyncPairing(), message: syncMessage, onPair: (address, code) => pairAndSync(address, code), onSyncNow: () => syncNow(SYNC_NAV.now), onSend: () => sendToMac(),
           onForget: () => { if (window.confirm('Oublier ce Mac ? Les fichiers déjà copiés restent sur ce téléphone.')) { forgetSyncPairing(); showLibrary(machine, SYNC_NAV.address); } } },
@@ -162,6 +168,24 @@ async function main() {
         libraryBusyText = null;
       }
       showLibrary(machine, returnFocus, [before, text ?? (before ? null : 'Pochettes : aucun jeu sans pochette.')].filter(Boolean).join('. ') || null);
+    }
+    /** T46 : moteur et cœurs des machines qui ont des jeux gardés pour jouer sans réseau, avec avancement, puis nouveau rendu avec le résumé. */
+    async function prepareOffline() {
+      libraryBusy = true;
+      libraryBusyText = 'Préparation du jeu hors ligne…';
+      render(null);
+      let result;
+      try {
+        result = await prepareOfflineEngine({ systems: data.systems, games: data.games, webgl2: hasWebgl2(), locale: deviceLocale(), onProgress: (p) => {
+          libraryBusyText = p.total ? `Préparation du jeu hors ligne : ${Math.min(p.done + 1, p.total)} sur ${p.total}…` : 'Préparation du jeu hors ligne…';
+          render(null);
+        } });
+      } finally {
+        libraryBusy = false;
+        libraryBusyText = null;
+      }
+      if (result.ready.length) requestPersistentStorage();
+      showLibrary(machine, PREPARE_OFFLINE_NAV_ID, describeOfflineResult(result));
     }
     /** T43 : association avec le Mac, puis première synchronisation. */
     async function pairAndSync(address, code) {

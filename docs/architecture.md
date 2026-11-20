@@ -373,7 +373,7 @@ Plein écran : appel `requestFullscreen` dans le gestionnaire du clic "Jouer". M
 ### 8.4 PWA
 
 - `manifest.webmanifest` : `display: fullscreen` avec repli `standalone`, `start_url: "./"`, icônes 192/512, thème sombre. Chemins relatifs.
-- `sw.js` : met en cache **la coquille de l'app seulement** (html, css, js, systems.json, logos). Ne met **jamais** en cache `roms/`, `bios/` ni `games.json` (stratégie réseau d'abord pour games.json). Le CDN EmulatorJS n'est pas pris en charge par notre SW : EmulatorJS garde lui-même les cœurs en cache navigateur (IndexedDB), donc un cœur déjà chargé peut rejouer sans réseau.
+- `sw.js` : met en cache **la coquille de l'app seulement** (html, css, js, systems.json, logos). Ne met **jamais** en cache `roms/`, `bios/` ni `games.json` (stratégie réseau d'abord pour games.json). T46 : le SW garde aussi le moteur EmulatorJS (fichiers versionnés `https://cdn.emulatorjs.org/<x.y.z>/data/...`) dans un cache à part `clone90-ejs-<x.y.z>`, cache d'abord, jamais vidé par une mise à jour de Clone90 ; rempli au premier lancement avec du réseau ou par « Préparer le jeu hors ligne » (`js/offline-engine.js`, liste des fichiers dans `js/player/ejs-files.js`). L'ancienne idée (« EmulatorJS garde lui-même les cœurs en IndexedDB, donc un cœur déjà chargé rejoue sans réseau ») était fausse : EmulatorJS relit `cores/reports/<cœur>.json` sur le CDN avant d'utiliser son cache, et l'ignore si la lecture échoue.
 - Un service worker exige HTTPS ou `localhost` (voir limites section 9).
 
 ## 9. Serveur local et limites de plateforme
