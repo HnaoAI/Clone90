@@ -125,3 +125,73 @@ test('mise à jour sur téléphone (T28) : la coquille est redemandée au serveu
   assert.equal(sw.NETWORK_FETCH_INIT.cache, 'no-cache');
   assert.match(source, /await fetch\(request, NETWORK_FETCH_INIT\)/);
 });
+
+// T46 : moteur EmulatorJS gardé pour jouer hors ligne, dans un cache à part (exception écrite à la règle 6, journal du CLAUDE.md).
+test('T46 critère 2 : seuls les fichiers versionnés du CDN EmulatorJS vont dans clone90-ejs-<version>', () => {
+  assert.equal(sw.engineCacheFor('GET', 'https://cdn.emulatorjs.org/4.2.3/data/loader.js'), 'clone90-ejs-4.2.3');
+  assert.equal(sw.engineCacheFor('GET', 'https://cdn.emulatorjs.org/4.2.1/data/cores/puae-legacy-wasm.data'), 'clone90-ejs-4.2.1');
+  assert.equal(sw.engineCacheFor('GET', 'https://cdn.emulatorjs.org/4.2.3/data/cores/reports/fceumm.json?v=1'), 'clone90-ejs-4.2.3');
+  for (const url of [
+    'https://cdn.emulatorjs.org/stable/data/loader.js', 'https://cdn.emulatorjs.org/stable/data/version.json', 'https://cdn.emulatorjs.org/latest/data/loader.js',
+    'http://cdn.emulatorjs.org/4.2.3/data/loader.js', 'https://cdn.emulatorjs.org.exemple.test/4.2.3/data/loader.js', 'https://exemple.test/4.2.3/data/loader.js',
+    'https://cdn.emulatorjs.org/4.2.3/data/', 'https://cdn.emulatorjs.org/4.2.3/data/../../x.js', 'https://cdn.emulatorjs.org/4.2.3/data/%2e%2e/x.js',
+    'https://cdn.emulatorjs.org/4.2.3/loader.js', `${SCOPE}roms/nes/test.nes`, `${SCOPE}bios/neogeo.zip`, `${SCOPE}js/app.js`, 'pas une adresse',
+  ]) assert.equal(sw.engineCacheFor('GET', url), null, url);
+  for (const m of ['POST', 'HEAD', 'PUT']) assert.equal(sw.engineCacheFor(m, 'https://cdn.emulatorjs.org/4.2.3/data/loader.js'), null, m);
+});
+
+test('T46 critère 3 : une nouvelle version de Clone90 ne vide pas le cache du moteur', () => {
+  assert.deepEqual(sw.staleCacheNames(['clone90-shell-v0', sw.CACHE_VERSION, 'clone90-ejs-4.2.3', 'clone90-ejs-4.2.1']), ['clone90-shell-v0']);
+});
+
+test('T46 INVARIANT : même préfixe de cache et même CDN que js/offline-engine.js et js/config.js', async () => {
+  const { ENGINE_CACHE_PREFIX } = await import('../js/offline-engine.js');
+  const { ejsDataUrl } = await import('../js/config.js');
+  assert.equal(sw.ENGINE_CACHE_PREFIX, ENGINE_CACHE_PREFIX);
+  assert.ok(ejsDataUrl('9.9.9').startsWith(sw.ENGINE_ORIGIN));
+  assert.equal(sw.engineCacheFor('GET', `${ejsDataUrl('9.9.9')}loader.js`), `${ENGINE_CACHE_PREFIX}9.9.9`);
+});
+
+/** Faux cache d'un seul magasin pour serveEngine. */
+function engineCache(initial = {}) {
+  const map = new Map(Object.entries(initial));
+  return { map, match: async (key) => map.get(key)?.clone(), put: async (key, res) => { map.set(key, res); } };
+}
+
+test('T46 critère 1 : cache d\'abord, hors ligne le fichier gardé est rendu sans réseau', async () => {
+  const cache = engineCache({ 'https://cdn.emulatorjs.org/4.2.3/data/loader.js': new Response('gardé') });
+  const res = await sw.serveEngine({ url: 'https://cdn.emulatorjs.org/4.2.3/data/loader.js?x=1' }, cache, async () => { throw new TypeError('hors ligne'); });
+  assert.equal(await res.text(), 'gardé');
+});
+
+test('T46 remplissage au premier lancement : fichier absent lu au réseau (CORS, sans cookies), gardé sans paramètres, puis rendu', async () => {
+  const cache = engineCache();
+  const calls = [];
+  const res = await sw.serveEngine({ url: 'https://cdn.emulatorjs.org/4.2.3/data/emulator.min.js?v=2' }, cache, async (url, init) => { calls.push([url, init]); return new Response('moteur'); });
+  assert.equal(await res.text(), 'moteur');
+  assert.deepEqual(calls.map(([u, i]) => [u, i?.mode, i?.credentials]), [['https://cdn.emulatorjs.org/4.2.3/data/emulator.min.js?v=2', 'cors', 'omit']]);
+  assert.equal(await (await cache.match('https://cdn.emulatorjs.org/4.2.3/data/emulator.min.js')).text(), 'moteur');
+});
+
+test('T46 critère 2 : une réponse en erreur (404, 500) est rendue telle quelle mais jamais gardée', async () => {
+  for (const status of [404, 500]) {
+    const cache = engineCache();
+    const res = await sw.serveEngine({ url: 'https://cdn.emulatorjs.org/4.2.3/data/localization/fr-FR.json' }, cache, async () => new Response('x', { status }));
+    assert.equal(res.status, status);
+    assert.equal(cache.map.size, 0);
+  }
+});
+
+test('T46 CORS refusé par le CDN : la requête d\'origine part telle quelle (rien de cassé en ligne), sans rien garder', async () => {
+  const cache = engineCache();
+  const request = { url: 'https://cdn.emulatorjs.org/4.2.3/data/loader.js' };
+  const seen = [];
+  const res = await sw.serveEngine(request, cache, async (input, init) => { seen.push(input); if (init?.mode === 'cors') throw new TypeError('CORS'); return new Response('opaque'); });
+  assert.equal(await res.text(), 'opaque');
+  assert.equal(seen[1], request);
+  assert.equal(cache.map.size, 0);
+});
+
+test('T46 sans réseau et rien de gardé : erreur réseau, comme avant (le lecteur affiche son message)', async () => {
+  await assert.rejects(sw.serveEngine({ url: 'https://cdn.emulatorjs.org/4.2.3/data/loader.js' }, engineCache(), async () => { throw new TypeError('hors ligne'); }));
+});
