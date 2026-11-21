@@ -12,7 +12,7 @@ import https from 'node:https';
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { join, sep } from 'node:path';
-import { syncTargetPath, SYNC_ROUTES, isSyncPassword, PASSWORD_MAX_LENGTH } from '../js/sync-plan.js';
+import { syncTargetPath, SYNC_ROUTES, isSyncPassword, PASSWORD_MAX_LENGTH, declaredBiosFiles } from '../js/sync-plan.js';
 import { receiveUpload } from './sync-upload.mjs';
 import { ROMS_DIR, BIOS_DIR } from '../js/config.js';
 import { LOGOS_DIR } from '../js/logo-source.js';
@@ -98,12 +98,14 @@ function readBody(req, limit) {
  * Gestionnaire des requêtes du serveur de partage (testable sans HTTPS).
  * @param {{pairing: {tryPassword: Function, isValidToken: Function, acceptUploads?: boolean}, getDirs: () => Promise<{romsDir: string, biosDir: string}>,
  *   getSystemIds: () => Promise<string[]>, getCa: () => string, getName?: () => string|null, onUploaded?: () => void,
- *   getFreeBytes?: (dir: string) => Promise<number>, now?: () => number}} options
+ *   getFreeBytes?: (dir: string) => Promise<number>, now?: () => number, getBiosFiles?: () => Promise<Set<string>>, idleMs?: number}} options
+ *   `getBiosFiles` (T52) : BIOS déclarés (declaredBiosFiles), refusés à l'envoi ; `idleMs` (T52) : délai sans donnée avant abandon d'un envoi
  *   `getName` (T51) : nom `<nom>.local` du Mac annoncé par /sync/hello ; `onUploaded` (T44) : appelé après chaque fichier reçu (régénère
  *   games.json) ; `getFreeBytes` : injectable pour les tests
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>}
  */
-export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa, getName = () => null, onUploaded = () => {}, getFreeBytes, now = Date.now }) {
+export function createSyncHandler({ pairing, getDirs, getSystemIds, getBiosFiles = async () => new Set(), getCa, getName = () => null, onUploaded = () => {},
+  getFreeBytes, idleMs, now = Date.now }) {
   let uploading = false; // T44 : un seul envoi à la fois
   return async (req, res) => {
     // CORS : le téléphone appelle depuis le site de Clone90 (GitHub Pages) ; toute origine est acceptée, la protection est le jeton.
@@ -183,8 +185,9 @@ export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa, getNa
     if (uploading) return reply(429, { error: 'busy', message: 'Un autre envoi est en cours.' });
     uploading = true;
     try {
-      const [{ romsDir }, systemIds] = await Promise.all([getDirs(), getSystemIds()]);
-      const result = await receiveUpload(req, { path: url.searchParams.get('path') ?? '', romsDir, systemIds, ...(getFreeBytes && { getFreeBytes }) });
+      const [{ romsDir }, systemIds, biosFiles] = await Promise.all([getDirs(), getSystemIds(), getBiosFiles()]);
+      const result = await receiveUpload(req, { path: url.searchParams.get('path') ?? '', romsDir, systemIds, biosFiles, ...(getFreeBytes && { getFreeBytes }),
+        ...(idleMs && { idleMs }) });
       if (result.status === 201) {
         console.log(`Partage : fichier reçu du téléphone : ${result.body.path}`);
         try { onUploaded(); } catch { /* la liste des jeux sera refaite au prochain ajout */ }
@@ -204,6 +207,11 @@ export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa, getNa
 const NOT_PAIRED = { error: 'not-paired', message: 'Ce téléphone n\'est pas (ou plus) associé à ce Mac.' };
 /** T44 : réponse quand la réception n'est pas permise sur le Mac. */
 export const UPLOADS_OFF = 'Le Mac n\'accepte pas les jeux du téléphone : sur le Mac, « Dossiers », « Partager avec le téléphone », « Accepter les jeux du téléphone ».';
+
+/** T52 : systems.json -> BIOS déclarés (`<machine>/<fichier en minuscules>`, voir declaredBiosFiles). */
+export async function readBiosFiles(root) {
+  return declaredBiosFiles(JSON.parse(await readFile(join(root, 'systems.json'), 'utf8')).systems);
+}
 
 /** systems.json -> ids des machines. */
 export async function readSystemIds(root) {

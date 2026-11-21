@@ -7,6 +7,7 @@
 //   passe est un vrai champ (saisie au clavier du Mac) ; le bouton « Choisir le mot de passe » lit sa valeur.
 import { el, clear } from './dom.js';
 import { createDialog } from './dialog.js';
+import { createPasswordToggle } from './password-toggle.js';
 
 const UNREACHABLE = 'Impossible de joindre Clone90. Le serveur est-il toujours lancé ?';
 /** Ce qui est ouvert au réseau, dit avant le premier clic (sécurité, décision de Hicham du 2026-11-15). */
@@ -94,7 +95,8 @@ export function createSyncPanel({ fetchFn = globalThis.fetch, initial = null } =
   const passwordInput = el('input', { class: 'link-input', attrs: { id: SYNC_PASSWORD_ID, type: 'password', autocomplete: 'new-password', minlength: '6',
     maxlength: '128', spellcheck: 'false', placeholder: '6 caractères au moins' } }, [], doc);
   const passwordField = el('div', { class: 'link-form' }, [
-    el('label', { class: 'link-label', text: 'Mot de passe des téléphones', attrs: { for: SYNC_PASSWORD_ID } }, [], doc), passwordInput], doc);
+    el('label', { class: 'link-label', text: 'Mot de passe des téléphones', attrs: { for: SYNC_PASSWORD_ID } }, [], doc),
+    el('div', { class: 'link-row' }, [passwordInput, createPasswordToggle(passwordInput, { controls: SYNC_PASSWORD_ID }, doc)], doc)], doc);
   const dialog = createDialog({
     title: 'Partager avec le téléphone',
     content: [el('p', { class: 'dialog-message', text: SYNC_INFO, attrs: { id: 'sync-info' } }, [], doc), body, passwordField],

@@ -13,7 +13,7 @@ import { hostname as osHostname, networkInterfaces } from 'node:os';
 import { checkRequestOrigin, MAX_BODY_BYTES } from './settings-api.mjs';
 import { createPairing } from './sync-pairing.mjs';
 import { ensureCertificates, localName } from './sync-cert.mjs';
-import { createSyncHandler, startSyncServer, readSystemIds } from './sync-server.mjs';
+import { createSyncHandler, startSyncServer, readSystemIds, readBiosFiles } from './sync-server.mjs';
 import { readLocalSettings } from './local-settings.mjs';
 import { runGenerate } from './generate-games.mjs';
 import { SYNC_PORT, isSyncPassword, PASSWORD_MIN_LENGTH } from '../js/sync-plan.js';
@@ -60,6 +60,7 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
     pairing,
     getDirs: async () => { const s = await readLocalSettings(root); return { romsDir: s.romsDir, biosDir: s.biosDir }; },
     getSystemIds: () => readSystemIds(root),
+    getBiosFiles: () => readBiosFiles(root),
     getCa: () => tls?.ca ?? '',
     getName: () => localName(getHostname()),
     onUploaded: () => { regenerate().catch(() => {}); },

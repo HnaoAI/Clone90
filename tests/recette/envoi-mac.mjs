@@ -106,6 +106,13 @@ try {
     && await mac.getByRole('button', { name: 'Accepter les jeux du téléphone' }).count() === 1, '');
   verdict('T44-texte-securite', /AJOUTER ses jeux et pochettes.*sans jamais remplacer/.test(await mac.locator('#sync-info').textContent()), '');
   await mac.locator('#sync-password').fill('mot-de-passe-du-mac');
+  // T52 : œil à côté du mot de passe, masqué par défaut.
+  const macEye = mac.getByRole('button', { name: 'Afficher le mot de passe' });
+  const macHidden = await mac.locator('#sync-password').getAttribute('type') === 'password';
+  await macEye.click();
+  const macShown = await mac.locator('#sync-password').getAttribute('type') === 'text';
+  await mac.getByRole('button', { name: 'Masquer le mot de passe' }).click();
+  verdict('T52-oeil-mac', macHidden && macShown && await mac.locator('#sync-password').getAttribute('type') === 'password', '');
   await mac.getByRole('button', { name: 'Choisir le mot de passe' }).click();
   await mac.getByText('Mot de passe enregistré').waitFor({ timeout: 10000 });
 
@@ -124,6 +131,9 @@ try {
   await putLocal(phone, [['roms/nes/Perso.nes', 'NES-PERSO-TEL'], ['roms/nes/Doublon.nes', 'NES-DOUBLON-TEL'], ['roms/nes/Perso.png', [...COVER]], ['bios/tel.bin', 'BIOS-TEL']]);
   await phone.locator('#sync-address').fill(`${LAN}:${SYNC_PORT}`);
   await phone.locator('#sync-password').fill('mot-de-passe-du-mac');
+  const phoneHidden = await phone.locator('#sync-password').getAttribute('type') === 'password';
+  await phone.getByRole('button', { name: 'Afficher le mot de passe' }).click();
+  verdict('T52-oeil-telephone', phoneHidden && await phone.locator('#sync-password').getAttribute('type') === 'text', '');
   await phone.getByRole('button', { name: 'Associer' }).click();
   await phone.getByText('copié depuis le Mac').waitFor({ timeout: 20000 });
   const send = phone.getByRole('button', { name: 'Envoyer mes jeux au Mac' });
@@ -177,6 +187,22 @@ try {
   // 8. Le téléphone n'a parlé qu'à son site et au Mac associé ; envoi seulement au clic.
   verdict('T44-rien-ailleurs', outside.length === 0, outside.join(' '));
   verdict('T44-envois-au-clic', lanLog.filter((l) => l === 'POST /sync/upload').length === 2, lanLog.filter((l) => l.includes('upload')).join(', '));
+
+  // 9. T52 : un jeu Neo Geo de 3 Mo et le BIOS neogeo.zip rangé avec les jeux : avancement en Mo affiché, BIOS jamais envoyé.
+  await putLocal(reopened, [['roms/neogeo/bstars.zip', [...Buffer.alloc(3 * 1024 * 1024, 7)]], ['roms/neogeo/neogeo.zip', 'BIOS-NEOGEO']]);
+  await reopened.goto(`${PHONE}/index.html#/fichiers`);
+  await reopened.evaluate(() => {
+    window.__busy = [];
+    new MutationObserver(() => { for (const n of document.querySelectorAll('body *')) { const t = n.textContent; if (/^Envoi au Mac : \d/.test(t ?? '') && n.children.length === 0) window.__busy.push(t); } })
+      .observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
+  await reopened.getByRole('button', { name: 'Envoyer mes jeux au Mac' }).click();
+  await reopened.getByText(/jeu envoyé au Mac/).waitFor({ timeout: 20000 });
+  const seen = await reopened.evaluate(() => window.__busy);
+  verdict('T52-progression-mo', seen.some((t) => /bstars\.zip, [\d,]+ (Ko|Mo) sur 3,0 Mo.*Gardez Clone90 ouvert/.test(t)), seen.slice(0, 3).join(' | '));
+  verdict('T52-jeu-recu', (await readFile(join(macRoot, 'roms/neogeo/bstars.zip')).catch(() => Buffer.alloc(0))).length === 3 * 1024 * 1024, '');
+  verdict('T52-bios-pas-envoye', await exists('roms/neogeo/neogeo.zip') === null, '');
+  await shot(reopened, 'telephone-2-envoi-fini');
 } finally {
   await browser.close();
   await sync.stop();

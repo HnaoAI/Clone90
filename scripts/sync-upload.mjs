@@ -6,13 +6,14 @@
 //   JAMAIS d'écrasement (lien physique `link`, qui échoue si le nom existe) ; dossier de la machine vérifié par son chemin réel (un lien qui
 //   sort du dossier des jeux est refusé) ; taille annoncée obligatoire et limitée (jeu 1 Go, pochette 10 Mo) ; place libre vérifiée ; fichier temporaire caché effacé si
 //   l'envoi est incomplet : jamais de jeu à moitié écrit.
+// T52 : envoi abandonné après UPLOAD_IDLE_MS sans donnée (téléphone en pause ou disparu) ; BIOS déclaré rangé avec les jeux refusé.
 import { createWriteStream } from 'node:fs';
 import { link, lstat, mkdir, realpath, stat, statfs, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { join, sep } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { uploadTargetPath, maxUploadBytes, isCoverPath } from '../js/sync-plan.js';
+import { uploadTargetPath, maxUploadBytes, isCoverPath, UPLOAD_STALL_MS } from '../js/sync-plan.js';
 
 /** Place gardée libre sur le disque du Mac après l'envoi. */
 export const UPLOAD_SPACE_MARGIN = 500 * 1024 * 1024;
@@ -23,17 +24,27 @@ export async function freeBytes(dir) {
   return s.bavail * s.bsize;
 }
 
+/**
+ * T52 : délai sans aucune donnée reçue après lequel un envoi est abandonné (fichier temporaire effacé, verrou du serveur libéré).
+ * Avant T52, seul le requestTimeout d'une heure du serveur s'appliquait : un téléphone disparu en plein envoi bloquait le Mac 1 heure.
+ */
+export const UPLOAD_IDLE_MS = UPLOAD_STALL_MS;
+
 const refuse = (status, error, message) => ({ status, body: { error, message } });
 
 /**
  * Reçoit un jeu ou une pochette.
  * @param {import('node:http').IncomingMessage} req corps = contenu du fichier, `Content-Length` obligatoire
- * @param {{path: string, romsDir: string, systemIds: string[], getFreeBytes?: (dir: string) => Promise<number>}} options
- * @returns {Promise<{status: number, body: object}>} 201 `{path, size, mtime}` ; sinon `{error, message}` : 400 bad-path ou incomplete,
+ * @param {{path: string, romsDir: string, systemIds: string[], biosFiles?: Set<string>, getFreeBytes?: (dir: string) => Promise<number>,
+ *   idleMs?: number}} options `biosFiles` (T52) : declaredBiosFiles(systems), refusés ; `idleMs` (T52) : délai sans donnée avant abandon
+ * @returns {Promise<{status: number, body: object}>} 201 `{path, size, mtime}` ; sinon `{error, message}` : 400 bad-path, bios ou incomplete, 408 stalled,
  *   411 no-length, 413 too-big, 409 exists ou no-folder, 507 no-space. Ne lève pas pour une erreur de la requête.
  */
-export async function receiveUpload(req, { path, romsDir, systemIds, getFreeBytes = freeBytes }) {
-  const target = uploadTargetPath(path, systemIds);
+export async function receiveUpload(req, { path, romsDir, systemIds, biosFiles = new Set(), getFreeBytes = freeBytes, idleMs = UPLOAD_IDLE_MS }) {
+  if (uploadTargetPath(path, systemIds) && !uploadTargetPath(path, systemIds, biosFiles)) {
+    return refuse(400, 'bios', 'Ce fichier est un BIOS, pas un jeu : il n\'est pas envoyé au Mac (rangez-le dans le dossier des BIOS).');
+  }
+  const target = uploadTargetPath(path, systemIds, biosFiles);
   if (!target) return refuse(400, 'bad-path', 'Seuls les jeux et pochettes des machines connues peuvent être envoyés au Mac.');
   const lengthText = req.headers['content-length'];
   const length = /^\d{1,15}$/.test(lengthText ?? '') ? Number(lengthText) : NaN;
@@ -55,20 +66,30 @@ export async function receiveUpload(req, { path, romsDir, systemIds, getFreeByte
   if (free < length + UPLOAD_SPACE_MARGIN) return refuse(507, 'no-space', 'Plus assez de place sur le Mac.');
   const tmp = join(dir, `.clone90-upload-${randomBytes(8).toString('hex')}.part`);
   let received = 0;
+  let stalled = false;
+  let idle = null;
+  const arm = () => {
+    clearTimeout(idle);
+    idle = setTimeout(() => { stalled = true; req.destroy(new Error('plus aucune donnée')); }, idleMs);
+  };
   const counter = new Transform({
     transform(chunk, _enc, cb) {
+      arm();
       received += chunk.length;
       cb(received > length ? new Error('trop de données') : null, chunk);
     },
   });
+  arm();
   try {
     await pipeline(req, counter, createWriteStream(tmp, { flags: 'wx', mode: 0o644 }));
     if (received !== length) return refuse(400, 'incomplete', 'Envoi incomplet : le fichier n\'a pas été gardé.');
     await link(tmp, final);
   } catch (err) {
+    if (stalled) return refuse(408, 'stalled', 'Envoi abandonné : plus rien n\'arrivait du téléphone. Le fichier n\'a pas été gardé.');
     if (err.code === 'EEXIST') return refuse(409, 'exists', 'Un fichier du même nom est déjà sur le Mac : il n\'est jamais remplacé.');
     return refuse(400, 'incomplete', 'Envoi incomplet : le fichier n\'a pas été gardé.');
   } finally {
+    clearTimeout(idle);
     await unlink(tmp).catch(() => {});
   }
   const info = await stat(final);
