@@ -110,11 +110,11 @@ function copyRank(entry) {
  * @param {{remote: {path: string, target: string, size: number, mtime: number}[], local: {path: string, size: number}[],
  *   synced: Record<string, {size: number, mtime: number}>}} input
  *   `remote` : liste du Mac (readManifest) ; `local` : fichiers de la bibliothèque du téléphone ; `synced` : fichiers venus du Mac lors des
- *   synchronisations précédentes (chemin sur le téléphone -> taille et date du Mac)
+ *   synchronisations précédentes (chemin sur le téléphone -> taille et date du Mac) ; `systemIds` (T49) : machines de systems.json
  * @returns {{copy: object[], replace: object[], remove: string[], kept: number}} `copy` : absents du téléphone ; `replace` : venus du Mac et changés
  *   sur le Mac ; `remove` : venus du Mac et retirés du Mac ; `kept` : fichiers du téléphone de même chemin, gardés tels quels
  */
-export function planSync({ remote, local, synced = {} }) {
+export function planSync({ remote, local, synced = {}, systemIds = null }) {
   const localPaths = new Set(local.map((e) => e.path));
   const remoteTargets = new Set(remote.map((e) => e.target));
   const copy = [];
@@ -126,7 +126,10 @@ export function planSync({ remote, local, synced = {} }) {
     else if (!previous) kept += 1; // fichier mis par la personne sur le téléphone : jamais remplacé
     else if (previous.size !== entry.size || previous.mtime !== entry.mtime) replace.push(entry);
   }
-  const remove = Object.keys(synced).filter((t) => !remoteTargets.has(t) && localPaths.has(t)).sort();
+  // T49 : une machine retirée de systems.json (Game Boy) disparaît aussi de la liste du Mac ; ses jeux venus du Mac ne sont pas « supprimés sur
+  // le Mac » : on les garde (invisibles) au lieu de les effacer. INVARIANT : seul un fichier encore partagé (syncTargetPath) peut être retiré.
+  const stillShared = (t) => systemIds === null || syncTargetPath(t, systemIds) !== null;
+  const remove = Object.keys(synced).filter((t) => !remoteTargets.has(t) && localPaths.has(t) && stillShared(t)).sort();
   const order = (a, b) => copyRank(a) - copyRank(b) || a.size - b.size || (a.target < b.target ? -1 : 1);
   return { copy: copy.sort(order), replace: replace.sort(order), remove, kept };
 }

@@ -34,7 +34,7 @@ Le bouton retour système (navigateur, geste retour Android) fait exactement la 
 
 But : choisir une machine en 1 action. Une machine est visible si sa vague est livrée OU si elle a au moins un jeu (décision PO). Celles à 0 jeu sont affichées grisées en fin de liste avec la mention "0 jeu" (elles restent focusables pour afficher l'état vide, ce qui guide l'ajout de ROMs). En v1, seules amiga et neogeo sont listées.
 
-Ordre : celui du champ `order` de systems.json (source de vérité, rien en dur dans le code). Les machines avec jeux passent avant celles à 0 jeu. Ordre initial retenu : Amiga, Neo Geo, Arcade, Master System, Mega Drive, Game Gear, Mega CD, 32X, NES, SNES, Game Boy, Game Boy Color, puis PC Engine et PC Engine CD (T30).
+Ordre : celui du champ `order` de systems.json (source de vérité, rien en dur dans le code). Les machines avec jeux passent avant celles à 0 jeu. Ordre initial retenu : Amiga, Neo Geo, Arcade, Master System, Mega Drive, Game Gear, Mega CD, 32X, NES, SNES, Game Boy Color (Game Boy d'origine retirée en T49), puis PC Engine et PC Engine CD (T30).
 
 Chaque carte machine : logo (SVG ou PNG fond transparent), nom en texte (toujours présent, le logo seul ne suffit pas), nombre de jeux.
 
@@ -106,7 +106,7 @@ Quatre choix puis Fermer, en colonne : haut/bas pour naviguer (sans boucler), co
 
 **Pochettes de « Mes fichiers » (T40).** Rubrique « Pochettes » entre les BIOS et « Sur cet appareil » : phrase sur la connexion (github.com, images seulement, adresse IP et noms des jeux vus par GitHub), reliée par `aria-describedby` au bouton **Chercher les pochettes manquantes** (`data-nav`). Après un ajout de jeux, la recherche démarre seule : bandeau `role="status"` « Recherche des pochettes : 2 sur 5… », boutons désactivés, puis résumé sous le bouton d'import, à la suite du résultat de l'import (« 2 fichiers ajoutés. Pochettes : 1 ajoutée, 1 introuvable »). Depuis « Depuis une page web » : résumé en message temporaire.
 
-**Logos des machines (T29).** Juste après « Télécharger les pochettes », dans le même groupe, le bouton **Télécharger les logos des machines**, avec son texte d'information (github.com uniquement au clic, adresse IP vue par GitHub, aucun nom de jeu envoyé, logos jamais publiés), relié par `aria-describedby`. Même suivi que les pochettes (barre, annonces « Téléchargement des logos : 3 sur 12... », résumé « Logos téléchargés : 12 », « Déjà présents : 12 », « Échecs : 1 »). Sur l'accueil, un vrai logo est posé sur une plaque claire (`--logo-plaque`) car plusieurs logos sont sombres (Game Boy, Neo Geo) ; machines sans jeu : même plaque, grisée et estompée. Repli : vrai logo, puis logo maison, puis nom de la machine. La boîte du panneau défile si elle dépasse la hauteur de l'écran.
+**Logos des machines (T29).** Juste après « Télécharger les pochettes », dans le même groupe, le bouton **Télécharger les logos des machines**, avec son texte d'information (github.com uniquement au clic, adresse IP vue par GitHub, aucun nom de jeu envoyé, logos jamais publiés), relié par `aria-describedby`. Même suivi que les pochettes (barre, annonces « Téléchargement des logos : 3 sur 12... », résumé « Logos téléchargés : 12 », « Déjà présents : 12 », « Échecs : 1 »). Sur l'accueil, un vrai logo est posé sur une plaque claire (`--logo-plaque`) car plusieurs logos sont sombres (Game Boy Color, Neo Geo) ; machines sans jeu : même plaque, grisée et estompée. Repli : vrai logo, puis logo maison, puis nom de la machine. La boîte du panneau défile si elle dépasse la hauteur de l'écran.
 
 **Logos sur le téléphone (T42).** Dans « Mes fichiers », la recherche des pochettes (après un ajout de jeux, ou « Chercher les pochettes manquantes ») télécharge aussi, une fois, les vrais logos des machines ; la phrase sous la rubrique « Pochettes » le dit. Aucun message : les logos apparaissent sur l'accueil, dans la bulle blanche, comme sur le Mac. Ils ne sont pas listés dans « Sur cet appareil ».
 
@@ -328,7 +328,7 @@ Source unique : le bloc `:root` de `css/base.css` (aucune couleur littérale ail
 
   /* couleur d'accent par machine (visuel de repli des tuiles et logos) : inchangées par T24 */
   --m-arcade: #c0392b;  --m-neogeo: #7a5a06; --m-amiga: #a84300;
-  --m-nes: #b03a2e;     --m-snes: #6c3fa0;   --m-gameboy: #4a6a2e;
+  --m-nes: #b03a2e;     --m-snes: #6c3fa0;
   --m-gameboycolor: #7d3c98; --m-mastersystem: #1f5fa8; --m-gamegear: #2c3e50;
   --m-pcengine: #8a3a5c; --m-pcenginecd: #1e6b6b;
   --m-megadrive: #2b2b2b;    --m-megacd: #34495e;       --m-32x: #8e2a2a;

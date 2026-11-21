@@ -255,30 +255,6 @@
       "wave": 2
     },
     {
-      "id": "gameboy",
-      "name": "Game Boy",
-      "order": 110,
-      "emulatorjsCore": "gb",
-      "thumbnailsRepo": "Nintendo_-_Game_Boy",
-      "logoTheme": "gb",
-      "extensions": [
-        "gb",
-        "zip"
-      ],
-      "bios": [
-        {
-          "file": "gb_bios.bin",
-          "required": false,
-          "role": "optional",
-          "preload": true,
-          "note": "BIOS facultatif (logo de démarrage officiel)"
-        }
-      ],
-      "logo": "assets/logos/gameboy.svg",
-      "accent": "--m-gameboy",
-      "wave": 2
-    },
-    {
       "id": "gameboycolor",
       "name": "Game Boy Color",
       "order": 120,
