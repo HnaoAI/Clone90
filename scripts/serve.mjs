@@ -3,7 +3,7 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { createReadStream } from 'node:fs';
-import { stat, realpath } from 'node:fs/promises';
+import { stat, realpath, readFile } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
 import { extname, resolve, sep, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -13,6 +13,7 @@ import { createSettingsApi } from './settings-api.mjs';
 import { isGameDeleteEnabled } from './game-delete.mjs';
 import { chooseFolderOnMac } from './mac-folder-dialog.mjs';
 import { createSyncController } from './sync-api.mjs';
+import { ensureRomFolders } from './rom-folders.mjs';
 
 export const DEFAULT_PORT = 8080;
 /** Écoute sur toutes les interfaces par défaut (téléphone Android du même Wi-Fi). Le lanceur Mac (T20) passe --host 127.0.0.1. */
@@ -294,11 +295,23 @@ async function main() {
     process.exit(1);
   }
   const settings = await readLocalSettings(PROJECT_ROOT);
+  // T53 : dossiers roms/<machine> manquants créés (vides) au démarrage et après un changement de dossier ; rien n'est déplacé ni supprimé.
+  const prepareFolders = async ({ romsDir, biosDir }) => {
+    try {
+      const { systems } = JSON.parse(await readFile(join(PROJECT_ROOT, 'systems.json'), 'utf8'));
+      const { created, errors } = await ensureRomFolders({ romsDir, biosDir, systems });
+      if (created.length) console.log(`Dossiers des machines créés : ${created.map((id) => `roms/${id}`).join(', ')}`);
+      for (const e of errors) console.warn(`Avertissement : ${e}`);
+    } catch (err) {
+      console.warn(`Avertissement : dossiers des machines non vérifiés (${err.message})`);
+    }
+  };
+  await prepareFolders(settings);
   // T43 : partage avec le téléphone (serveur HTTPS à part, sync-api.mjs), commandé seulement depuis ce Mac, comme l'API des dossiers.
   const sync = await createSyncController({ root: PROJECT_ROOT, enabled: isSettingsApiEnabled(host), getPort: () => server.address().port, baseHeaders: SECURITY_HEADERS });
   const settingsApi = createSettingsApi({
     root: PROJECT_ROOT, enabled: isSettingsApiEnabled(host), gamesEnabled: isGameDeleteEnabled(host), getPort: () => server.address().port,
-    applyFolders: (folders) => server.setFolders(folders), chooseFolder: chooseFolderOnMac, baseHeaders: SECURITY_HEADERS,
+    applyFolders: (folders) => { server.setFolders(folders); prepareFolders(folders); }, chooseFolder: chooseFolderOnMac, baseHeaders: SECURITY_HEADERS,
     restart: () => { sync.stop().finally(() => restart()); }, // T43 : le port du partage est libéré avant la relance (sinon le nouveau serveur ne peut pas le reprendre)
   });
   const api = { handle: (req, res) => (sync.owns((req.url ?? '').split('?')[0]) ? sync.handle(req, res) : settingsApi.handle(req, res)) };

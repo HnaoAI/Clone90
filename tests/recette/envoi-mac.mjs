@@ -104,7 +104,7 @@ try {
   await mac.getByText('Partage actif sur le Wi-Fi.').waitFor({ timeout: 30000 });
   verdict('T44-reception-eteinte-par-defaut', await mac.getByText('Ce Mac n\'accepte pas les jeux des téléphones.').count() === 1
     && await mac.getByRole('button', { name: 'Accepter les jeux du téléphone' }).count() === 1, '');
-  verdict('T44-texte-securite', /AJOUTER ses jeux et pochettes.*sans jamais remplacer/.test(await mac.locator('#sync-info').textContent()), '');
+  verdict('T44-texte-securite', /AJOUTER ses jeux, BIOS et pochettes.*sans jamais remplacer/.test(await mac.locator('#sync-info').textContent()), '');
   await mac.locator('#sync-password').fill('mot-de-passe-du-mac');
   // T52 : œil à côté du mot de passe, masqué par défaut.
   const macEye = mac.getByRole('button', { name: 'Afficher le mot de passe' });
@@ -151,15 +151,15 @@ try {
   verdict('T44-reception-allumee', await mac.getByText(/Ce Mac accepte les jeux et pochettes envoyés/).count() === 1, '');
   await shot(mac, 'mac-1-accepter');
 
-  // 5. Téléphone : envoi ; le jeu nouveau puis sa pochette partent, le doublon de nom est signalé, pas le BIOS.
+  // 5. Téléphone : envoi ; le jeu nouveau, le BIOS (T53) puis la pochette partent, le doublon de nom est signalé.
   await phone.getByRole('button', { name: 'Envoyer mes jeux au Mac' }).click();
   await phone.getByText(/jeu envoyé au Mac/).waitFor({ timeout: 15000 });
   const result = await phone.locator('.library-notice').textContent();
-  verdict('T44-message-envoi', /1 jeu envoyé au Mac ; 1 pochette envoyée au Mac ; 1 jeu non envoyé : un fichier du même nom est déjà sur le Mac/.test(result), result);
+  verdict('T44-message-envoi', /1 jeu envoyé au Mac ; 1 BIOS envoyé au Mac ; 1 pochette envoyée au Mac ; 1 jeu non envoyé : un fichier du même nom est déjà sur le Mac/.test(result), result);
   verdict('T44-jeu-sur-le-mac', await exists('roms/nes/Perso.nes') === 'NES-PERSO-TEL', '');
   verdict('T44-jamais-ecrase', await exists('roms/nes/Doublon.nes') === 'NES-DOUBLON-MAC', '');
   verdict('T44-pochette-sur-le-mac', (await readFile(join(macRoot, 'roms/nes/Perso.png')).catch(() => Buffer.alloc(0))).equals(COVER), '');
-  verdict('T44-pas-de-bios', await exists('bios/tel.bin') === null, '');
+  verdict('T53-bios-envoye', await exists('bios/tel.bin') === 'BIOS-TEL', '');
   await shot(phone, 'telephone-1-envoi');
 
   // 6. Mac : le jeu reçu apparaît dans Clone90 avec sa pochette (liste des jeux refaite).
@@ -186,7 +186,7 @@ try {
 
   // 8. Le téléphone n'a parlé qu'à son site et au Mac associé ; envoi seulement au clic.
   verdict('T44-rien-ailleurs', outside.length === 0, outside.join(' '));
-  verdict('T44-envois-au-clic', lanLog.filter((l) => l === 'POST /sync/upload').length === 2, lanLog.filter((l) => l.includes('upload')).join(', '));
+  verdict('T44-envois-au-clic', lanLog.filter((l) => l === 'POST /sync/upload').length === 3, lanLog.filter((l) => l.includes('upload')).join(', '));
 
   // 9. T52 : un jeu Neo Geo de 3 Mo et le BIOS neogeo.zip rangé avec les jeux : avancement en Mo affiché, BIOS jamais envoyé.
   await putLocal(reopened, [['roms/neogeo/bstars.zip', [...Buffer.alloc(3 * 1024 * 1024, 7)]], ['roms/neogeo/neogeo.zip', 'BIOS-NEOGEO']]);

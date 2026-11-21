@@ -13,7 +13,7 @@ const UNREACHABLE = 'Impossible de joindre Clone90. Le serveur est-il toujours l
 /** Ce qui est ouvert au réseau, dit avant le premier clic (sécurité, décision de Hicham du 2026-11-15). */
 export const SYNC_INFO = 'Le partage ouvre ce Mac au Wi-Fi, en lecture seule par défaut : un téléphone qui connaît le mot de passe peut copier vos jeux, '
   + 'pochettes, logos et BIOS. Rien ne peut être modifié ni effacé sur le Mac. Si vous cliquez « Accepter les jeux du téléphone », un téléphone associé '
-  + 'peut aussi AJOUTER ses jeux et pochettes dans le dossier des jeux de ce Mac, sans jamais remplacer un fichier. Les autres appareils du Wi-Fi ne voient que la page '
+  + 'peut aussi AJOUTER ses jeux, BIOS et pochettes dans les dossiers des jeux et des BIOS de ce Mac, sans jamais remplacer un fichier. Les autres appareils du Wi-Fi ne voient que la page '
   + 'd\'aide et le certificat. Le partage reste actif aux prochains lancements de Clone90, jusqu\'à « Arrêter le partage ».';
 /** Libellés des boutons, dans l'ordre. */
 export const SYNC_BUTTONS = { enable: 'Activer le partage', disable: 'Arrêter le partage', password: 'Choisir le mot de passe', changePassword: 'Changer le mot de passe',

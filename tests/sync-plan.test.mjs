@@ -60,7 +60,7 @@ test('T43 fichiers partagés : jeux d\'une machine connue, un niveau de sous-dos
 
 test('T43 fichiers partagés : jamais de fichier caché, de .., de machine inconnue, de chemin trop profond ou hors roms/ et bios/', () => {
   for (const p of ['roms/nes/.DS_Store', 'roms/../secret', 'roms/nes/../../x', 'roms/psx/jeu.bin', 'roms/nes/a/b/c.nes', 'games.json', '.git/config',
-    'bios/sous/x.bin', 'roms/clone90-logos/../x.svg', 'roms/clone90-logos/nes.png', 'roms/nes/a\\b.nes', 'roms/nes/', '', null, 'roms/nes/x\u0000.nes']) {
+    'bios/sous/plus/x.bin', 'roms/clone90-logos/../x.svg', 'roms/clone90-logos/nes.png', 'roms/nes/a\\b.nes', 'roms/nes/', '', null, 'roms/nes/x\u0000.nes']) {
     assert.equal(syncTargetPath(p, IDS), null, String(p));
   }
 });
