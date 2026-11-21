@@ -142,8 +142,8 @@ async function main() {
         onFindCovers: () => findCovers(FIND_COVERS_NAV_ID),
         offlineSupported: offlineEngineSupported(window), onPrepareOffline: () => prepareOffline(),
         // T43 : rubrique du téléphone seulement (sur le Mac, c'est le Mac qui partage)
-        sync: folderSettings ? null : { pairing: readSyncPairing(), message: syncMessage, onPair: (address, code) => pairAndSync(address, code), onSyncNow: () => syncNow(SYNC_NAV.now), onSend: () => sendToMac(),
-          onForget: () => { if (window.confirm('Oublier ce Mac ? Les fichiers déjà copiés restent sur ce téléphone.')) { forgetSyncPairing(); showLibrary(machine, SYNC_NAV.address); } } },
+        sync: folderSettings ? null : { pairing: readSyncPairing(), message: syncMessage, onPair: (password, address) => pairAndSync(password, address), onSyncNow: () => syncNow(SYNC_NAV.now), onSend: () => sendToMac(),
+          onForget: () => { if (window.confirm('Oublier ce Mac ? Les fichiers déjà copiés restent sur ce téléphone.')) { forgetSyncPairing(); showLibrary(machine, SYNC_NAV.password); } } },
         onAddBios: () => importFiles((file) => biosStoragePath(file.name, data.systems), ADD_BIOS_NAV_ID),
         onRemove: async (path) => {
           if (!window.confirm(`Supprimer ${path.split('/').pop()} de cet appareil ?`)) return;
@@ -189,15 +189,22 @@ async function main() {
       if (result.ready.length) requestPersistentStorage();
       showLibrary(machine, PREPARE_OFFLINE_NAV_ID, describeOfflineResult(result));
     }
-    /** T43 : association avec le Mac, puis première synchronisation. */
-    async function pairAndSync(address, code) {
+    /** T43 : association avec le Mac, puis première synchronisation. T51 : mot de passe seulement ; le Mac est cherché sur le Wi-Fi (avancement affiché). */
+    async function pairAndSync(password, address) {
       libraryBusy = true;
-      libraryBusyText = 'Association avec le Mac…';
+      libraryBusyText = 'Recherche du Mac sur le Wi-Fi…';
       render(null);
-      const paired = await pairWithMac({ address, code });
-      libraryBusy = false;
-      libraryBusyText = null;
-      if (!paired.ok) { syncNotice = paired.message; showLibrary(machine, SYNC_NAV.address); return; }
+      let paired;
+      try {
+        paired = await pairWithMac({ password, address, onProgress: (p) => {
+          libraryBusyText = p.total > 1 ? `Recherche du Mac sur le Wi-Fi : ${Math.round((100 * p.done) / p.total)} %…` : 'Recherche du Mac sur le Wi-Fi…';
+          render(null);
+        } });
+      } finally {
+        libraryBusy = false;
+        libraryBusyText = null;
+      }
+      if (!paired.ok) { syncNotice = paired.message; showLibrary(machine, paired.reason === 'address' ? SYNC_NAV.address : SYNC_NAV.password); return; }
       await syncNow(SYNC_NAV.now);
     }
     /** T43 : copie depuis le Mac avec avancement dans l'écran, puis nouveau rendu avec le résumé. */
@@ -217,7 +224,7 @@ async function main() {
       }
       if (result.changed) { requestPersistentStorage(); await reload(); }
       syncNotice = result.text;
-      showLibrary(machine, returnFocus);
+      showLibrary(machine, result.status === 'unpaired' ? SYNC_NAV.password : returnFocus);
     }
     /** T44 : envoi des jeux du téléphone au Mac, avec avancement dans l'écran, puis nouveau rendu avec le résumé. */
     async function sendToMac() {
@@ -235,7 +242,7 @@ async function main() {
         libraryBusyText = null;
       }
       syncNotice = result.text;
-      showLibrary(machine, SYNC_NAV.send);
+      showLibrary(machine, result.status === 'unpaired' ? SYNC_NAV.password : SYNC_NAV.send);
     }
     /** Copie les fichiers choisis dans la bibliothèque. `target(file)` : {path, known?} ou null (nom inutilisable). `covers` : jeux (T40). */
     async function importFiles(target, returnFocus, covers = false) {
@@ -379,7 +386,7 @@ async function main() {
 
   /** T43 (téléphone associé) : synchronisation sans clic à l'ouverture ; message seulement si quelque chose a changé ou échoué. Ne lève jamais. */
   async function autoSync() {
-    if (folderSettings || !localSupported || !readSyncPairing()) return;
+    if (folderSettings || !localSupported || !readSyncPairing()?.token) return;
     try {
       const result = await syncFromMac({ library: await openLocalLibrary(), systems: data.systems, quiet: true });
       if (result.changed) {

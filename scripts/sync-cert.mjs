@@ -36,8 +36,17 @@ export function runOpenssl(args, { cwd } = {}) {
  */
 export function serverAltNames(addresses, hostname = '') {
   const ips = [...new Set([...addresses, '127.0.0.1'])].filter((a) => /^\d+\.\d+\.\d+\.\d+$/.test(a)).sort();
-  const local = hostname.toLowerCase().replace(/\.local$/, '').replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-  return [...ips.map((ip) => `IP:${ip}`), 'DNS:localhost', ...(local ? [`DNS:${local}.local`] : [])].join(',');
+  const local = localName(hostname);
+  return [...ips.map((ip) => `IP:${ip}`), 'DNS:localhost', ...(local ? [`DNS:${local}`] : [])].join(',');
+}
+
+/**
+ * Nom `<nom>.local` du Mac sur le réseau local (même règle que le certificat), ou null. T51 : annoncé au téléphone par /sync/hello.
+ * @param {string} [hostname] nom de l'ordinateur @returns {string|null} ex. `macbook-pro-de-hicham.local`
+ */
+export function localName(hostname = '') {
+  const local = String(hostname).toLowerCase().replace(/\.local$/, '').replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').slice(0, 63);
+  return local ? `${local}.local` : null;
 }
 
 const caConfig = () => [

@@ -1,15 +1,15 @@
-// Tests du partage Mac -> téléphone côté Mac (T43) : appairage (sync-pairing.mjs), certificats (sync-cert.mjs, vraie commande openssl),
+// Tests du partage Mac -> téléphone côté Mac (T43 ; T51 : appairage par mot de passe) : appairage (sync-pairing.mjs), certificats (sync-cert.mjs, vraie commande openssl),
 // serveur HTTPS en lecture seule (sync-server.mjs, vrai serveur sur 127.0.0.1) et commande depuis Clone90 (sync-api.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import https from 'node:https';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, readFile, symlink, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createPairing, readSyncState, SYNC_STATE_FILE } from '../scripts/sync-pairing.mjs';
 import { ensureCertificates, serverAltNames, SYNC_CERT_DIR, CA_NAME } from '../scripts/sync-cert.mjs';
-import { createSyncHandler, startSyncServer, buildManifest, HELP_PAGE } from '../scripts/sync-server.mjs';
+import { createSyncHandler, startSyncServer, buildManifest, HELP_PAGE, isCertificateRejection } from '../scripts/sync-server.mjs';
 import { createSyncController } from '../scripts/sync-api.mjs';
 
 const IDS = ['amiga', 'nes'];
@@ -21,49 +21,74 @@ async function tempRoot() {
   return root;
 }
 
-// --- Appairage ---
-test('T43 appairage : aucun code sans demande sur le Mac ; bon code -> jeton, une seule fois ; seule l\'empreinte est gardée', async () => {
+// --- Appairage (T51 : mot de passe choisi une fois sur le Mac) ---
+test('T51 mot de passe : aucun mot de passe -> refus ; bon mot de passe -> jeton ; seules les empreintes sont gardées (fichier 0600)', async () => {
   const root = await tempRoot();
-  const pairing = await createPairing({ root, makeCode: () => '123456', makeToken: () => 'b'.repeat(64) });
-  assert.deepEqual(await pairing.tryCode('123456'), { error: 'no-code' });
-  pairing.newCode();
-  assert.deepEqual(await pairing.tryCode('654321'), { error: 'wrong-code' });
-  assert.deepEqual(await pairing.tryCode('123456'), { token: 'b'.repeat(64) });
-  assert.deepEqual(await pairing.tryCode('123456'), { error: 'no-code' }, 'code annulé après usage');
+  const pairing = await createPairing({ root, makeToken: () => 'b'.repeat(64) });
+  assert.equal(pairing.hasPassword, false);
+  assert.deepEqual(await pairing.tryPassword('secret-du-mac'), { error: 'no-password' });
+  assert.equal(await pairing.setPassword('secret-du-mac'), true);
+  assert.equal(pairing.hasPassword, true);
+  assert.deepEqual(await pairing.tryPassword('autre-chose'), { error: 'wrong-password', triesLeft: 4 });
+  assert.deepEqual(await pairing.tryPassword('secret-du-mac'), { token: 'b'.repeat(64) });
+  assert.deepEqual(await pairing.tryPassword('secret-du-mac'), { token: 'b'.repeat(64) }, 'plusieurs téléphones avec le même mot de passe');
   assert.equal(pairing.isValidToken('b'.repeat(64)), true);
   assert.equal(pairing.isValidToken('c'.repeat(64)), false);
   assert.equal(pairing.isValidToken('court'), false);
   const raw = await readFile(join(root, SYNC_STATE_FILE), 'utf8');
   assert.equal(raw.includes('b'.repeat(64)), false, 'jamais le jeton en clair');
+  assert.equal(raw.includes('secret-du-mac'), false, 'jamais le mot de passe en clair');
+  assert.match(JSON.parse(raw).password.hash, /^[0-9a-f]{64}$/);
   assert.equal((await stat(join(root, SYNC_STATE_FILE))).mode & 0o077, 0, 'lisible par la seule personne');
   const again = await createPairing({ root });
   assert.equal(again.isValidToken('b'.repeat(64)), true, 'gardé après relance');
+  assert.equal(again.hasPassword, true);
+  assert.ok((await again.tryPassword('secret-du-mac')).token, 'mot de passe gardé après relance');
 });
 
-test('T43 appairage : 5 essais au plus puis code annulé ; code expiré au bout de 5 minutes', async () => {
+test('T51 mot de passe : 5 mauvais essais -> blocage de 15 minutes, même avec le bon mot de passe ; puis de nouveau permis', async () => {
   const root = await tempRoot();
   let now = 0;
-  const pairing = await createPairing({ root, now: () => now, makeCode: () => '111111' });
-  pairing.newCode();
-  for (let i = 0; i < 5; i += 1) assert.deepEqual(await pairing.tryCode('000000'), { error: 'wrong-code' });
-  assert.deepEqual(await pairing.tryCode('111111'), { error: 'no-code' });
-  pairing.newCode();
-  now = 5 * 60 * 1000 + 1;
-  assert.equal(pairing.currentCode(), null);
-  assert.deepEqual(await pairing.tryCode('111111'), { error: 'no-code' });
+  const pairing = await createPairing({ root, now: () => now });
+  await pairing.setPassword('bon-mot-de-passe');
+  for (let i = 4; i >= 1; i -= 1) assert.deepEqual(await pairing.tryPassword('mauvais'), { error: 'wrong-password', triesLeft: i });
+  assert.deepEqual(await pairing.tryPassword('mauvais'), { error: 'locked', retryAt: 15 * 60 * 1000 });
+  assert.equal(pairing.lockedUntil, 15 * 60 * 1000);
+  now = 14 * 60 * 1000;
+  assert.deepEqual(await pairing.tryPassword('bon-mot-de-passe'), { error: 'locked', retryAt: 15 * 60 * 1000 });
+  now = 15 * 60 * 1000 + 1;
+  assert.equal(pairing.lockedUntil, null);
+  assert.ok((await pairing.tryPassword('bon-mot-de-passe')).token);
 });
 
-test('T43 appairage : oublier les téléphones invalide leurs jetons ; état illisible -> partage arrêté', async () => {
+test('T51 mot de passe : trop court, trop long ou caractère de contrôle refusé ; accents et espaces acceptés', async () => {
+  const pairing = await createPairing({ root: await tempRoot() });
+  for (const bad of ['', '12345', 'a'.repeat(129), 'abc\ndef', 42, null]) assert.equal(await pairing.setPassword(bad), false, String(bad));
+  assert.equal(pairing.hasPassword, false);
+  assert.equal(await pairing.setPassword('été à la mer'), true);
+  assert.ok((await pairing.tryPassword('été à la mer')).token);
+  assert.equal(await pairing.setPassword('😀'.repeat(128)), true, '128 caractères, même hors de l\'ASCII');
+});
+
+test('T51 mot de passe : le changer oublie les téléphones associés ; oublier les téléphones invalide leurs jetons ; état illisible -> partage arrêté', async () => {
   const root = await tempRoot();
-  const pairing = await createPairing({ root, makeCode: () => '222222', makeToken: () => 'd'.repeat(64) });
+  let n = 0;
+  const pairing = await createPairing({ root, makeToken: () => String(n += 1).repeat(64).slice(0, 64) });
   await pairing.setEnabled(true);
-  pairing.newCode();
-  await pairing.tryCode('222222');
+  await pairing.setPassword('premier-mdp');
+  const { token: first } = await pairing.tryPassword('premier-mdp');
+  await pairing.setPassword('second-mdp');
+  assert.equal(pairing.isValidToken(first), false, 'ancien téléphone oublié');
+  assert.equal((await pairing.tryPassword('premier-mdp')).error, 'wrong-password');
+  const { token: second } = await pairing.tryPassword('second-mdp');
   await pairing.forgetDevices();
-  assert.equal(pairing.isValidToken('d'.repeat(64)), false);
+  assert.equal(pairing.isValidToken(second), false);
+  assert.equal(pairing.hasPassword, true, 'oublier les téléphones garde le mot de passe');
   assert.equal((await readSyncState(root)).enabled, true);
   await writeFile(join(root, SYNC_STATE_FILE), '{pas du json');
-  assert.deepEqual(await readSyncState(root), { enabled: false, acceptUploads: false, devices: [] });
+  assert.deepEqual(await readSyncState(root), { enabled: false, acceptUploads: false, password: null, devices: [] });
+  await writeFile(join(root, SYNC_STATE_FILE), JSON.stringify({ enabled: true, password: { salt: 'zz', hash: 'x' }, devices: [] }));
+  assert.equal((await readSyncState(root)).password, null, 'empreinte mal formée ignorée');
 });
 
 // --- Certificats ---
@@ -125,9 +150,11 @@ test('T43 liste du Mac : jeux (un sous-dossier), pochettes, logos et BIOS ; jama
 async function startShared() {
   const folders = await sharedFolders();
   const tls = await ensureCertificates({ root: folders.root, addresses: [], hostname: '' });
-  const pairing = await createPairing({ root: folders.root, makeCode: () => '424242' });
-  const handler = createSyncHandler({ pairing, getDirs: async () => folders, getSystemIds: async () => IDS, getCa: () => tls.ca });
-  const server = await startSyncServer({ tls, port: 0, host: '127.0.0.1', handler });
+  const pairing = await createPairing({ root: folders.root });
+  await pairing.setPassword('mot-de-passe');
+  const handler = createSyncHandler({ pairing, getDirs: async () => folders, getSystemIds: async () => IDS, getCa: () => tls.ca, getName: () => 'mac-de-hicham.local' });
+  const rejected = [];
+  const server = await startSyncServer({ tls, port: 0, host: '127.0.0.1', handler, onCertificateRejected: (a) => rejected.push(a) });
   const port = server.address().port;
   /** Requête HTTPS vérifiée avec l'autorité du Mac (comme le téléphone qui l'a installée). */
   const request = (path, { method = 'GET', headers = {}, body } = {}) => new Promise((resolve, reject) => {
@@ -140,11 +167,10 @@ async function startShared() {
     req.end(body);
   });
   const pair = async () => {
-    pairing.newCode();
-    const res = await request('/sync/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: '424242' }) });
+    const res = await request('/sync/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'mot-de-passe' }) });
     return JSON.parse(res.text).token;
   };
-  return { ...folders, tls, server, request, pair, close: () => new Promise((r) => { server.close(r); server.closeAllConnections(); }) };
+  return { ...folders, tls, server, port, pairing, rejected, request, pair, close: () => new Promise((r) => { server.close(r); server.closeAllConnections(); }) };
 }
 
 test('T43 serveur : HTTPS vérifié par l\'autorité du Mac ; page d\'aide et certificat lisibles sans jeton', { skip: !hasOpenssl && 'openssl absent' }, async () => {
@@ -172,12 +198,12 @@ test('T43 serveur : liste et fichiers refusés sans jeton valide (401)', { skip:
   } finally { await s.close(); }
 });
 
-test('T43 serveur : appairage par code, puis liste et fichiers avec le jeton', { skip: !hasOpenssl && 'openssl absent' }, async () => {
+test('T51 serveur : appairage par mot de passe, puis liste et fichiers avec le jeton', { skip: !hasOpenssl && 'openssl absent' }, async () => {
   const s = await startShared();
   try {
-    const wrong = await s.request('/sync/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"code":"000000"}' });
+    const wrong = await s.request('/sync/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"password":"pas-le-bon"}' });
     assert.equal(wrong.status, 403);
-    assert.match(JSON.parse(wrong.text).message, /Aucun code en cours/);
+    assert.match(JSON.parse(wrong.text).message, /Mot de passe incorrect\. Encore 4 essais/);
     const token = await s.pair();
     assert.match(token, /^[0-9a-f]{64}$/);
     const auth = { Authorization: `Bearer ${token}` };
@@ -222,13 +248,65 @@ test('T43 serveur : lecture seule (aucune écriture, aucune route de l\'API du M
   } finally { await s.close(); }
 });
 
-test('T43 serveur : code mal formé ou corps trop grand refusés', { skip: !hasOpenssl && 'openssl absent' }, async () => {
+test('T51 serveur : mot de passe mal formé, ancien code à 6 chiffres ou corps trop grand refusés', { skip: !hasOpenssl && 'openssl absent' }, async () => {
   const s = await startShared();
   try {
-    for (const body of ['{"code":"12"}', 'pas du json', '{"code":"123456","x":1}', JSON.stringify({ code: '1'.repeat(400) })]) {
+    for (const body of ['{"password":"12"}', 'pas du json', '{"password":"mot-de-passe","x":1}', '{"code":"123456"}', JSON.stringify({ password: '1'.repeat(5000) })]) {
       assert.equal((await s.request('/sync/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })).status, 400, body);
     }
     assert.equal((await s.request('/sync/pair')).status, 405);
+  } finally { await s.close(); }
+});
+
+test('T51 serveur : /sync/hello sans jeton dit « Mac Clone90 » et son nom .local (CORS), sans rien d\'autre', { skip: !hasOpenssl && 'openssl absent' }, async () => {
+  const s = await startShared();
+  try {
+    const hello = await s.request('/sync/hello', { headers: { Origin: 'https://hnaoai.github.io' } });
+    assert.equal(hello.status, 200);
+    assert.deepEqual(JSON.parse(hello.text), { app: 'clone90', version: 1, name: 'mac-de-hicham.local' });
+    assert.equal(hello.headers['access-control-allow-origin'], 'https://hnaoai.github.io');
+    assert.equal((await s.request('/sync/hello', { method: 'POST' })).status, 404);
+  } finally { await s.close(); }
+});
+
+test('T51 serveur : 5 mauvais mots de passe -> 429 avec délai, même le bon est refusé ; aucun mot de passe sur le Mac -> 409 expliqué', { skip: !hasOpenssl && 'openssl absent' }, async () => {
+  const s = await startShared();
+  try {
+    const post = (password) => s.request('/sync/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
+    for (let i = 0; i < 4; i += 1) assert.equal((await post('mauvais-mdp')).status, 403);
+    const locked = await post('mauvais-mdp');
+    assert.equal(locked.status, 429);
+    assert.match(JSON.parse(locked.text).message, /réessayez dans 15 min/);
+    assert.equal(locked.headers['retry-after'], '900');
+    assert.equal((await post('mot-de-passe')).status, 429);
+  } finally { await s.close(); }
+  const root = await tempRoot();
+  const handler = createSyncHandler({ pairing: await createPairing({ root }), getDirs: async () => ({}), getSystemIds: async () => IDS, getCa: () => '' });
+  const res = await new Promise((resolve) => {
+    const listeners = {};
+    const req = { method: 'POST', url: '/sync/pair', headers: {}, on: (t, f) => { listeners[t] = f; return req; } };
+    handler(req, { writeHead(st) { this.status = st; }, end(text) { resolve({ status: this.status, body: JSON.parse(text) }); } });
+    setImmediate(() => { listeners.data?.(Buffer.from('{"password":"mot-de-passe"}')); listeners.end?.(); });
+  });
+  assert.equal(res.status, 409);
+  assert.match(res.body.message, /Choisir le mot de passe/);
+});
+
+test('T51 serveur : un appareil qui refuse le certificat (autorité non installée) est signalé avec son adresse', { skip: !hasOpenssl && 'openssl absent' }, async () => {
+  const s = await startShared();
+  try {
+    // Comme Chrome sur Android sans l'autorité : openssl refuse le certificat et l'annonce au serveur (alerte TLS « unknown ca »).
+    // Lancé sans bloquer (le serveur tourne dans ce même processus).
+    await new Promise((resolve) => {
+      const child = execFile('openssl', ['s_client', '-connect', `127.0.0.1:${s.port}`, '-verify_return_error', '-no-CAfile', '-no-CApath', '-no-CAstore'],
+        { timeout: 10000 }, () => resolve());
+      child.stdin.end();
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    assert.deepEqual(s.rejected, ['127.0.0.1']);
+    assert.equal(isCertificateRejection(new Error('SSL alert number 48')), true);
+    assert.equal(isCertificateRejection(Object.assign(new Error('x'), { code: 'ERR_SSL_SSLV3_ALERT_CERTIFICATE_UNKNOWN' })), true);
+    assert.equal(isCertificateRejection(new Error('socket hang up')), false);
   } finally { await s.close(); }
 });
 
@@ -271,17 +349,39 @@ test('T43 commande : rien d\'ouvert au réseau avant « Activer le partage » ; 
   assert.equal((await readSyncState(root)).enabled, false);
 });
 
-test('T43 commande : code seulement quand le partage est actif ; repris au lancement suivant s\'il était activé', async () => {
+test('T51 commande : mot de passe choisi par POST api/sync/password {password}, jamais renvoyé ; état : nom .local, mot de passe choisi ; partage repris au lancement suivant', async () => {
   const { c, root } = await controller();
-  assert.equal((await call(c, 'POST', '/api/sync/pair', LOCAL(8080))).status, 409);
+  const before = await call(c, 'GET', '/api/sync', LOCAL(8080));
+  assert.equal(before.body.hasPassword, false);
+  assert.equal(before.body.name, 'mac.local');
+  assert.equal(before.body.certRejected, null);
+  const set = await call(c, 'POST', '/api/sync/password', LOCAL(8080), '{"password":"mon-secret"}');
+  assert.equal(set.status, 200);
+  assert.equal(set.body.hasPassword, true);
+  assert.equal(JSON.stringify(set.body).includes('mon-secret'), false, 'jamais renvoyé');
+  assert.equal((await readSyncState(root)).password !== null, true);
+  const short = await call(c, 'POST', '/api/sync/password', LOCAL(8080), '{"password":"123"}');
+  assert.equal(short.status, 400);
+  assert.match(short.body.message, /6 caractères au moins/);
+  assert.equal((await call(c, 'POST', '/api/sync/password', LOCAL(8080), '{}')).status, 400);
+  assert.equal((await call(c, 'POST', '/api/sync/password', LOCAL(8080), '{"password":"mon-secret","x":1}')).status, 400);
+  assert.equal((await call(c, 'POST', '/api/sync/pair', LOCAL(8080))).status, 404, 'plus de code à 6 chiffres');
   await call(c, 'POST', '/api/sync/enable', LOCAL(8080));
-  const pair = await call(c, 'POST', '/api/sync/pair', LOCAL(8080));
-  assert.match(pair.body.code.value, /^\d{6}$/);
   const started = [];
   const next = await createSyncController({ root, enabled: true, getPort: () => 8080, getAddresses: () => [], certificates: async () => ({ key: 'k', cert: 'c', ca: 'CA' }),
     start: async (o) => { started.push(o); return { close: (cb) => cb() }; } });
   await next.startIfEnabled();
   assert.equal(started.length, 1);
+});
+
+test('T51 commande : un téléphone qui refuse le certificat est signalé sur le Mac pendant 30 minutes', async () => {
+  let now = 1000;
+  const { c, started } = await controller({ now: () => now });
+  await call(c, 'POST', '/api/sync/enable', LOCAL(8080));
+  started[0].onCertificateRejected('192.168.1.40');
+  assert.equal((await call(c, 'GET', '/api/sync', LOCAL(8080))).body.certRejected, '192.168.1.40');
+  now += 31 * 60 * 1000;
+  assert.equal((await call(c, 'GET', '/api/sync', LOCAL(8080))).body.certRejected, null);
 });
 
 test('T43 commande : mêmes contrôles que l\'API du Mac (hôte, origine, X-Clone90, corps {}) ; absente hors du Mac', async () => {

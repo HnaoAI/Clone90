@@ -1,6 +1,9 @@
 // Commande du partage Mac -> téléphone (T43) depuis Clone90 sur le Mac : GET /api/sync (état), POST /api/sync/enable, POST /api/sync/disable,
-// POST /api/sync/pair (nouveau code à 6 chiffres), POST /api/sync/forget (oublier les téléphones), T44 : POST /api/sync/uploads-on et
-// /api/sync/uploads-off (accepter ou non les jeux envoyés par les téléphones associés). Corps `{}` seulement.
+// T51 : POST /api/sync/password ({password}, choisit ou change le mot de passe des téléphones ; remplace le code à 6 chiffres),
+// POST /api/sync/forget (oublier les téléphones), T44 : POST /api/sync/uploads-on et /api/sync/uploads-off (accepter ou non les jeux envoyés
+// par les téléphones associés). Corps `{}` seulement, sauf /api/sync/password.
+// T51 : l'état dit aussi si un appareil du Wi-Fi vient de refuser le certificat du Mac (`certRejected`) : c'est la cause la plus fréquente de
+//   « Mac introuvable » sur le téléphone, et le téléphone ne peut pas la voir lui-même.
 // Branchée par serve.mjs, comme settings-api.mjs, et soumise aux MÊMES contrôles (checkRequestOrigin : Host localhost, Origin, X-Clone90) :
 // seul le navigateur du Mac peut activer le partage ou afficher un code. Le serveur de partage lui-même est dans sync-server.mjs.
 // INVARIANT (sécurité) : rien n'est ouvert au réseau local tant que la personne n'a pas cliqué « Activer le partage » (état gardé dans
@@ -9,17 +12,20 @@
 import { hostname as osHostname, networkInterfaces } from 'node:os';
 import { checkRequestOrigin, MAX_BODY_BYTES } from './settings-api.mjs';
 import { createPairing } from './sync-pairing.mjs';
-import { ensureCertificates } from './sync-cert.mjs';
+import { ensureCertificates, localName } from './sync-cert.mjs';
 import { createSyncHandler, startSyncServer, readSystemIds } from './sync-server.mjs';
 import { readLocalSettings } from './local-settings.mjs';
 import { runGenerate } from './generate-games.mjs';
-import { SYNC_PORT } from '../js/sync-plan.js';
+import { SYNC_PORT, isSyncPassword, PASSWORD_MIN_LENGTH } from '../js/sync-plan.js';
 
-const ROUTES = ['/api/sync', '/api/sync/enable', '/api/sync/disable', '/api/sync/pair', '/api/sync/forget', '/api/sync/uploads-on', '/api/sync/uploads-off'];
+const ROUTES = ['/api/sync', '/api/sync/enable', '/api/sync/disable', '/api/sync/password', '/api/sync/forget', '/api/sync/uploads-on', '/api/sync/uploads-off'];
+/** T51 : durée pendant laquelle le Mac signale qu'un appareil a refusé son certificat. */
+export const CERT_REJECTED_SHOWN_MS = 30 * 60 * 1000;
 const ERRORS = {
   openssl: 'Le certificat n\'a pas pu être créé (commande openssl du Mac introuvable ?).',
   port: `Le port ${SYNC_PORT} est déjà utilisé sur ce Mac : le partage n'a pas pu démarrer.`,
   notRunning: 'Activez d\'abord le partage.',
+  password: `Mot de passe refusé : ${PASSWORD_MIN_LENGTH} caractères au moins (128 au plus).`,
 };
 
 /** Adresses IPv4 du Mac sur le réseau local (comme serve.mjs). */
@@ -37,21 +43,25 @@ export function lanAddresses(interfaces = networkInterfaces()) {
  * @param {typeof ensureCertificates} [options.certificates] @param {typeof startSyncServer} [options.start] injectables pour les tests
  * @param {object} [options.pairing] appairage déjà créé (tests)
  * @param {() => Promise<unknown>} [options.regenerate] T44 : régénère games.json après un jeu reçu du téléphone (le vrai générateur par défaut)
+ * @param {() => number} [options.now] horloge (tests)
  */
 export async function createSyncController({ root, enabled, getPort, syncPort = SYNC_PORT, getAddresses = () => lanAddresses(), getHostname = () => osHostname(),
   certificates = ensureCertificates, start = startSyncServer, pairing: givenPairing, baseHeaders = { 'X-Content-Type-Options': 'nosniff' },
-  regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }) }) {
+  regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }), now = Date.now }) {
   const pairing = givenPairing ?? await createPairing({ root });
   let server = null;
   let tls = null;
   let error = null;
   let busy = false;
+  /** T51 : dernier appareil qui a refusé le certificat : {address, at}. */
+  let certRejected = null;
 
   const handler = createSyncHandler({
     pairing,
     getDirs: async () => { const s = await readLocalSettings(root); return { romsDir: s.romsDir, biosDir: s.biosDir }; },
     getSystemIds: () => readSystemIds(root),
     getCa: () => tls?.ca ?? '',
+    getName: () => localName(getHostname()),
     onUploaded: () => { regenerate().catch(() => {}); },
   });
 
@@ -69,7 +79,8 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
       error = ERRORS.openssl;
       return false;
     }
-    try { server = await start({ tls, port: syncPort, handler }); } catch (err) {
+    const onCertificateRejected = (address) => { certRejected = { address, at: now() }; };
+    try { server = await start({ tls, port: syncPort, handler, onCertificateRejected }); } catch (err) {
       console.error('Partage : démarrage impossible :', err.message);
       error = err.code === 'EADDRINUSE' ? ERRORS.port : `Le partage n'a pas pu démarrer (${err.code ?? err.message}).`;
       return false;
@@ -89,7 +100,9 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
     return {
       enabled: pairing.enabled, running: Boolean(server), port: syncPort, acceptUploads: pairing.acceptUploads === true,
       addresses: server ? getAddresses().map((a) => `https://${a}:${syncPort}`) : [],
-      code: server ? pairing.currentCode() : null, devices: pairing.deviceCount, error,
+      name: localName(getHostname()), hasPassword: pairing.hasPassword, lockedUntil: pairing.lockedUntil,
+      certRejected: server && certRejected && now() - certRejected.at < CERT_REJECTED_SHOWN_MS ? certRejected.address : null,
+      devices: pairing.deviceCount, error,
     };
   }
 
@@ -98,9 +111,12 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
     res.end(JSON.stringify(body));
   };
 
-  /** Lit un corps `{}`. @returns {Promise<boolean>} faux si refusé (réponse déjà envoyée) */
-  async function readEmptyBody(req, res) {
-    if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] ?? '')) { send(res, 415, { message: 'Type de contenu refusé' }); return false; }
+  /**
+   * Lit un corps JSON objet dont les clés sont exactement `keys` (`{}` par défaut).
+   * @returns {Promise<object|null>} null si refusé (réponse déjà envoyée)
+   */
+  async function readJsonBody(req, res, keys = []) {
+    if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] ?? '')) { send(res, 415, { message: 'Type de contenu refusé' }); return null; }
     const text = await new Promise((resolve) => {
       let data = '';
       req.on('data', (c) => { data += c; if (data.length > MAX_BODY_BYTES) req.destroy(); });
@@ -109,8 +125,9 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
     });
     let body = null;
     try { body = JSON.parse(text ?? ''); } catch { body = null; }
-    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length) { send(res, 400, { message: 'Requête invalide' }); return false; }
-    return true;
+    const sameKeys = body && typeof body === 'object' && !Array.isArray(body) && Object.keys(body).sort().join() === [...keys].sort().join();
+    if (!sameKeys) { send(res, 400, { message: 'Requête invalide' }); return null; }
+    return body;
   }
 
   return {
@@ -130,7 +147,8 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
         const method = path === '/api/sync' ? 'GET' : 'POST';
         if (req.method !== method) return send(res, 405, { message: 'Méthode non autorisée' });
         if (method === 'GET') return send(res, 200, await status());
-        if (!(await readEmptyBody(req, res))) return undefined;
+        const body = await readJsonBody(req, res, path === '/api/sync/password' ? ['password'] : []);
+        if (!body) return undefined;
         if (busy) return send(res, 409, { message: 'Une demande de partage est déjà en cours.' });
         busy = true;
         try {
@@ -142,9 +160,8 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
             error = null;
           } else if (path === '/api/sync/uploads-on' || path === '/api/sync/uploads-off') {
             await pairing.setAcceptUploads(path === '/api/sync/uploads-on');
-          } else if (path === '/api/sync/pair') {
-            if (!server) return send(res, 409, { ...(await status()), message: ERRORS.notRunning });
-            pairing.newCode();
+          } else if (path === '/api/sync/password') {
+            if (!isSyncPassword(body.password) || !(await pairing.setPassword(body.password))) return send(res, 400, { ...(await status()), message: ERRORS.password });
           } else {
             await pairing.forgetDevices();
           }

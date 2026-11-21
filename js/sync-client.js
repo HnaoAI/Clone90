@@ -1,34 +1,48 @@
-// Synchronisation Mac -> téléphone, côté téléphone (T43) : association avec le Mac (adresse + code), puis copie dans la bibliothèque du
+// Synchronisation Mac -> téléphone, côté téléphone (T43) : association avec le Mac (T51 : mot de passe seulement, le Mac est cherché sur le
+// Wi-Fi par sync-discovery.js ; adresse saisie seulement en secours), puis copie dans la bibliothèque du
 // navigateur (IndexedDB `clone90-local`, comme « Mes fichiers ») de ce qui manque : jeux, pochettes, logos et BIOS du Mac.
 // T44 : « Envoyer mes jeux au Mac » (sendGamesToMac), jeux et pochettes du téléphone absents du Mac, au clic seulement ; un fichier envoyé
 //   devient « venu du Mac » (liste `files`) : supprimé ensuite sur le Mac, il est retiré du téléphone à la synchronisation suivante (choix de
 //   Hicham du 2026-11-15).
 // Automatique à chaque ouverture de Clone90 sur le téléphone (app.js), et sur le bouton « Synchroniser maintenant ».
 // Dépend de sync-plan.js (règles partagées avec le Mac). Réseau, bibliothèque, stockage et place disponible injectables (tests sans navigateur).
-// INVARIANT (CLAUDE.md règle 5, exception e) : le téléphone ne parle qu'au Mac dont la personne a saisi l'adresse (réseau local privé, HTTPS) ;
-//   il ne lui envoie que le jeton d'association, les chemins des fichiers demandés et, au clic sur « Envoyer mes jeux au Mac » (T44), les
+// T51 : si le Mac n'est plus à son adresse (box qui en donne une autre), le téléphone essaie son nom .local, puis (synchronisation demandée
+//   par la personne seulement, pas à l'ouverture) balaie le réseau local ; l'adresse trouvée est gardée si le Mac accepte le jeton.
+// INVARIANT (CLAUDE.md règle 5, exception e) : le téléphone ne parle qu'à des adresses privées ou .local du réseau local, en HTTPS ;
+//   il n'envoie qu'au Mac Clone90 trouvé le mot de passe (association), le jeton d'association, les chemins des fichiers demandés et, au clic sur « Envoyer mes jeux au Mac » (T44), les
 //   jeux et pochettes du téléphone que le Mac n'a pas ; rien n'est envoyé ailleurs.
 // INVARIANT : ne remplace ni n'efface jamais un fichier que la personne a mis elle-même sur le téléphone (voir planSync) ; ne lève jamais.
-import { normalizeMacAddress, isPairingCode, readManifest, planSync, describeSyncResult, planUpload, describeUploadResult, SYNC_ROUTES } from './sync-plan.js';
+import { normalizeMacAddress, isSyncPassword, discoveryCandidates, readManifest, planSync, describeSyncResult, planUpload, describeUploadResult, SYNC_ROUTES,
+  PASSWORD_MIN_LENGTH } from './sync-plan.js';
+import { findMac, probeMac } from './sync-discovery.js';
 
-/** Clé du stockage local : {url, token, files: {cheminTéléphone: {size, mtime}}, lastSync}. */
+/** Clé du stockage local : {url, name (T51, `<nom>.local` du Mac ou null), token, files: {cheminTéléphone: {size, mtime}}, lastSync}. */
 export const SYNC_STORAGE_KEY = 'clone90-sync';
 /** Place gardée libre sur le téléphone (le navigateur refuse d'écrire tout près de la limite). */
 const SPACE_MARGIN = 20 * 1024 * 1024;
 
 const READ_INIT = (token) => ({ credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store', ...(token && { headers: { Authorization: `Bearer ${token}` } }) });
 
-/** Message quand le Mac ne répond pas (le plus souvent : autre Wi-Fi, partage arrêté, Clone90 fermé ou certificat absent). */
-export const unreachableText = (url) => `Mac injoignable. Vérifiez que le téléphone est sur le même Wi-Fi, que Clone90 est ouvert sur le Mac avec le partage activé, `
-  + `et que le certificat du Mac est installé sur ce téléphone (ouvrez ${url} dans Chrome pour l'obtenir).`;
+/**
+ * T51 : message quand aucun Mac ne répond. Le navigateur ne dit pas POURQUOI une adresse ne répond pas (certificat refusé ou Mac absent) :
+ * le message donne les causes dans l'ordre le plus probable et renvoie au guide du certificat ; le Mac, lui, signale « certificat refusé ».
+ */
+export const MAC_NOT_FOUND_TEXT = 'Mac introuvable sur le Wi-Fi. Le plus souvent, le certificat du Mac n\'est pas encore installé sur ce téléphone : '
+  + 'suivez le guide « Première fois » ci-dessous (si le Mac affiche « Un téléphone a refusé le certificat de ce Mac », c\'est bien cela). '
+  + 'Sinon, vérifiez que le téléphone est sur le même Wi-Fi que le Mac, que Clone90 est ouvert sur le Mac avec le partage actif, '
+  + 'et que Chrome a le droit d\'accéder aux appareils du réseau local.';
 
-/** Association enregistrée, ou null. Ne lève jamais. @param {Storage} [storage] */
+/**
+ * Association enregistrée, ou null. Ne lève jamais. `token` vaut null quand le Mac a refusé le jeton (T51 : mot de passe à ressaisir ; la liste
+ * `files` des fichiers venus du Mac est gardée pour la prochaine association). @param {Storage} [storage]
+ */
 export function readSyncPairing(storage = globalThis.localStorage) {
   try {
     const data = JSON.parse(storage.getItem(SYNC_STORAGE_KEY) ?? 'null');
-    if (!data || typeof data.url !== 'string' || !normalizeMacAddress(data.url) || typeof data.token !== 'string') return null;
+    if (!data || typeof data.url !== 'string' || !normalizeMacAddress(data.url) || (typeof data.token !== 'string' && data.token !== null)) return null;
     const files = data.files && typeof data.files === 'object' && !Array.isArray(data.files) ? data.files : {};
-    return { url: data.url, token: data.token, files, lastSync: Number.isFinite(data.lastSync) ? data.lastSync : null };
+    const name = typeof data.name === 'string' && /\.local$/.test(data.name) ? data.name : null;
+    return { url: data.url, name, token: data.token, files, lastSync: Number.isFinite(data.lastSync) ? data.lastSync : null };
   } catch {
     return null;
   }
@@ -45,28 +59,62 @@ export function forgetSyncPairing(storage = globalThis.localStorage) {
 }
 
 /**
- * Associe ce téléphone au Mac.
- * @param {{address: string, code: string, fetchFn?: typeof fetch, storage?: Storage}} input
- * @returns {Promise<{ok: true, url: string}|{ok: false, message: string}>} ne lève jamais
+ * T51 : associe ce téléphone au Mac avec le mot de passe choisi sur le Mac. Le Mac est cherché sur le Wi-Fi (adresse précédente, puis
+ * balayage du réseau local), sauf si la personne a saisi son adresse.
+ * @param {{password: string, address?: string, fetchFn?: typeof fetch, storage?: Storage, onProgress?: (p: {done: number, total: number}) => void,
+ *   find?: typeof findMac}} input `find` injectable (tests)
+ * @returns {Promise<{ok: true, url: string, name: string|null}|{ok: false, reason: 'password'|'address'|'not-found'|'refused', message: string}>} ne lève jamais
  */
-export async function pairWithMac({ address, code, fetchFn = globalThis.fetch, storage = globalThis.localStorage }) {
-  const url = normalizeMacAddress(address);
-  if (!url) return { ok: false, message: 'Adresse du Mac invalide : saisissez celle affichée sur le Mac (par exemple 192.168.1.20).' };
-  const clean = String(code ?? '').replace(/\s/g, '');
-  if (!isPairingCode(clean)) return { ok: false, message: 'Le code est fait de 6 chiffres, affichés sur le Mac.' };
+export async function pairWithMac({ password, address = '', fetchFn = globalThis.fetch, storage = globalThis.localStorage, onProgress = () => {}, find = findMac }) {
+  if (!isSyncPassword(password)) {
+    return { ok: false, reason: 'password', message: `Saisissez le mot de passe choisi sur le Mac (${PASSWORD_MIN_LENGTH} caractères au moins).` };
+  }
+  const previous = readSyncPairing(storage);
+  const candidates = discoveryCandidates({ manual: address, saved: previous?.url, name: previous?.name });
+  if (!candidates) return { ok: false, reason: 'address', message: 'Adresse du Mac invalide : saisissez celle affichée sur le Mac (par exemple 192.168.1.20), ou laissez vide.' };
+  const mac = await find({ ...candidates, fetchFn, onProgress });
+  if (!mac) return { ok: false, reason: 'not-found', message: MAC_NOT_FOUND_TEXT };
   let res;
   try {
-    res = await fetchFn(`${url}${SYNC_ROUTES.pair}`, { ...READ_INIT(), method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: clean }) });
+    res = await fetchFn(`${mac.url}${SYNC_ROUTES.pair}`, { ...READ_INIT(), method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
   } catch {
-    return { ok: false, message: unreachableText(url) };
+    return { ok: false, reason: 'not-found', message: MAC_NOT_FOUND_TEXT };
   }
   const body = await res.json().catch(() => null);
-  if (!res.ok || typeof body?.token !== 'string') return { ok: false, message: body?.message ?? `Le Mac a refusé l'association (${res.status}).` };
-  saveSyncPairing({ url, token: body.token, files: {}, lastSync: null }, storage);
-  return { ok: true, url };
+  if (!res.ok || typeof body?.token !== 'string') return { ok: false, reason: 'refused', message: body?.message ?? `Le Mac a refusé l'association (${res.status}).` };
+  // Même Mac qu'avant (mot de passe ressaisi) : la liste des fichiers venus de lui est gardée, pour retirer plus tard ceux qu'il n'a plus.
+  const sameMac = previous && (previous.url === mac.url || (previous.name && previous.name === mac.name));
+  saveSyncPairing({ url: mac.url, name: mac.name, token: body.token, files: sameMac ? previous.files : {}, lastSync: sameMac ? previous.lastSync : null }, storage);
+  return { ok: true, url: mac.url, name: mac.name };
+}
+
+/**
+ * T51 : liste du Mac associé, en le retrouvant s'il a changé d'adresse : adresse gardée, puis nom .local, puis (si `deep`) balayage du réseau local.
+ * Une nouvelle adresse n'est gardée que si le Mac qui y répond accepte le jeton (sinon c'est un autre Mac Clone90).
+ * @returns {Promise<{res: Response, pairing: object}|null>} null si le Mac est introuvable ; ne lève jamais
+ */
+async function reachMac(pairing, { fetchFn, storage, deep, find }) {
+  const read = async (url) => { try { return await fetchFn(`${url}${SYNC_ROUTES.manifest}`, READ_INIT(pairing.token)); } catch { return null; } };
+  const first = await read(pairing.url);
+  if (first) return { res: first, pairing };
+  const { priority, scan } = discoveryCandidates({ saved: pairing.url, name: pairing.name });
+  const others = priority.filter((u) => u !== pairing.url);
+  const mac = deep ? await find({ priority: others, scan, fetchFn }) : await (async () => {
+    for (const url of others) { const found = await probeMac(url, { fetchFn }); if (found) return found; }
+    return null;
+  })();
+  if (!mac) return null;
+  const res = await read(mac.url);
+  if (!res || res.status === 401) return null;
+  const moved = { ...pairing, url: mac.url, name: mac.name ?? pairing.name ?? null };
+  saveSyncPairing(moved, storage);
+  return { res, pairing: moved };
 }
 
 let running = false;
+
+/** Jeton refusé par le Mac (téléphones oubliés, ou mot de passe changé sur le Mac). */
+export const NOT_PAIRED_TEXT = 'Ce téléphone n\'est plus associé au Mac (mot de passe changé ou téléphones oubliés sur le Mac) : saisissez de nouveau le mot de passe du Mac.';
 
 /**
  * Copie depuis le Mac ce qui manque au téléphone, met à jour ce qui a changé et retire ce que le Mac n'a plus (fichiers venus du Mac seulement).
@@ -76,17 +124,17 @@ let running = false;
  * @returns {Promise<{status: 'done'|'unpaired'|'unreachable'|'busy'|'error', text: string|null, changed: boolean}>} ne lève jamais
  */
 export async function syncFromMac({ library, systems, fetchFn = globalThis.fetch, storage = globalThis.localStorage,
-  estimate = () => globalThis.navigator?.storage?.estimate?.() ?? Promise.resolve({}), onProgress = () => {}, quiet = false }) {
-  const pairing = readSyncPairing(storage);
-  if (!pairing) return { status: 'unpaired', text: null, changed: false };
+  estimate = () => globalThis.navigator?.storage?.estimate?.() ?? Promise.resolve({}), onProgress = () => {}, quiet = false, find = findMac }) {
+  const saved = readSyncPairing(storage);
+  if (!saved?.token) return { status: 'unpaired', text: null, changed: false };
   if (running) return { status: 'busy', text: null, changed: false };
   running = true;
   try {
-    let res;
-    try { res = await fetchFn(`${pairing.url}${SYNC_ROUTES.manifest}`, READ_INIT(pairing.token)); } catch {
-      return { status: 'unreachable', text: quiet ? null : unreachableText(pairing.url), changed: false };
-    }
-    if (res.status === 401) return { status: 'unpaired', text: 'Ce téléphone n\'est plus associé au Mac : associez-le de nouveau avec un nouveau code.', changed: false };
+    // T51 : à l'ouverture (quiet), pas de balayage du réseau : le téléphone peut être loin de la maison.
+    const reached = await reachMac(saved, { fetchFn, storage, deep: !quiet, find });
+    if (!reached) return { status: 'unreachable', text: quiet ? null : MAC_NOT_FOUND_TEXT, changed: false };
+    const { res, pairing } = reached;
+    if (res.status === 401) { saveSyncPairing({ ...pairing, token: null }, storage); return { status: 'unpaired', text: NOT_PAIRED_TEXT, changed: false }; }
     const systemIds = systems.map((s) => s.id);
     const remote = res.ok ? readManifest(await res.json().catch(() => null), systemIds) : null;
     if (!remote) return { status: 'error', text: `Réponse inattendue du Mac (${res.status}).`, changed: false };
@@ -140,17 +188,16 @@ const STOP_ERRORS = new Set(['uploads-off', 'not-paired', 'no-folder']);
  * @returns {Promise<{status: 'done'|'unpaired'|'unreachable'|'refused'|'busy'|'error', text: string|null, sent: number}>} ne lève jamais
  *   `refused` : le Mac n'accepte pas les jeux (case à cocher sur le Mac)
  */
-export async function sendGamesToMac({ library, systems, fetchFn = globalThis.fetch, storage = globalThis.localStorage, onProgress = () => {} }) {
-  const pairing = readSyncPairing(storage);
-  if (!pairing) return { status: 'unpaired', text: null, sent: 0 };
+export async function sendGamesToMac({ library, systems, fetchFn = globalThis.fetch, storage = globalThis.localStorage, onProgress = () => {}, find = findMac }) {
+  const saved = readSyncPairing(storage);
+  if (!saved?.token) return { status: 'unpaired', text: null, sent: 0 };
   if (running) return { status: 'busy', text: 'Une synchronisation est déjà en cours.', sent: 0 };
   running = true;
   try {
-    let res;
-    try { res = await fetchFn(`${pairing.url}${SYNC_ROUTES.manifest}`, READ_INIT(pairing.token)); } catch {
-      return { status: 'unreachable', text: unreachableText(pairing.url), sent: 0 };
-    }
-    if (res.status === 401) return { status: 'unpaired', text: 'Ce téléphone n\'est plus associé au Mac : associez-le de nouveau avec un nouveau code.', sent: 0 };
+    const reached = await reachMac(saved, { fetchFn, storage, deep: true, find });
+    if (!reached) return { status: 'unreachable', text: MAC_NOT_FOUND_TEXT, sent: 0 };
+    const { res, pairing } = reached;
+    if (res.status === 401) { saveSyncPairing({ ...pairing, token: null }, storage); return { status: 'unpaired', text: NOT_PAIRED_TEXT, sent: 0 }; }
     const body = res.ok ? await res.json().catch(() => null) : null;
     const systemIds = systems.map((s) => s.id);
     const remote = readManifest(body, systemIds);

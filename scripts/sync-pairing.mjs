@@ -1,18 +1,24 @@
-// Appairage des téléphones pour le partage Mac -> téléphone (T43) : code à 6 chiffres affiché sur le Mac, jeton remis au téléphone qui
-// donne le bon code, liste des téléphones associés. État gardé dans `clone90.sync.json` (ignoré par git) : partage activé ou non, et
-// EMPREINTES (SHA-256) des jetons, jamais les jetons eux-mêmes. T44 : `acceptUploads`, réception des jeux du téléphone (éteinte par défaut).
-// INVARIANT (sécurité) : un code n'existe que si la personne l'a demandé sur le Mac, vaut 5 minutes et PAIRING_MAX_TRIES essais en tout
-//   (au-delà il est annulé) ; un code accepté est aussitôt annulé (un seul téléphone par code). Comparaisons à temps constant.
-import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+// Appairage des téléphones pour le partage Mac -> téléphone (T43 ; T51 : par MOT DE PASSE choisi une fois sur le Mac, à la place du code à
+// 6 chiffres) : mot de passe vérifié, jeton remis au téléphone qui donne le bon mot de passe, liste des téléphones associés. État gardé dans
+// `clone90.sync.json` (ignoré par git, 0600) : partage activé ou non, EMPREINTE scrypt du mot de passe (jamais le mot de passe), EMPREINTES
+// (SHA-256) des jetons, jamais les jetons eux-mêmes. T44 : `acceptUploads`, réception des jeux du téléphone (éteinte par défaut).
+// INVARIANT (sécurité, T51) : après PASSWORD_MAX_TRIES mauvais mots de passe, plus aucun essai n'est permis pendant PASSWORD_LOCK_MS (tous
+//   appareils confondus) ; changer le mot de passe oublie les téléphones associés. Comparaisons à temps constant.
+import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { readFile, writeFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
-import { PAIRING_CODE_TTL_MS, PAIRING_MAX_TRIES } from '../js/sync-plan.js';
+import { isSyncPassword, PASSWORD_MAX_TRIES, PASSWORD_LOCK_MS } from '../js/sync-plan.js';
 
 export const SYNC_STATE_FILE = 'clone90.sync.json';
 /** Nombre maximal de téléphones associés (le plus ancien est oublié au-delà). */
 export const MAX_DEVICES = 10;
 
 const hash = (token) => createHash('sha256').update(token).digest('hex');
+/** Empreinte scrypt d'un mot de passe (sel de 16 octets, clé de 32 octets). @returns {Promise<string>} hexadécimal */
+const scryptHex = (password, saltHex) => new Promise((resolve, reject) => {
+  scryptCb(password.normalize('NFC'), Buffer.from(saltHex, 'hex'), 32, (err, key) => (err ? reject(err) : resolve(key.toString('hex'))));
+});
+const isPasswordRecord = (p) => p && typeof p === 'object' && /^[0-9a-f]{32}$/.test(p.salt) && /^[0-9a-f]{64}$/.test(p.hash);
 const sameText = (a, b) => {
   const x = Buffer.from(String(a));
   const y = Buffer.from(String(b));
@@ -20,17 +26,18 @@ const sameText = (a, b) => {
 };
 
 /**
- * Lit l'état. @returns {Promise<{enabled: boolean, acceptUploads: boolean, devices: {hash: string, pairedAt: number}[]}>}
- *   défaut : partage arrêté, réception des jeux du téléphone éteinte (T44), aucun téléphone
+ * Lit l'état. @returns {Promise<{enabled: boolean, acceptUploads: boolean, password: {salt: string, hash: string}|null, devices: {hash: string, pairedAt: number}[]}>}
+ *   défaut : partage arrêté, réception des jeux du téléphone éteinte (T44), pas de mot de passe (T51), aucun téléphone
  */
 export async function readSyncState(root) {
   try {
     const data = JSON.parse(await readFile(join(root, SYNC_STATE_FILE), 'utf8'));
     const devices = Array.isArray(data?.devices)
       ? data.devices.filter((d) => d && /^[0-9a-f]{64}$/.test(d.hash) && Number.isFinite(d.pairedAt)).slice(-MAX_DEVICES) : [];
-    return { enabled: data?.enabled === true, acceptUploads: data?.acceptUploads === true, devices };
+    const password = isPasswordRecord(data?.password) ? { salt: data.password.salt, hash: data.password.hash } : null;
+    return { enabled: data?.enabled === true, acceptUploads: data?.acceptUploads === true, password, devices };
   } catch {
-    return { enabled: false, acceptUploads: false, devices: [] };
+    return { enabled: false, acceptUploads: false, password: null, devices: [] };
   }
 }
 
@@ -38,23 +45,27 @@ export async function readSyncState(root) {
 export async function writeSyncState(root, state) {
   const target = join(root, SYNC_STATE_FILE);
   const tmp = `${target}.tmp`;
-  await writeFile(tmp, `${JSON.stringify({ enabled: state.enabled, acceptUploads: state.acceptUploads === true, devices: state.devices }, null, 2)}\n`, { mode: 0o600 });
+  await writeFile(tmp, `${JSON.stringify({ enabled: state.enabled, acceptUploads: state.acceptUploads === true,
+    password: isPasswordRecord(state.password) ? state.password : null, devices: state.devices }, null, 2)}\n`, { mode: 0o600 });
   await rename(tmp, target);
 }
 
 /**
  * Appairage en mémoire, adossé au fichier d'état.
- * @param {{root: string, now?: () => number, makeCode?: () => string, makeToken?: () => string}} options injectables pour les tests
+ * @param {{root: string, now?: () => number, makeToken?: () => string}} options injectables pour les tests
  */
-export async function createPairing({ root, now = Date.now, makeCode = () => String(randomInt(0, 1000000)).padStart(6, '0'),
-  makeToken = () => randomBytes(32).toString('hex') }) {
+export async function createPairing({ root, now = Date.now, makeToken = () => randomBytes(32).toString('hex') }) {
   let state = await readSyncState(root);
-  let code = null; // {value, expiresAt, tries}
+  let failures = 0;
+  let lockedUntil = 0;
   const save = () => writeSyncState(root, state);
-  const liveCode = () => (code && code.expiresAt > now() && code.tries < PAIRING_MAX_TRIES ? code : null);
   return {
     get enabled() { return state.enabled; },
     get deviceCount() { return state.devices.length; },
+    /** T51 : vrai si un mot de passe est choisi sur le Mac. */
+    get hasPassword() { return state.password !== null; },
+    /** T51 : fin du blocage après trop de mauvais mots de passe (ms), ou null. */
+    get lockedUntil() { return lockedUntil > now() ? lockedUntil : null; },
     /** T44 : vrai si la personne a permis, sur le Mac, de recevoir les jeux des téléphones associés. */
     get acceptUploads() { return state.acceptUploads; },
     async setAcceptUploads(accept) {
@@ -63,29 +74,35 @@ export async function createPairing({ root, now = Date.now, makeCode = () => Str
     },
     async setEnabled(enabled) {
       state = { ...state, enabled };
-      if (!enabled) code = null;
       await save();
     },
-    /** Nouveau code (l'ancien est annulé). @returns {{value: string, expiresAt: number}} */
-    newCode() {
-      code = { value: makeCode(), expiresAt: now() + PAIRING_CODE_TTL_MS, tries: 0 };
-      return { value: code.value, expiresAt: code.expiresAt };
-    },
-    /** Code en cours, null s'il n'y en a pas (expiré, trop d'essais, déjà utilisé). */
-    currentCode() {
-      const c = liveCode();
-      return c ? { value: c.value, expiresAt: c.expiresAt } : null;
+    /**
+     * T51 : choisit (ou change) le mot de passe. Les téléphones déjà associés sont oubliés : ils devront saisir le nouveau.
+     * @returns {Promise<boolean>} faux si le mot de passe n'est pas acceptable (isSyncPassword)
+     */
+    async setPassword(password) {
+      if (!isSyncPassword(password)) return false;
+      const salt = randomBytes(16).toString('hex');
+      state = { ...state, password: { salt, hash: await scryptHex(password, salt) }, devices: [] };
+      failures = 0;
+      lockedUntil = 0;
+      await save();
+      return true;
     },
     /**
-     * Essai d'un code venant du réseau.
-     * @returns {Promise<{token: string}|{error: 'no-code'|'wrong-code'}>}
+     * T51 : essai d'un mot de passe venant du réseau.
+     * @returns {Promise<{token: string}|{error: 'no-password'}|{error: 'locked', retryAt: number}|{error: 'wrong-password', triesLeft: number}>}
      */
-    async tryCode(value) {
-      const c = liveCode();
-      if (!c) return { error: 'no-code' };
-      c.tries += 1;
-      if (!sameText(value, c.value)) return { error: 'wrong-code' };
-      code = null;
+    async tryPassword(password) {
+      if (!state.password) return { error: 'no-password' };
+      if (lockedUntil > now()) return { error: 'locked', retryAt: lockedUntil };
+      const ok = isSyncPassword(password) && sameText(await scryptHex(password, state.password.salt), state.password.hash);
+      if (!ok) {
+        failures += 1;
+        if (failures >= PASSWORD_MAX_TRIES) { failures = 0; lockedUntil = now() + PASSWORD_LOCK_MS; return { error: 'locked', retryAt: lockedUntil }; }
+        return { error: 'wrong-password', triesLeft: PASSWORD_MAX_TRIES - failures };
+      }
+      failures = 0;
       const token = makeToken();
       state = { ...state, devices: [...state.devices, { hash: hash(token), pairedAt: now() }].slice(-MAX_DEVICES) };
       await save();
@@ -97,10 +114,9 @@ export async function createPairing({ root, now = Date.now, makeCode = () => Str
       const h = hash(token);
       return state.devices.some((d) => sameText(d.hash, h));
     },
-    /** Oublie tous les téléphones (ils devront être associés de nouveau). */
+    /** Oublie tous les téléphones (ils devront saisir de nouveau le mot de passe). */
     async forgetDevices() {
       state = { ...state, devices: [] };
-      code = null;
       await save();
     },
   };
