@@ -695,3 +695,22 @@ test('loadEmulator (T32) : nipplejs posé ensuite sur window par EmulatorJS est 
   n64.win.nipplejs = { create };
   assert.equal(n64.win.nipplejs.create, create);
 });
+
+// --- T50 : Game Boy Advance ---
+test('T50 buildLaunchPlan Game Boy Advance (vrai systems.json) : cœur gba, gba_bios.bin posé s\'il existe, manette tactile GBA d\'EmulatorJS (L, R, A, B, Start, Select)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const systems = JSON.parse(readFileSync(new URL('../systems.json', import.meta.url), 'utf8')).systems;
+  const gba = systems.find((s) => s.id === 'gba');
+  const plan = buildLaunchPlan({ system: gba, game: { id: 'gba/t', system: 'gba', title: 'T', file: 'roms/gba/t.gba' } });
+  assert.equal(plan.globals.EJS_core, 'gba');
+  assert.equal(plan.globals.EJS_gameUrl, 'roms/gba/t.gba');
+  assert.equal('EJS_biosUrl' in plan.globals, false, 'BIOS facultatif posé tel quel, pas par EJS_biosUrl');
+  assert.deepEqual(plan.rawFiles, [{ url: 'bios/gba_bios.bin', fsPath: '/gba_bios.bin' }]);
+  // EmulatorJS 4.2.3 choisit sa manette tactile par le schéma du cœur (getControlScheme -> « gba ») : boutons L et R compris.
+  // Clone90 ne doit pas la remplacer.
+  assert.equal('EJS_controlScheme' in plan.globals, false);
+  assert.equal('EJS_VirtualGamepadSettings' in plan.globals, false);
+  const checked = await checkPlanFiles(plan, async (u) => !u.startsWith('bios/'));
+  assert.deepEqual(checked.missing, [], 'sans BIOS, le jeu démarre quand même');
+  assert.deepEqual(checked.plan.rawFiles, [], 'BIOS absent : rien à poser');
+});

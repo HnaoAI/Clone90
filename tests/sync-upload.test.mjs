@@ -362,3 +362,15 @@ function findAll(nodes, pred, out = []) {
   for (const n of nodes) { if (!n || typeof n !== 'object') continue; if (pred(n)) out.push(n); if (n.children) findAll(n.children, pred, out); }
   return out;
 }
+
+// --- T50 : Game Boy Advance ---
+test('T50 synchro et envoi au Mac : les jeux et pochettes de roms/gba/ sont partagés, le BIOS gba_bios.bin seulement dans le sens Mac -> téléphone', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { syncTargetPath } = await import('../js/sync-plan.js');
+  const ids = JSON.parse(readFileSync(new URL('../systems.json', import.meta.url), 'utf8')).systems.map((s) => s.id);
+  assert.equal(syncTargetPath('roms/gba/Homebrew.gba', ids), 'roms/gba/Homebrew.gba');
+  assert.equal(syncTargetPath('roms/gba/Homebrew.png', ids), 'roms/gba/Homebrew.png');
+  assert.equal(syncTargetPath('bios/gba_bios.bin', ids), 'bios/gba_bios.bin');
+  assert.equal(uploadTargetPath('roms/gba/Homebrew.gba', ids), 'roms/gba/Homebrew.gba');
+  assert.equal(uploadTargetPath('bios/gba_bios.bin', ids), null);
+});

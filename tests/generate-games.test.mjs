@@ -725,3 +725,12 @@ test('T30 PC Engine CD : sans bios/syscard3.pce, le générateur avertit (BIOS r
     assert.ok(result.warnings.some((w) => w.includes('syscard3.pce')), result.warnings.join('\n'));
   });
 });
+
+// --- T50 : Game Boy Advance ---
+test('T50 Game Boy Advance : .gba et .zip listés dans roms/gba ; sans bios/gba_bios.bin aucun avertissement (BIOS facultatif)', async () => {
+  await withProject({ 'roms/gba/Homebrew (World).gba': 'x', 'roms/gba/Autre.zip': 'x', 'roms/gba/gba_bios.bin': 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.deepEqual(result.games.map((g) => [g.system, g.title, g.file]), [['gba', 'Autre', 'roms/gba/Autre.zip'], ['gba', 'Homebrew', 'roms/gba/Homebrew (World).gba']]);
+    assert.deepEqual(result.warnings, []);
+  });
+});

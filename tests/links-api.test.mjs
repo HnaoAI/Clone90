@@ -78,7 +78,7 @@ test('T34/T36 API analyse : lancée en arrière-plan, état lu par GET /api/link
     assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 'https://exemple.org/' } })).status, 202);
     const done = await until(async () => { const s = (await t.call('GET', '/api/links/scan/state')).json(); return s.status === 'done' && s; });
     assert.equal(done.files[0].name, 'a.adf');
-    assert.equal(t.calls.scan[0].systems, 13, 'machines lues dans systems.json');
+    assert.equal(t.calls.scan[0].systems, 14, 'machines lues dans systems.json');
     fail = true;
     assert.equal((await t.call('POST', '/api/links/scan', { json: { url: 'http://192.168.1.1/' } })).status, 202);
     const refused = await until(async () => { const s = (await t.call('GET', '/api/links/scan/state')).json(); return s.status === 'error' && s; });
