@@ -1,10 +1,10 @@
-// Tests de la synchronisation Mac -> téléphone, côté règles et téléphone (T43) : js/sync-plan.js, js/sync-client.js, rubrique de « Mes fichiers »,
+// Tests de la synchronisation Mac -> téléphone, côté règles et téléphone (T43 ; T51 : mot de passe et recherche du Mac) : js/sync-plan.js, js/sync-client.js, rubrique de « Mes fichiers »,
 // panneau du Mac (ui/sync-panel.js) et bouton du panneau des dossiers. Sans réseau ni navigateur (fetch, bibliothèque, stockage et document factices).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { syncTargetPath, normalizeMacAddress, isPairingCode, readManifest, planSync, describeSyncResult, SYNC_PORT } from '../js/sync-plan.js';
+import { syncTargetPath, normalizeMacAddress, isSyncPassword, readManifest, planSync, describeSyncResult, SYNC_PORT } from '../js/sync-plan.js';
 import { pairWithMac, syncFromMac, readSyncPairing, saveSyncPairing, forgetSyncPairing, SYNC_STORAGE_KEY } from '../js/sync-client.js';
-import { renderSyncSection, SYNC_NAV, describeLastSync } from '../js/ui/sync-section.js';
+import { renderSyncSection, SYNC_NAV, describeLastSync, CERT_GUIDE } from '../js/ui/sync-section.js';
 import { renderLibrary } from '../js/ui/library-screen.js';
 import { describeSyncStatus, createSyncPanel, SYNC_BUTTONS, fetchSyncStatus, requestSyncAction } from '../js/ui/sync-panel.js';
 import { createFoldersPanel, SYNC_LABEL } from '../js/ui/folders-panel.js';
@@ -81,9 +81,9 @@ test('T43 adresse du Mac : refus de http, d\'une adresse publique, d\'un chemin,
   }
 });
 
-test('T43 code d\'appairage : exactement 6 chiffres', () => {
-  assert.equal(isPairingCode('012345'), true);
-  for (const c of ['12345', '1234567', 'abcdef', ' 123456', 123456, null]) assert.equal(isPairingCode(c), false);
+test('T51 mot de passe : 6 à 128 caractères, sans caractère de contrôle', () => {
+  for (const ok of ['123456', 'été à la mer', 'a'.repeat(128), '😀😀😀😀😀😀']) assert.equal(isSyncPassword(ok), true, ok);
+  for (const bad of ['12345', 'a'.repeat(129), 'abc\tdef', '', 123456, null, undefined]) assert.equal(isSyncPassword(bad), false, String(bad));
 });
 
 test('T43 liste du Mac : entrées mal formées ou non partagées ignorées, doublons à plat gardés une fois, forme invalide refusée', () => {
@@ -158,35 +158,61 @@ test('T43 message : résumé français, rien en mode automatique quand rien n\'a
   assert.match(text, /1 fichier en échec/);
 });
 
-// --- Téléphone : association ---
-test('T43 association : adresse et code contrôlés avant tout envoi, rien envoyé sinon', async () => {
+// --- Téléphone : association (T51 : mot de passe seulement) ---
+const MAC = { url: 'https://192.168.1.20:8443', name: 'mac-de-hicham.local' };
+
+test('T51 association : mot de passe contrôlé avant toute recherche ; adresse saisie invalide refusée ; rien envoyé', async () => {
   const calls = [];
   const fetchFn = async (...a) => { calls.push(a); throw new Error('ne doit pas être appelé'); };
-  assert.match((await pairWithMac({ address: '8.8.8.8', code: '123456', fetchFn, storage: memoryStorage() })).message, /Adresse du Mac invalide/);
-  assert.match((await pairWithMac({ address: '192.168.1.2', code: '12ab', fetchFn, storage: memoryStorage() })).message, /6 chiffres/);
+  const find = async () => { calls.push('find'); return MAC; };
+  const short = await pairWithMac({ password: '123', fetchFn, find, storage: memoryStorage() });
+  assert.equal(short.reason, 'password');
+  assert.match(short.message, /6 caractères au moins/);
+  assert.equal((await pairWithMac({ password: 'mot-de-passe', address: '8.8.8.8', fetchFn, find, storage: memoryStorage() })).reason, 'address');
   assert.equal(calls.length, 0);
 });
 
-test('T43 association : POST du code au Mac en HTTPS, sans cookie ni adresse du site, jeton gardé', async () => {
+test('T51 association : seulement le mot de passe -> le téléphone cherche le Mac, envoie le mot de passe en HTTPS sans cookie, garde adresse, nom et jeton', async () => {
   const storage = memoryStorage();
   const calls = [];
+  let searched = null;
+  const find = async (c) => { searched = c; return MAC; };
   const fetchFn = async (url, init) => { calls.push({ url, init }); return { ok: true, status: 200, json: async () => ({ token: TOKEN }) }; };
-  const out = await pairWithMac({ address: '192.168.1.20', code: '123 456', fetchFn, storage });
-  assert.deepEqual(out, { ok: true, url: 'https://192.168.1.20:8443' });
+  const out = await pairWithMac({ password: 'mot-de-passe', fetchFn, find, storage });
+  assert.deepEqual(out, { ok: true, url: MAC.url, name: MAC.name });
+  assert.equal(searched.scan.length, 508, 'balayage 192.168.1.x puis 192.168.0.x');
   assert.equal(calls[0].url, 'https://192.168.1.20:8443/sync/pair');
   assert.equal(calls[0].init.method, 'POST');
   assert.equal(calls[0].init.credentials, 'omit');
   assert.equal(calls[0].init.referrerPolicy, 'no-referrer');
-  assert.deepEqual(JSON.parse(calls[0].init.body), { code: '123456' });
-  assert.equal(readSyncPairing(storage).token, TOKEN);
+  assert.deepEqual(JSON.parse(calls[0].init.body), { password: 'mot-de-passe' });
+  const saved = readSyncPairing(storage);
+  assert.equal(saved.token, TOKEN);
+  assert.equal(saved.name, 'mac-de-hicham.local');
 });
 
-test('T43 association : Mac injoignable (certificat absent, autre Wi-Fi) ou code refusé -> message français, rien gardé', async () => {
+test('T51 association : adresse saisie (secours) -> seule adresse essayée, pas de balayage', async () => {
+  let searched = null;
+  const find = async (c) => { searched = c; return { url: c.priority[0], name: null }; };
+  const out = await pairWithMac({ password: 'mot-de-passe', address: '10.0.0.7', find, storage: memoryStorage(),
+    fetchFn: async () => ({ ok: true, status: 200, json: async () => ({ token: TOKEN }) }) });
+  assert.equal(out.url, 'https://10.0.0.7:8443');
+  assert.deepEqual(searched.priority, ['https://10.0.0.7:8443']);
+  assert.deepEqual(searched.scan, []);
+});
+
+test('T51 association : Mac introuvable -> message qui renvoie au guide du certificat ; mot de passe refusé ou blocage -> message du Mac ; rien gardé', async () => {
   const storage = memoryStorage();
-  const down = await pairWithMac({ address: '192.168.1.20', code: '123456', fetchFn: async () => { throw new TypeError('Failed to fetch'); }, storage });
-  assert.match(down.message, /Mac injoignable.*certificat/);
-  const refused = await pairWithMac({ address: '192.168.1.20', code: '123456', fetchFn: async () => ({ ok: false, status: 403, json: async () => ({ message: 'Code incorrect.' }) }), storage });
-  assert.equal(refused.message, 'Code incorrect.');
+  const none = await pairWithMac({ password: 'mot-de-passe', find: async () => null, fetchFn: async () => { throw new Error('x'); }, storage });
+  assert.equal(none.reason, 'not-found');
+  assert.match(none.message, /Mac introuvable.*certificat.*Première fois.*même Wi-Fi.*réseau local/);
+  const down = await pairWithMac({ password: 'mot-de-passe', find: async () => MAC, fetchFn: async () => { throw new TypeError('Failed to fetch'); }, storage });
+  assert.equal(down.reason, 'not-found');
+  for (const [status, message] of [[403, 'Mot de passe incorrect. Encore 4 essais avant un blocage de 15 minutes.'], [429, 'Trop de mauvais mots de passe : réessayez dans 15 min.']]) {
+    const refused = await pairWithMac({ password: 'mot-de-passe', find: async () => MAC, storage, fetchFn: async () => ({ ok: false, status, json: async () => ({ message }) }) });
+    assert.equal(refused.reason, 'refused');
+    assert.equal(refused.message, message);
+  }
   assert.equal(readSyncPairing(storage), null);
 });
 
@@ -274,12 +300,15 @@ test('T43 synchronisation : plus de place -> fichier sauté et signalé ; fichie
 
 test('T43 synchronisation : sans association rien n\'est fait ; jeton refusé (401) -> à réassocier ; Mac injoignable silencieux en automatique', async () => {
   assert.equal((await syncFromMac({ library: fakeLibrary(), systems: SYSTEMS, storage: memoryStorage(), fetchFn: async () => { throw new Error('x'); } })).status, 'unpaired');
-  const unpaired = await syncFromMac({ library: fakeLibrary(), systems: SYSTEMS, storage: paired(), fetchFn: fakeMac([], { status: 401 }) });
+  const refusedStorage = paired({ 'roms/nes/A.nes': { size: 1, mtime: 1 } });
+  const unpaired = await syncFromMac({ library: fakeLibrary(), systems: SYSTEMS, storage: refusedStorage, fetchFn: fakeMac([], { status: 401 }) });
   assert.equal(unpaired.status, 'unpaired');
-  assert.match(unpaired.text, /associez-le de nouveau/);
+  assert.match(unpaired.text, /saisissez de nouveau le mot de passe/);
+  assert.equal(readSyncPairing(refusedStorage).token, null, 'T51 : mot de passe redemandé');
+  assert.deepEqual(Object.keys(readSyncPairing(refusedStorage).files), ['roms/nes/A.nes'], 'T51 : fichiers venus du Mac gardés');
   const down = async () => { throw new TypeError('Failed to fetch'); };
   assert.deepEqual(await syncFromMac({ library: fakeLibrary(), systems: SYSTEMS, storage: paired(), fetchFn: down, quiet: true }), { status: 'unreachable', text: null, changed: false });
-  assert.match((await syncFromMac({ library: fakeLibrary(), systems: SYSTEMS, storage: paired(), fetchFn: down })).text, /Mac injoignable/);
+  assert.match((await syncFromMac({ library: fakeLibrary(), systems: SYSTEMS, storage: paired(), fetchFn: down, find: async () => null })).text, /Mac introuvable/);
   const odd = await syncFromMac({ library: fakeLibrary(), systems: SYSTEMS, storage: paired(), fetchFn: async () => ({ ok: true, status: 200, json: async () => ({ nope: 1 }) }) });
   assert.equal(odd.status, 'error');
 });
@@ -296,18 +325,25 @@ test('T43 synchronisation : une seule à la fois', async () => {
 });
 
 // --- Écrans ---
-test('T43 « Mes fichiers » : rubrique « Synchroniser avec le Mac » avec adresse, code et bouton Associer (navigables)', () => {
+test('T51 « Mes fichiers » : rubrique « Synchroniser avec le Mac » avec mot de passe, Associer, adresse facultative (navigables) et guide du certificat', () => {
   const doc = fakeDoc();
   const asked = [];
-  const nodes = renderSyncSection({ pairing: null, onPair: (a, c) => asked.push([a, c]), onSyncNow() {}, onForget() {} }, doc);
-  assert.match(textOf(nodes), /Synchroniser avec le Mac/);
-  assert.match(textOf(nodes), /certificat/);
-  for (const id of [SYNC_NAV.address, SYNC_NAV.code, SYNC_NAV.pair]) assert.ok(byNav(nodes, id), id);
-  byNav(nodes, SYNC_NAV.address).value = '192.168.1.20';
-  byNav(nodes, SYNC_NAV.code).value = '123456';
+  const nodes = renderSyncSection({ pairing: null, onPair: (p, a) => asked.push([p, a]), onSyncNow() {}, onForget() {} }, doc);
+  const text = textOf(nodes);
+  assert.match(text, /Synchroniser avec le Mac/);
+  assert.match(text, /Première fois : installer le certificat du Mac/);
+  for (const step of CERT_GUIDE) assert.ok(text.includes(step), step);
+  assert.match(CERT_GUIDE.join(' '), /Paramètres avancés.*Continuer.*Télécharger le certificat.*Certificat CA.*Installer quand même/);
+  for (const id of [SYNC_NAV.password, SYNC_NAV.address, SYNC_NAV.pair]) assert.ok(byNav(nodes, id), id);
+  assert.equal(byNav(nodes, SYNC_NAV.password).attrs.type, 'password');
+  assert.match(textOf(nodes), /facultatif/);
+  byNav(nodes, SYNC_NAV.password).value = 'mot-de-passe';
+  byNav(nodes, SYNC_NAV.address).value = '';
   const form = nodes.flatMap((n) => walk(n)).find((n) => n.tag === 'form');
   form.listeners.submit({ preventDefault() {} });
-  assert.deepEqual(asked, [['192.168.1.20', '123456']]);
+  assert.deepEqual(asked, [['mot-de-passe', '']]);
+  const again = renderSyncSection({ pairing: { url: MAC.url, name: MAC.name, token: null, lastSync: 1 }, onPair() {}, onSyncNow() {}, onForget() {} }, fakeDoc());
+  assert.ok(byNav(again, SYNC_NAV.password), 'jeton refusé par le Mac -> mot de passe redemandé');
 });
 
 test('T43 « Mes fichiers » : associé -> Mac, dernière synchronisation, « Synchroniser maintenant », « Oublier ce Mac », message', () => {
@@ -317,6 +353,7 @@ test('T43 « Mes fichiers » : associé -> Mac, dernière synchronisation, « Sy
     onPair() {}, onSyncNow: () => calls.push('now'), onForget: () => calls.push('forget') }, doc);
   const text = textOf(nodes);
   assert.match(text, /https:\/\/192\.168\.1\.20:8443/);
+  assert.match(textOf(renderSyncSection({ pairing: { ...MAC, token: TOKEN, lastSync: null }, onPair() {}, onSyncNow() {}, onForget() {} }, fakeDoc())), /Associé au Mac\s+mac-de-hicham\s+\./);
   assert.match(text, /Pas encore synchronisé/);
   assert.match(text, /2 fichiers copiés/);
   byNav(nodes, SYNC_NAV.now).listeners.click();
@@ -336,17 +373,20 @@ test('T43 « Mes fichiers » : la rubrique n\'apparaît que si l\'hôte la fourn
 });
 
 // --- Mac : panneau ---
-const STATUS = { enabled: true, running: true, port: 8443, addresses: ['https://192.168.1.20:8443'], code: { value: '042517', expiresAt: 1000 + 4 * 60000 }, devices: 1, error: null };
+const STATUS = { enabled: true, running: true, port: 8443, addresses: ['https://192.168.1.20:8443'], name: 'mac.local', hasPassword: true, certRejected: null,
+  devices: 1, error: null };
 
-test('T43 panneau du Mac : arrêté -> rien d\'ouvert ; actif -> adresse, code, durée, téléphones, étapes du certificat', () => {
-  const off = describeSyncStatus({ ...STATUS, running: false, enabled: false, addresses: [], code: null, devices: 0 }, 1000);
+test('T51 panneau du Mac : arrêté -> rien d\'ouvert ; actif -> adresse, mot de passe, téléphones, étapes du certificat ; certificat refusé signalé', () => {
+  const off = describeSyncStatus({ ...STATUS, running: false, enabled: false, addresses: [], devices: 0, hasPassword: false });
   assert.match(off.state, /rien n'est ouvert au réseau/);
+  assert.match(off.password, /Aucun mot de passe/);
   assert.deepEqual(off.steps, []);
-  const on = describeSyncStatus(STATUS, 1000);
-  assert.equal(on.code, '042517');
-  assert.match(on.codeNote, /4 min, pour un seul téléphone/);
+  const on = describeSyncStatus(STATUS);
+  assert.match(on.password, /Mot de passe choisi/);
   assert.match(on.devices, /1 téléphone associé/);
-  assert.match(on.steps.join(' '), /certificat.*Certificat CA/);
+  assert.match(on.steps.join(' '), /certificat.*Certificat CA.*mot de passe/);
+  assert.equal(on.certWarning, null);
+  assert.match(describeSyncStatus({ ...STATUS, certRejected: '192.168.1.40' }).certWarning, /192\.168\.1\.40\) a refusé le certificat/);
   assert.match(describeSyncStatus(null).state, /Impossible de joindre Clone90/);
 });
 
@@ -354,10 +394,9 @@ test('T43 panneau du Mac : « Activer le partage » envoie POST api/sync/enable 
   const doc = fakeDoc();
   const calls = [];
   const fetchFn = async (url, init) => { calls.push({ url, init }); return { ok: true, status: 200, json: async () => STATUS }; };
-  const panel = createSyncPanel({ fetchFn, initial: { ...STATUS, running: false, enabled: false, addresses: [], code: null, devices: 0 }, now: () => 1000 }, doc);
+  const panel = createSyncPanel({ fetchFn, initial: { ...STATUS, running: false, enabled: false, addresses: [], devices: 0, hasPassword: false } }, doc);
   panel.open(doc.body);
-  assert.deepEqual(panel.buttons.map((b) => b.textContent), [SYNC_BUTTONS.enable, SYNC_BUTTONS.pair, SYNC_BUTTONS.forget, SYNC_BUTTONS.uploadsOn, SYNC_BUTTONS.close]);
-  assert.equal(panel.buttons[1].attrs['aria-disabled'], 'true', 'pas de code sans partage');
+  assert.deepEqual(panel.buttons.map((b) => b.textContent), [SYNC_BUTTONS.enable, SYNC_BUTTONS.password, SYNC_BUTTONS.forget, SYNC_BUTTONS.uploadsOn, SYNC_BUTTONS.close]);
   panel.handleAction('confirm');
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(calls[0].url, 'api/sync/enable');
@@ -365,14 +404,35 @@ test('T43 panneau du Mac : « Activer le partage » envoie POST api/sync/enable 
   assert.equal(calls[0].init.headers['X-Clone90'], '1');
   assert.equal(calls[0].init.body, '{}');
   assert.equal(panel.buttons[0].textContent, SYNC_BUTTONS.disable);
-  assert.match(textOf(panel.element), /042517/);
+  assert.equal(panel.buttons[1].textContent, SYNC_BUTTONS.changePassword);
+});
+
+test('T51 panneau du Mac : « Choisir le mot de passe » envoie le champ à api/sync/password puis le vide ; champ vide -> message, rien envoyé', async () => {
+  const doc = fakeDoc();
+  const calls = [];
+  const fetchFn = async (url, init) => { calls.push({ url, init }); return { ok: true, status: 200, json: async () => STATUS }; };
+  const panel = createSyncPanel({ fetchFn, initial: { ...STATUS, hasPassword: false } }, doc);
+  panel.open(doc.body);
+  assert.equal(panel.passwordInput.attrs.type, 'password');
+  panel.passwordInput.value = '';
+  panel.buttons[1].listeners.click();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(calls.length, 0);
+  assert.match(textOf(panel.element), /Saisissez d'abord le mot de passe/);
+  panel.passwordInput.value = 'mon-secret';
+  panel.buttons[1].listeners.click();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(calls[0].url, 'api/sync/password');
+  assert.deepEqual(JSON.parse(calls[0].init.body), { password: 'mon-secret' });
+  assert.equal(panel.passwordInput.value, '');
+  assert.match(textOf(panel.element), /Mot de passe enregistré/);
 });
 
 test('T43 panneau du Mac : client sans API -> null ; refus -> message', async () => {
   assert.equal(await fetchSyncStatus(async () => ({ ok: false, status: 404, json: async () => ({}) })), null);
   assert.equal(await fetchSyncStatus(async () => { throw new Error('x'); }), null);
-  assert.match((await requestSyncAction('pair', async () => ({ ok: false, status: 409, json: async () => ({ message: 'Activez d\'abord le partage.' }) }))).message, /Activez/);
-  assert.match((await requestSyncAction('pair', async () => { throw new Error('x'); })).message, /Impossible de joindre/);
+  assert.match((await requestSyncAction('password', async () => ({ ok: false, status: 400, json: async () => ({ message: 'Mot de passe refusé' }) }), { password: 'x' })).message, /refusé/);
+  assert.match((await requestSyncAction('enable', async () => { throw new Error('x'); })).message, /Impossible de joindre/);
 });
 
 test('T43 panneau des dossiers : bouton « Partager avec le téléphone » seulement si l\'hôte le demande ; il ferme le panneau puis ouvre le partage', async () => {

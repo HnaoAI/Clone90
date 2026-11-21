@@ -1,8 +1,9 @@
 // Serveur de partage Mac <-> téléphone (T43, T44) : HTTPS sur le réseau local (port 8443), réservé aux téléphones associés.
-// Routes : GET / (page d'aide), GET /clone90-ca.crt (autorité à installer sur le téléphone), POST /sync/pair ({code} -> {token}),
+// Routes : GET / (page d'aide), GET /clone90-ca.crt (autorité à installer sur le téléphone), T51 : GET /sync/hello (« je suis un Mac
+// Clone90 » + nom .local, sans jeton, pour que le téléphone trouve le Mac), POST /sync/pair ({password} -> {token}),
 // GET /sync/manifest (liste des jeux, pochettes, logos et BIOS, + `uploads` : réception permise), GET /sync/file?path=... (un fichier),
 // T44 : POST /sync/upload?path=roms/<machine>/<fichier> (un jeu ou une pochette du téléphone, voir sync-upload.mjs). Démarré par sync-api.mjs.
-// Dépend de js/sync-plan.js (fichiers partagés, partagé avec le téléphone), sync-pairing.mjs (codes, jetons), sync-upload.mjs, local-settings.mjs.
+// Dépend de js/sync-plan.js (fichiers partagés, partagé avec le téléphone), sync-pairing.mjs (mot de passe, jetons), sync-upload.mjs, local-settings.mjs.
 // INVARIANT (sécurité, décisions de Hicham du 2026-11-15) : ce serveur n'efface et ne télécharge RIEN ; il ne sert que les fichiers des
 //   dossiers des jeux et des BIOS acceptés par `syncTargetPath` (chemin réel vérifié : un lien qui sort du dossier est refusé) ; sa SEULE
 //   écriture est l'ajout d'un jeu ou d'une pochette (T44), seulement si la personne a coché « Accepter les jeux du téléphone » sur le Mac, sans jamais
@@ -11,23 +12,30 @@ import https from 'node:https';
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { join, sep } from 'node:path';
-import { syncTargetPath, SYNC_ROUTES, isPairingCode } from '../js/sync-plan.js';
+import { syncTargetPath, SYNC_ROUTES, isSyncPassword, PASSWORD_MAX_LENGTH } from '../js/sync-plan.js';
 import { receiveUpload } from './sync-upload.mjs';
 import { ROMS_DIR, BIOS_DIR } from '../js/config.js';
 import { LOGOS_DIR } from '../js/logo-source.js';
 
 const BASE_HEADERS = { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' };
-const MAX_PAIR_BODY = 256;
+/** Corps de POST /sync/pair : `{"password": "..."}` (128 caractères au plus, jusqu'à 4 octets chacun, échappés). */
+const MAX_PAIR_BODY = 64 + PASSWORD_MAX_LENGTH * 12;
 
-/** Texte de la page d'aide (ouverte sur le téléphone pour récupérer le certificat). */
+/**
+ * Texte de la page d'aide (ouverte sur le téléphone pour récupérer le certificat). T51 : guide pas à pas pour Android, et vérification finale
+ * (la page s'ouvre sans avertissement une fois le certificat installé).
+ */
 export const HELP_PAGE = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Clone90 - partage</title><style>body{font:18px/1.5 sans-serif;margin:24px;max-width:40em}a{display:inline-block;padding:12px 16px;background:#1239b0;color:#fff;border-radius:24px;text-decoration:none}</style></head>
+<title>Clone90 - partage</title><style>body{font:18px/1.5 sans-serif;margin:24px;max-width:40em}a{display:inline-block;padding:12px 16px;background:#1239b0;color:#fff;border-radius:24px;text-decoration:none}li{margin:0 0 12px}</style></head>
 <body><h1>Clone90 : partage avec le téléphone</h1>
-<p>Ce Mac partage ses jeux, pochettes et logos avec les téléphones associés.</p>
-<p>1. Téléchargez le certificat de ce Mac :</p><p><a href="${SYNC_ROUTES.ca.slice(1)}" download="clone90-ca.crt">Télécharger le certificat</a></p>
-<p>2. Installez-le : Paramètres &gt; Sécurité (ou « Sécurité et confidentialité ») &gt; Autres paramètres de sécurité &gt; Installer depuis la mémoire
-(ou « Chiffrement et identifiants » &gt; « Installer un certificat ») &gt; <strong>Certificat CA</strong>, puis choisissez <code>clone90-ca.crt</code>.</p>
-<p>3. Revenez dans Clone90, « Mes fichiers », « Synchroniser avec le Mac » : saisissez l'adresse et le code affichés sur le Mac.</p>
+<p>Ce Mac partage ses jeux, pochettes et logos avec les téléphones qui connaissent son mot de passe. À faire une seule fois sur le téléphone :</p>
+<ol><li>Téléchargez le certificat de ce Mac :<br><a href="${SYNC_ROUTES.ca.slice(1)}" download="clone90-ca.crt">Télécharger le certificat</a></li>
+<li>Ouvrez les <strong>Paramètres</strong> d'Android, cherchez « <strong>certificat</strong> » (loupe en haut), puis choisissez
+« <strong>Certificat CA</strong> » (ou : Sécurité et confidentialité &gt; Plus de paramètres de sécurité &gt; Chiffrement et identifiants &gt;
+Installer un certificat &gt; Certificat CA).</li>
+<li>Touchez « Installer quand même », déverrouillez le téléphone, puis choisissez <code>clone90-ca.crt</code> dans « Téléchargements ».</li>
+<li>Vérifiez : fermez cet onglet et rouvrez cette adresse. S'il n'y a plus d'avertissement « Votre connexion n'est pas privée », c'est bon.</li>
+<li>Revenez dans Clone90, « Mes fichiers », « Synchroniser avec le Mac » : saisissez seulement le mot de passe choisi sur le Mac.</li></ol>
 </body></html>`;
 
 /**
@@ -88,12 +96,14 @@ function readBody(req, limit) {
 
 /**
  * Gestionnaire des requêtes du serveur de partage (testable sans HTTPS).
- * @param {{pairing: {tryCode: Function, isValidToken: Function, acceptUploads?: boolean}, getDirs: () => Promise<{romsDir: string, biosDir: string}>,
- *   getSystemIds: () => Promise<string[]>, getCa: () => string, onUploaded?: () => void, getFreeBytes?: (dir: string) => Promise<number>}} options
- *   `onUploaded` (T44) : appelé après chaque fichier reçu (régénère games.json) ; `getFreeBytes` : injectable pour les tests
+ * @param {{pairing: {tryPassword: Function, isValidToken: Function, acceptUploads?: boolean}, getDirs: () => Promise<{romsDir: string, biosDir: string}>,
+ *   getSystemIds: () => Promise<string[]>, getCa: () => string, getName?: () => string|null, onUploaded?: () => void,
+ *   getFreeBytes?: (dir: string) => Promise<number>, now?: () => number}} options
+ *   `getName` (T51) : nom `<nom>.local` du Mac annoncé par /sync/hello ; `onUploaded` (T44) : appelé après chaque fichier reçu (régénère
+ *   games.json) ; `getFreeBytes` : injectable pour les tests
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>}
  */
-export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa, onUploaded = () => {}, getFreeBytes }) {
+export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa, getName = () => null, onUploaded = () => {}, getFreeBytes, now = Date.now }) {
   let uploading = false; // T44 : un seul envoi à la fois
   return async (req, res) => {
     // CORS : le téléphone appelle depuis le site de Clone90 (GitHub Pages) ; toute origine est acceptée, la protection est le jeton.
@@ -119,16 +129,24 @@ export function createSyncHandler({ pairing, getDirs, getSystemIds, getCa, onUpl
         res.writeHead(200, { ...BASE_HEADERS, 'Content-Type': 'application/x-x509-ca-cert', 'Content-Disposition': 'attachment; filename="clone90-ca.crt"' });
         return res.end(getCa());
       }
+      if (route === SYNC_ROUTES.hello && req.method === 'GET') return send(200, { app: 'clone90', version: 1, name: getName() ?? null });
       if (route === SYNC_ROUTES.pair) {
         if (req.method !== 'POST') return send(405, { message: 'Méthode non autorisée' }, { Allow: 'POST' });
         const text = await readBody(req, MAX_PAIR_BODY);
-        let code = null;
-        try { const data = JSON.parse(text ?? ''); if (data && Object.keys(data).length === 1) code = data.code; } catch { code = null; }
-        if (!isPairingCode(code)) return send(400, { message: 'Code invalide : 6 chiffres attendus.' });
-        const result = await pairing.tryCode(code);
+        let password = null;
+        try { const data = JSON.parse(text ?? ''); if (data && Object.keys(data).length === 1) password = data.password; } catch { password = null; }
+        if (!isSyncPassword(password)) return send(400, { message: 'Mot de passe invalide : 6 caractères au moins.' });
+        const result = await pairing.tryPassword(password);
         if (result.token) return send(200, { token: result.token });
-        return send(403, { error: result.error, message: result.error === 'no-code'
-          ? 'Aucun code en cours sur le Mac : demandez-en un (« Associer un téléphone »).' : 'Code incorrect.' });
+        if (result.error === 'no-password') {
+          return send(409, { error: 'no-password', message: 'Aucun mot de passe n\'est encore choisi sur le Mac : « Dossiers », « Partager avec le téléphone », « Choisir le mot de passe ».' });
+        }
+        if (result.error === 'locked') {
+          const minutes = Math.max(1, Math.ceil((result.retryAt - now()) / 60000));
+          return send(429, { error: 'locked', message: `Trop de mauvais mots de passe : réessayez dans ${minutes} min.` }, { 'Retry-After': String(minutes * 60) });
+        }
+        const left = result.triesLeft;
+        return send(403, { error: 'wrong-password', message: `Mot de passe incorrect. Encore ${left} essai${left > 1 ? 's' : ''} avant un blocage de 15 minutes.` });
       }
       if (route === SYNC_ROUTES.upload) return await handleUpload(req, url, send);
       if (route !== SYNC_ROUTES.manifest && route !== SYNC_ROUTES.file) return send(404, { message: 'Introuvable' });
@@ -194,14 +212,28 @@ export async function readSystemIds(root) {
 }
 
 /**
+ * T51 : vrai si l'erreur TLS d'une connexion vient d'un appareil qui REFUSE le certificat du Mac (alerte « certificat inconnu », « autorité
+ * inconnue »...), c'est-à-dire, le plus souvent, d'un téléphone où le certificat n'est pas installé.
+ * @param {Error & {code?: string}} err @returns {boolean}
+ */
+export function isCertificateRejection(err) {
+  const text = `${err?.code ?? ''} ${err?.message ?? ''}`;
+  return /alert (number )?(42|43|44|45|46|48)\b|certificate[ _]unknown|unknown[ _]ca|bad[ _]certificate|ALERT_(CERTIFICATE_UNKNOWN|UNKNOWN_CA|BAD_CERTIFICATE)/i.test(text);
+}
+
+/**
  * Démarre le serveur HTTPS de partage.
- * @param {{tls: {key: string, cert: string}, port: number, host?: string, handler: Function}} options
+ * @param {{tls: {key: string, cert: string}, port: number, host?: string, handler: Function, onCertificateRejected?: (address: string) => void}} options
+ *   `onCertificateRejected` (T51) : un appareil a refusé le certificat (adresse IPv4 de l'appareil)
  * @returns {Promise<https.Server>} @throws {Error} port occupé
  */
-export function startSyncServer({ tls, port, host = '0.0.0.0', handler }) {
+export function startSyncServer({ tls, port, host = '0.0.0.0', handler, onCertificateRejected = () => {} }) {
   return new Promise((resolve, reject) => {
     // T44 : un jeu de 1 Go par le Wi-Fi peut dépasser les 5 minutes par défaut de Node (requestTimeout) : 1 heure.
     const server = https.createServer({ key: tls.key, cert: tls.cert, requestTimeout: 60 * 60 * 1000 }, handler);
+    server.on('tlsClientError', (err, socket) => {
+      if (isCertificateRejection(err)) onCertificateRejected(String(socket?.remoteAddress ?? '').replace(/^::ffff:/, ''));
+    });
     server.once('error', reject);
     server.listen(port, host, () => { server.off('error', reject); resolve(server); });
   });

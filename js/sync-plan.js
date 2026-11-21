@@ -1,6 +1,7 @@
 // Synchronisation Mac -> téléphone par le Wi-Fi (T43) : règles PURES partagées par le serveur de partage du Mac (scripts/sync-server.mjs)
-// et par le téléphone (js/sync-client.js) : fichiers partagés et leur chemin sur le téléphone, adresse du Mac, code d'appairage,
+// et par le téléphone (js/sync-client.js) : fichiers partagés et leur chemin sur le téléphone, adresse du Mac, mot de passe,
 // liste reçue du Mac, plan de copie (ce qu'il faut copier, remplacer ou retirer) et message de fin.
+// T51 : mot de passe du partage (remplace le code à 6 chiffres) et adresses où le téléphone cherche le Mac (`discoveryCandidates`).
 // T44 : envoi téléphone -> Mac (jeux et pochettes, jamais les BIOS ni les logos) : chemins acceptés par le Mac (`uploadTargetPath`),
 // taille permise (`maxUploadBytes`), plan d'envoi (`planUpload`), message.
 // Dépend de config.js (ROMS_DIR, BIOS_DIR) et logo-source.js (LOGOS_DIR). Aucun accès réseau ni disque ici.
@@ -12,15 +13,19 @@ import { LOGOS_DIR } from './logo-source.js';
 /** Port du serveur de partage du Mac (HTTPS), distinct du serveur de Clone90 (8080, limité au Mac). */
 export const SYNC_PORT = 8443;
 /** Adresses du serveur de partage, relatives à `https://<Mac>:<port>/`. */
-export const SYNC_ROUTES = Object.freeze({ pair: '/sync/pair', manifest: '/sync/manifest', file: '/sync/file', upload: '/sync/upload', ca: '/clone90-ca.crt' });
+export const SYNC_ROUTES = Object.freeze({ hello: '/sync/hello', pair: '/sync/pair', manifest: '/sync/manifest', file: '/sync/file', upload: '/sync/upload', ca: '/clone90-ca.crt' });
 /** T44 : taille maximale d'un jeu envoyé par le téléphone (comme un fichier téléchargé depuis une page web, T34). */
 export const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
 /** T44 : taille maximale d'une pochette envoyée par le téléphone. */
 export const MAX_COVER_UPLOAD_BYTES = 10 * 1024 * 1024;
-/** Durée de validité d'un code d'appairage affiché sur le Mac. */
-export const PAIRING_CODE_TTL_MS = 5 * 60 * 1000;
-/** Nombre d'essais de code permis avant que le code soit annulé (il faut en demander un autre sur le Mac). */
-export const PAIRING_MAX_TRIES = 5;
+/** T51 : longueur du mot de passe du partage, choisi une fois sur le Mac (en caractères). */
+export const PASSWORD_MIN_LENGTH = 6;
+export const PASSWORD_MAX_LENGTH = 128;
+/** T51 : mauvais mots de passe permis avant blocage, et durée du blocage (contre l'essai de mots de passe en série depuis le Wi-Fi). */
+export const PASSWORD_MAX_TRIES = 5;
+export const PASSWORD_LOCK_MS = 15 * 60 * 1000;
+/** T51 : réseaux balayés quand le Mac n'est pas à son adresse connue (les plus courants des box françaises), adresses .1 à .254. */
+export const SCAN_SUBNETS = Object.freeze(['192.168.1', '192.168.0']);
 /** Nombre maximal de fichiers dans la liste du Mac (au-delà, la liste est refusée par le téléphone). */
 export const MAX_MANIFEST_FILES = 50000;
 
@@ -73,8 +78,51 @@ export function normalizeMacAddress(text) {
   return okHost ? `https://${host}:${port}` : null;
 }
 
-/** Vrai pour un code d'appairage : 6 chiffres. */
-export const isPairingCode = (code) => typeof code === 'string' && /^\d{6}$/.test(code);
+/**
+ * T51 : vrai pour un mot de passe du partage acceptable : 6 à 128 caractères, sans caractère de contrôle.
+ * @param {unknown} text @returns {boolean}
+ */
+export function isSyncPassword(text) {
+  if (typeof text !== 'string') return false;
+  const length = [...text].length;
+  return length >= PASSWORD_MIN_LENGTH && length <= PASSWORD_MAX_LENGTH && !/[\u0000-\u001f\u007f]/.test(text);
+}
+
+/**
+ * T51 : nom `<nom>.local` du Mac (tel qu'il l'annonce) -> origine HTTPS du partage, ou null.
+ * @param {unknown} name @returns {string|null}
+ */
+export function macNameUrl(name) {
+  return typeof name === 'string' && /\.local$/.test(name) ? normalizeMacAddress(name) : null;
+}
+
+/**
+ * T51 : où chercher le Mac, dans l'ordre. `priority` : adresse saisie (seule si elle est donnée), dernière adresse connue, nom .local du Mac ;
+ * `scan` : balayage du réseau local (réseau /24 de la dernière adresse connue, puis SCAN_SUBNETS), sans doublon.
+ * INVARIANT : seulement des adresses privées ou .local, en HTTPS sur le port du partage (normalizeMacAddress).
+ * @param {{manual?: string, saved?: string|null, name?: string|null}} [input]
+ * @returns {{priority: string[], scan: string[]}|null} null si l'adresse saisie est invalide
+ */
+export function discoveryCandidates({ manual = '', saved = null, name = null } = {}) {
+  if (typeof manual === 'string' && manual.trim()) {
+    const url = normalizeMacAddress(manual);
+    return url ? { priority: [url], scan: [] } : null;
+  }
+  const priority = [...new Set([normalizeMacAddress(saved ?? ''), macNameUrl(name)].filter(Boolean))];
+  const own = /^https:\/\/(\d+\.\d+\.\d+)\.\d+:/.exec(priority[0] ?? '')?.[1];
+  const subnets = [...new Set([own, ...SCAN_SUBNETS].filter(Boolean))];
+  const scan = subnets.flatMap((net) => Array.from({ length: 254 }, (_, i) => `https://${net}.${i + 1}:${SYNC_PORT}`)).filter((u) => !priority.includes(u));
+  return { priority, scan };
+}
+
+/**
+ * T51 : réponse de `GET /sync/hello` (sans jeton) contrôlée : `{app: 'clone90', name}`.
+ * @param {unknown} body @returns {{name: string|null}|null} null si ce n'est pas un Mac Clone90
+ */
+export function readHello(body) {
+  if (!body || typeof body !== 'object' || body.app !== 'clone90') return null;
+  return { name: macNameUrl(body.name) ? body.name : null };
+}
 
 /**
  * Liste reçue du Mac (`{files: [{path, size, mtime}]}`), contrôlée : entrées mal formées ou non partagées ignorées, doublons de chemin

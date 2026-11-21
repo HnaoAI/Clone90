@@ -144,7 +144,7 @@ test('T44 téléphone : place manquante, fichier existant et refus du Mac compt�
 test('T44 téléphone : non associé, Mac injoignable, plus associé -> message, rien envoyé ; ne lève jamais', async () => {
   const lib = fakeLibrary({ 'roms/nes/A.nes': blobOf(1) });
   assert.equal((await sendGamesToMac({ library: lib, systems: SYSTEMS, storage: memoryStorage(), fetchFn: async () => { throw new Error('x'); } })).status, 'unpaired');
-  assert.match((await sendGamesToMac({ library: lib, systems: SYSTEMS, storage: paired(), fetchFn: async () => { throw new Error('réseau'); } })).text, /Mac injoignable/);
+  assert.match((await sendGamesToMac({ library: lib, systems: SYSTEMS, storage: paired(), fetchFn: async () => { throw new Error('réseau'); }, find: async () => null })).text, /Mac introuvable/);
   const gone = await sendGamesToMac({ library: lib, systems: SYSTEMS, storage: paired(), fetchFn: async () => ({ ok: false, status: 401, json: async () => ({}) }) });
   assert.equal(gone.status, 'unpaired');
   assert.match(gone.text, /plus associé/);
@@ -184,7 +184,8 @@ async function startMac({ accept = true, free = Infinity } = {}) {
   await mkdir(join(root, 'ailleurs'));
   await symlink(join(root, 'ailleurs'), join(romsDir, 'amiga'));
   const tls = await ensureCertificates({ root, addresses: [], hostname: '' });
-  const pairing = await createPairing({ root, makeCode: () => '424242' });
+  const pairing = await createPairing({ root });
+  await pairing.setPassword('mot-de-passe');
   if (accept) await pairing.setAcceptUploads(true);
   let regenerated = 0;
   const handler = createSyncHandler({ pairing, getDirs: async () => ({ romsDir, biosDir }), getSystemIds: async () => IDS, getCa: () => tls.ca,
@@ -200,8 +201,7 @@ async function startMac({ accept = true, free = Infinity } = {}) {
     req.on('error', reject);
     req.end(body);
   });
-  pairing.newCode();
-  const { token } = (await request('/sync/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"code":"424242"}' })).body;
+  const { token } = (await request('/sync/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"password":"mot-de-passe"}' })).body;
   const auth = { Authorization: `Bearer ${token}` };
   const upload = (path, body, headers = {}) => request(`/sync/upload?path=${encodeURIComponent(path)}`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/octet-stream', ...headers }, body });
   return { root, romsDir, biosDir, pairing, port, ca: tls.ca, request, upload, auth, regenerated: () => regenerated, close: () => new Promise((r) => { server.close(r); server.closeAllConnections(); }) };

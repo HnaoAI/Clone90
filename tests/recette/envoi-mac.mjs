@@ -1,6 +1,7 @@
 // Recette T44 « envoyer les jeux du téléphone vers le Mac » : vrai navigateur, vrai serveur de partage HTTPS (vrai certificat openssl),
 // vraie bibliothèque IndexedDB du téléphone, vrai générateur de games.json sur le Mac. Même montage que tests/recette/synchro.mjs (T43) :
 // « Mac » avec l'API locale, « téléphone » Pixel 7 sans API, adresse 192.168.50.10 relayée par Playwright vers 127.0.0.1.
+// T51 : mot de passe choisi sur le Mac ; le téléphone saisit ici aussi l'adresse (champ de secours), la recherche seule est dans synchro.mjs.
 // Usage : PLAYWRIGHT_PATH=... node tests/recette/envoi-mac.mjs [dossier de captures]
 import { cp, mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import https from 'node:https';
@@ -92,7 +93,7 @@ const watchToasts = (page) => page.addInitScript(() => {
 
 const browser = await pw.chromium.launch();
 try {
-  // 1. Mac : partage activé, réception des jeux ÉTEINTE par défaut, code.
+  // 1. Mac : partage activé, réception des jeux ÉTEINTE par défaut, mot de passe (T51).
   const macContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await macContext.route('https://**', (r) => r.abort());
   const mac = await macContext.newPage();
@@ -104,9 +105,9 @@ try {
   verdict('T44-reception-eteinte-par-defaut', await mac.getByText('Ce Mac n\'accepte pas les jeux des téléphones.').count() === 1
     && await mac.getByRole('button', { name: 'Accepter les jeux du téléphone' }).count() === 1, '');
   verdict('T44-texte-securite', /AJOUTER ses jeux et pochettes.*sans jamais remplacer/.test(await mac.locator('#sync-info').textContent()), '');
-  await mac.getByRole('button', { name: 'Associer un téléphone' }).click();
-  await mac.locator('.sync-code').waitFor();
-  const code = (await mac.locator('.sync-code').textContent()).trim();
+  await mac.locator('#sync-password').fill('mot-de-passe-du-mac');
+  await mac.getByRole('button', { name: 'Choisir le mot de passe' }).click();
+  await mac.getByText('Mot de passe enregistré').waitFor({ timeout: 10000 });
 
   // 2. Téléphone : association (copie du Mac), puis fichiers mis à la main : un jeu nouveau et sa pochette, un doublon de nom, un BIOS.
   const phoneContext = await browser.newContext({ ...pw.devices['Pixel 7'], ignoreHTTPSErrors: true });
@@ -122,7 +123,7 @@ try {
   await phone.locator('#sync-address').waitFor();
   await putLocal(phone, [['roms/nes/Perso.nes', 'NES-PERSO-TEL'], ['roms/nes/Doublon.nes', 'NES-DOUBLON-TEL'], ['roms/nes/Perso.png', [...COVER]], ['bios/tel.bin', 'BIOS-TEL']]);
   await phone.locator('#sync-address').fill(`${LAN}:${SYNC_PORT}`);
-  await phone.locator('#sync-code').fill(code);
+  await phone.locator('#sync-password').fill('mot-de-passe-du-mac');
   await phone.getByRole('button', { name: 'Associer' }).click();
   await phone.getByText('copié depuis le Mac').waitFor({ timeout: 20000 });
   const send = phone.getByRole('button', { name: 'Envoyer mes jeux au Mac' });
