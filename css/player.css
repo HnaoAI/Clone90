@@ -190,6 +190,23 @@ body.is-playing .menu-wrap { opacity: 0.6; }
   .player-body .ejs_virtualGamepad_bottom .b_speed_slow { order: 3; }
   .player-body .ejs_virtualGamepad_bottom .b_speed_fast { order: 4; }
   .player-body .ejs_virtualGamepad_bottom .b_speed_rewind { order: 5; }
+  /* T50 : boutons L et R de la Game Boy Advance (schéma « gba » d'EmulatorJS, classes cs_gba b_l / b_r de src/emulator.js 4.2.3).
+     En paysage, EmulatorJS les pose 90 px au-dessus de la croix et de A/B, c'est-à-dire sous le bouton Menu (à gauche) et sous le ☰
+     (à droite) : le toucher arrivait au Menu. Posés juste sous eux (Menu : 16 + 48 px, 76 px avec son cadre), au bord de l'écran,
+     44 x 32 px : sur l'écran le plus bas (800x300), la croix commence à 75 px mais son coin haut gauche est vide (seuls les bras
+     comptent), d'où z-index au-dessus de la zone de la croix ; A commence à 111 px. EmulatorJS écrit left/top dans l'attribut style,
+     d'où !important. Vérifié par tests/recette/gba.mjs (863x360, 640x360, 800x300). */
+  .player-body .ejs_virtualGamepad_parent .cs_gba.b_l,
+  .player-body .ejs_virtualGamepad_parent .cs_gba.b_r {
+    position: fixed;
+    z-index: 1;
+    top: calc(76px + env(safe-area-inset-top, 0px)) !important;
+    width: 44px;
+    height: 32px;
+    line-height: 32px;
+  }
+  .player-body .ejs_virtualGamepad_parent .cs_gba.b_l { left: calc(6px + env(safe-area-inset-left, 0px)) !important; right: auto !important; }
+  .player-body .ejs_virtualGamepad_parent .cs_gba.b_r { right: calc(6px + env(safe-area-inset-right, 0px)) !important; left: auto !important; }
 }
 
 /* Toast du player (T12, "Disquette 2 / 3") : au-dessus du lecteur (#game z-index 1), sous le bouton Menu en haut ; en bas au centre. */

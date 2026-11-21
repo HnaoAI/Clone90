@@ -26,6 +26,12 @@
 7. T50 téléphone : manette tactile avec L, R, A, B, Start, Select, dans l'écran et hors de l'image du jeu (recette `tests/recette/gba.mjs`).
 8. Version 0.50.0.
 
+## Défaut trouvé par la recette et corrigé
+En paysage, EmulatorJS pose L sous le bouton Menu de Clone90 et R sous le ☰ : le toucher ouvrait le menu. `css/player.css` (paysage seulement, boutons `cs_gba` seulement) les place juste sous Menu et ☰, au bord de l'écran. Les autres machines ne sont pas touchées.
+
+## Recette
+`tests/recette/gba.mjs` : 55/55 (captures dans le dossier du projet, captures/T50/).
+
 ## Vérification manuelle (Hicham)
 1. Mac : créer `roms/gba/`, y mettre un jeu `.gba` que vous possédez ; relancer Clone90 : la tuile Game Boy Advance montre le jeu, il démarre. Facultatif : `bios/gba_bios.bin` pour le logo de démarrage.
 2. Mac : « Dossiers des jeux » > « Télécharger les logos des machines » : la Game Boy Advance a son vrai logo.
