@@ -19,9 +19,13 @@ const CDN = `https://cdn.emulatorjs.org/${EJS_CDN_VERSION}/data/`;
 
 test('T46 cœur EmulatorJS : chaque machine de systems.json a un vrai nom de cœur (celui que télécharge EmulatorJS 4.2.3)', () => {
   const expected = { amiga: 'puae', neogeo: 'fbneo', arcade: 'fbneo', mastersystem: 'smsplus', megadrive: 'genesis_plus_gx', gamegear: 'genesis_plus_gx',
-    megacd: 'genesis_plus_gx', '32x': 'picodrive', nes: 'fceumm', snes: 'snes9x', gameboy: 'gambatte', gameboycolor: 'gambatte', pcengine: 'mednafen_pce', pcenginecd: 'mednafen_pce' };
+    megacd: 'genesis_plus_gx', '32x': 'picodrive', nes: 'fceumm', snes: 'snes9x', gameboycolor: 'gambatte', pcengine: 'mednafen_pce', pcenginecd: 'mednafen_pce' };
   for (const s of systems) assert.equal(ejsCoreFor(s.emulatorjsCore), expected[s.id], `${s.id} : nouvelle machine, ajouter son cœur ici`);
   assert.equal(ejsCoreFor('fceumm'), 'fceumm', 'un nom de cœur précis reste tel quel');
+});
+
+test('T49 jeu hors ligne : gambatte reste dans la liste des cœurs (utilisé par la Game Boy Color)', () => {
+  assert.equal(ejsCoreFor(systems.find((s) => s.id === 'gameboycolor').emulatorjsCore), 'gambatte');
 });
 
 test('T46 version du moteur : celle de la machine (Amiga 4.2.1, T21), sinon la version par défaut', () => {

@@ -108,9 +108,9 @@ roms/<machine>/<fichier du jeu>
 bios/<fichier BIOS>
 ```
 
-`<machine>` est l'identifiant de `systems.json` : `amiga`, `neogeo`, `arcade`, `mastersystem`, `megadrive`, `gamegear`, `megacd`, `32x`, `nes`, `snes`, `gameboy`, `gameboycolor`, `pcengine`, `pcenginecd`. Les extensions acceptées par machine sont dans `systems.json`.
+`<machine>` est l'identifiant de `systems.json` : `amiga`, `neogeo`, `arcade`, `mastersystem`, `megadrive`, `gamegear`, `megacd`, `32x`, `nes`, `snes`, `gameboycolor`, `pcengine`, `pcenginecd`. Les extensions acceptées par machine sont dans `systems.json`.
 
-Toutes les machines ci-dessous sont affichées sur l'accueil ; celles sans jeu sont grisées. L'Amiga et la Neo Geo sont testées avec de vrais fichiers ; les 12 autres (T15, T30) sont vérifiées dans le code d'EmulatorJS 4.2.3 mais **pas encore essayées avec de vrais jeux** (section « Autres machines »).
+Toutes les machines ci-dessous sont affichées sur l'accueil ; celles sans jeu sont grisées. L'Amiga et la Neo Geo sont testées avec de vrais fichiers ; les 11 autres (T15, T30) sont vérifiées dans le code d'EmulatorJS 4.2.3 mais **pas encore essayées avec de vrais jeux** (section « Autres machines »).
 
 ### BIOS Amiga
 
@@ -157,8 +157,9 @@ Dans chaque dossier, un jeu peut aussi être un `.zip` contenant le fichier du j
 | `32x` | `.32x`, `.bin` | PicoDrive | aucun |
 | `nes` | `.nes`, `.unf`, `.unif`, `.fds` | FCEUmm | `disksys.rom` (posé) : seulement pour les `.fds` |
 | `snes` | `.sfc`, `.smc`, `.swc`, `.fig` | Snes9x | aucun |
-| `gameboy` | `.gb` | Gambatte | `gb_bios.bin` (facultatif, posé) |
 | `gameboycolor` | `.gbc` | Gambatte | `gbc_bios.bin` (facultatif, posé) |
+
+Game Boy d'origine retirée (T49, demande de Hicham) : un dossier `roms/gameboy/` n'est plus lu (rien n'est effacé). Pour jouer à un jeu `.gb`, renommez-le en `.gbc` et rangez-le dans `roms/gameboycolor/` : la Game Boy Color lit les jeux Game Boy.
 | `pcengine` | `.pce`, `.sgx` (SuperGrafx) | Beetle PCE (mednafen_pce) | aucun |
 | `pcenginecd` | `.cue` + ses `.bin`, `.chd` | Beetle PCE (mednafen_pce) | `syscard3.pce` (System Card 3) : **obligatoire pour tous les jeux CD** |
 

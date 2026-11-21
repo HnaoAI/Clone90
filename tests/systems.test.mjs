@@ -10,7 +10,7 @@ const byId = (id) => systems.find((s) => s.id === id);
 
 const EXPECTED_IDS = [
   'amiga', 'neogeo', 'arcade', 'mastersystem', 'megadrive', 'gamegear', 'megacd',
-  '32x', 'nes', 'snes', 'gameboy', 'gameboycolor', 'pcengine', 'pcenginecd',
+  '32x', 'nes', 'snes', 'gameboycolor', 'pcengine', 'pcenginecd',
 ];
 
 test('systems.json : version 1 et liste de machines non vide', () => {
@@ -18,7 +18,7 @@ test('systems.json : version 1 et liste de machines non vide', () => {
   assert.ok(Array.isArray(systems) && systems.length > 0);
 });
 
-test('systems.json : contient les 14 machines du tableau de la section 2 (12 jusqu\'à T29, PC Engine et PC Engine CD depuis T30)', () => {
+test('systems.json : contient les 13 machines du tableau de la section 2 (12 jusqu\'à T29, PC Engine et PC Engine CD depuis T30, Game Boy d\'origine retirée en T49)', () => {
   assert.deepEqual([...systems.map((s) => s.id)].sort(), [...EXPECTED_IDS].sort());
 });
 
@@ -126,7 +126,7 @@ test('systems.json : cores EmulatorJS conformes au tableau (alias sans neogeo ni
   assert.deepEqual(cores, {
     amiga: 'amiga', neogeo: 'arcade', arcade: 'arcade', mastersystem: 'segaMS',
     megadrive: 'segaMD', gamegear: 'segaGG', megacd: 'segaCD', '32x': 'sega32x',
-    nes: 'nes', snes: 'snes', gameboy: 'gb', gameboycolor: 'gb', pcengine: 'pce', pcenginecd: 'pce',
+    nes: 'nes', snes: 'snes', gameboycolor: 'gb', pcengine: 'pce', pcenginecd: 'pce',
   });
 });
 
@@ -157,7 +157,7 @@ const CORE_JSON_EXTENSIONS = {
   picodrive: ['bin', 'gen', 'smd', 'md', '32x', 'cue', 'iso', 'sms', '68k', 'chd'],
   fceumm: ['fds', 'nes', 'unif', 'unf'], snes9x: ['smc', 'sfc', 'swc', 'fig', 'bs', 'st'], gambatte: ['gb', 'gbc', 'dmg'],
 };
-const WAVE_2 = ['arcade', 'mastersystem', 'megadrive', 'gamegear', 'megacd', '32x', 'nes', 'snes', 'gameboy', 'gameboycolor'];
+const WAVE_2 = ['arcade', 'mastersystem', 'megadrive', 'gamegear', 'megacd', '32x', 'nes', 'snes', 'gameboycolor'];
 const WAVE_2_SYSTEMS = WAVE_2.map(byId);
 
 test('T15 chaque machine de la vague 2 a un alias de cœur connu d\'EmulatorJS 4.2.3', () => {
@@ -191,10 +191,10 @@ test('T15 Mega-CD : les trois BIOS régionaux sont posés (preload) quand ils ex
   }
 });
 
-test('T15 preload : seulement les BIOS dont le cœur se sert vraiment (Mega-CD, Game Boy, Game Boy Color, NES disksys.rom)', () => {
+test('T15 preload : seulement les BIOS dont le cœur se sert vraiment (Mega-CD, Game Boy Color, NES disksys.rom)', () => {
   const preloaded = systems.flatMap((s) => s.bios.filter((b) => b.preload).map((b) => `${s.id}/${b.file}`)).sort();
   assert.deepEqual(preloaded, [
-    'gameboy/gb_bios.bin', 'gameboycolor/gbc_bios.bin', 'megacd/bios_CD_E.bin', 'megacd/bios_CD_J.bin', 'megacd/bios_CD_U.bin', 'nes/disksys.rom',
+    'gameboycolor/gbc_bios.bin', 'megacd/bios_CD_E.bin', 'megacd/bios_CD_J.bin', 'megacd/bios_CD_U.bin', 'nes/disksys.rom',
   ]);
   for (const s of systems) for (const b of s.bios) if ('preload' in b) assert.equal(typeof b.preload, 'boolean');
 });
@@ -272,4 +272,20 @@ test('T30 pochettes et logos : dépôts libretro-thumbnails NEC et dossiers du t
   assert.equal(byId('pcenginecd').logoTheme, 'tg-cd');
   assert.equal(byId('pcengine').logo, 'assets/logos/pcengine.svg');
   assert.equal(byId('pcenginecd').accent, '--m-pcenginecd');
+});
+
+// --- T49 : Game Boy d'origine retirée, Game Boy Color gardée ---
+test('T49 la Game Boy d\'origine n\'est plus une machine (ni id gameboy, ni nom « Game Boy », ni extension .gb, ni gb_bios.bin)', () => {
+  assert.equal(byId('gameboy'), undefined);
+  assert.ok(!systems.some((s) => s.name === 'Game Boy'));
+  assert.ok(!systems.some((s) => s.extensions.includes('gb')));
+  assert.ok(!systems.some((s) => s.bios.some((b) => b.file === 'gb_bios.bin')));
+});
+
+test('T49 la Game Boy Color reste entière : cœur gb (gambatte), .gbc et zip, BIOS gbc_bios.bin facultatif posé', () => {
+  const gbc = byId('gameboycolor');
+  assert.equal(gbc.name, 'Game Boy Color');
+  assert.equal(gbc.emulatorjsCore, 'gb');
+  assert.deepEqual(gbc.extensions, ['gbc', 'zip']);
+  assert.deepEqual(gbc.bios.map((b) => [b.file, b.required, b.preload]), [['gbc_bios.bin', false, true]]);
 });

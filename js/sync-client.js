@@ -87,9 +87,10 @@ export async function syncFromMac({ library, systems, fetchFn = globalThis.fetch
       return { status: 'unreachable', text: quiet ? null : unreachableText(pairing.url), changed: false };
     }
     if (res.status === 401) return { status: 'unpaired', text: 'Ce téléphone n\'est plus associé au Mac : associez-le de nouveau avec un nouveau code.', changed: false };
-    const remote = res.ok ? readManifest(await res.json().catch(() => null), systems.map((s) => s.id)) : null;
+    const systemIds = systems.map((s) => s.id);
+    const remote = res.ok ? readManifest(await res.json().catch(() => null), systemIds) : null;
     if (!remote) return { status: 'error', text: `Réponse inattendue du Mac (${res.status}).`, changed: false };
-    const plan = planSync({ remote, local: await library.list(), synced: pairing.files });
+    const plan = planSync({ remote, local: await library.list(), synced: pairing.files, systemIds });
     const todo = [...plan.copy, ...plan.replace];
     const replaced = new Set(plan.replace.map((e) => e.target));
     const result = { copied: 0, replaced: 0, removed: 0, failed: 0, noSpace: 0, quiet };

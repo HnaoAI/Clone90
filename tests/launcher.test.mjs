@@ -576,12 +576,12 @@ test('T15 checkPlanFiles : un BIOS preload absent ne retire PAS le BIOS par déf
   assert.deepEqual(cleaned.rawFiles, []);
 });
 
-test('T15 BIOS preload requis absent reste une erreur ; Game Boy et NES (systems.json réel) posent leur BIOS facultatif', async () => {
+test('T15 BIOS preload requis absent reste une erreur ; Game Boy Color et NES (systems.json réel) posent leur BIOS facultatif', async () => {
   const strict = { id: 'x', emulatorjsCore: 'x', bios: [{ file: 'r.bin', required: true, role: 'optional', preload: true }] };
   const { missing } = await checkPlanFiles(buildLaunchPlan({ system: strict, game: mslug }), async (u) => !u.startsWith('bios/'));
   assert.deepEqual(missing.map((f) => f.kind), ['bios']);
-  const gbPlan = buildLaunchPlan({ system: realSystem('gameboy'), game: { id: 'gameboy/t', system: 'gameboy', title: 'T', file: 'roms/gameboy/t.gb' } });
-  assert.deepEqual(gbPlan.rawFiles, [{ url: 'bios/gb_bios.bin', fsPath: '/gb_bios.bin' }]);
+  const gbPlan = buildLaunchPlan({ system: realSystem('gameboycolor'), game: { id: 'gameboycolor/t', system: 'gameboycolor', title: 'T', file: 'roms/gameboycolor/t.gbc' } });
+  assert.deepEqual(gbPlan.rawFiles, [{ url: 'bios/gbc_bios.bin', fsPath: '/gbc_bios.bin' }]);
   const nesPlan = buildLaunchPlan({ system: realSystem('nes'), game: { id: 'nes/t', system: 'nes', title: 'T', file: 'roms/nes/t.fds' } });
   assert.deepEqual(nesPlan.rawFiles, [{ url: 'bios/disksys.rom', fsPath: '/disksys.rom' }]);
 });
@@ -609,8 +609,8 @@ test('T15 Mega-CD : un seul BIOS présent suffit (pas d\'erreur), les deux autre
   assert.deepEqual(cleaned.rawFiles.filter((r) => r.fsPath.startsWith('/bios_')).map((r) => r.fsPath), ['/bios_CD_U.bin']);
 });
 
-test('T15 une machine sans biosAtLeastOne (Game Boy) sans BIOS n\'est pas bloquée', async () => {
-  const plan = buildLaunchPlan({ system: realSystem('gameboy'), game: { id: 'gameboy/t', system: 'gameboy', title: 'T', file: 'roms/gameboy/t.gb' } });
+test('T15 une machine sans biosAtLeastOne (Game Boy Color) sans BIOS n\'est pas bloquée', async () => {
+  const plan = buildLaunchPlan({ system: realSystem('gameboycolor'), game: { id: 'gameboycolor/t', system: 'gameboycolor', title: 'T', file: 'roms/gameboycolor/t.gbc' } });
   assert.equal(plan.atLeastOneBios, null);
   assert.deepEqual((await checkPlanFiles(plan, async (u) => !u.startsWith('bios/'))).missing, []);
 });

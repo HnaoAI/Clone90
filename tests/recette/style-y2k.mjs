@@ -18,8 +18,8 @@ for (const f of ['index.html', 'player.html', 'manifest.webmanifest', 'sw.js', '
   await cp(join(PROJECT_ROOT, f), join(root, f), { recursive: true });
 }
 // Jeux factices : 7 machines avec des jeux (4 couleurs de bulles et leur retour), les autres à 0 jeu.
-const roms = { neogeo: 12, amiga: 8, arcade: 24, megadrive: 5, nes: 3, snes: 2, gameboy: 1 };
-const ext = { neogeo: 'zip', amiga: 'adf', arcade: 'zip', megadrive: 'md', nes: 'nes', snes: 'sfc', gameboy: 'gb' };
+const roms = { neogeo: 12, amiga: 8, arcade: 24, megadrive: 5, nes: 3, snes: 2, gameboycolor: 1 };
+const ext = { neogeo: 'zip', amiga: 'adf', arcade: 'zip', megadrive: 'md', nes: 'nes', snes: 'sfc', gameboycolor: 'gbc' };
 for (const [machine, n] of Object.entries(roms)) {
   await mkdir(join(root, 'roms', machine), { recursive: true });
   for (let i = 1; i <= n; i += 1) await writeFile(join(root, 'roms', machine, `Jeu ${String(i).padStart(2, '0')}.${ext[machine]}`), 'X');
