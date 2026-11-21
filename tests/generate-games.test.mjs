@@ -728,9 +728,17 @@ test('T30 PC Engine CD : sans bios/syscard3.pce, le générateur avertit (BIOS r
 
 // --- T50 : Game Boy Advance ---
 test('T50 Game Boy Advance : .gba et .zip listés dans roms/gba ; sans bios/gba_bios.bin aucun avertissement (BIOS facultatif)', async () => {
-  await withProject({ 'roms/gba/Homebrew (World).gba': 'x', 'roms/gba/Autre.zip': 'x', 'roms/gba/gba_bios.bin': 'x' }, async (root) => {
+  await withProject({ 'roms/gba/Homebrew (World).gba': 'x', 'roms/gba/Autre.zip': 'x' }, async (root) => {
     const result = await generateGames({ root, now: FIXED_DATE });
     assert.deepEqual(result.games.map((g) => [g.system, g.title, g.file]), [['gba', 'Autre', 'roms/gba/Autre.zip'], ['gba', 'Homebrew', 'roms/gba/Homebrew (World).gba']]);
     assert.deepEqual(result.warnings, []);
+  });
+});
+
+test('T50 Game Boy Advance : gba_bios.bin rangé par erreur dans roms/gba n\'est pas un jeu, le générateur dit de le mettre dans bios/', async () => {
+  await withProject({ 'roms/gba/Homebrew.gba': 'x', 'roms/gba/gba_bios.bin': 'x' }, async (root) => {
+    const result = await generateGames({ root, now: FIXED_DATE });
+    assert.deepEqual(result.games.map((g) => g.file), ['roms/gba/Homebrew.gba']);
+    assert.ok(result.warnings.some((w) => w.includes('gba_bios.bin') && w.includes('bios/')), result.warnings.join('\n'));
   });
 });

@@ -108,9 +108,9 @@ roms/<machine>/<fichier du jeu>
 bios/<fichier BIOS>
 ```
 
-`<machine>` est l'identifiant de `systems.json` : `amiga`, `neogeo`, `arcade`, `mastersystem`, `megadrive`, `gamegear`, `megacd`, `32x`, `nes`, `snes`, `gameboycolor`, `pcengine`, `pcenginecd`. Les extensions acceptées par machine sont dans `systems.json`.
+`<machine>` est l'identifiant de `systems.json` : `amiga`, `neogeo`, `arcade`, `mastersystem`, `megadrive`, `gamegear`, `megacd`, `32x`, `nes`, `snes`, `gameboycolor`, `gba`, `pcengine`, `pcenginecd`. Les extensions acceptées par machine sont dans `systems.json`.
 
-Toutes les machines ci-dessous sont affichées sur l'accueil ; celles sans jeu sont grisées. L'Amiga et la Neo Geo sont testées avec de vrais fichiers ; les 11 autres (T15, T30) sont vérifiées dans le code d'EmulatorJS 4.2.3 mais **pas encore essayées avec de vrais jeux** (section « Autres machines »).
+Toutes les machines ci-dessous sont affichées sur l'accueil ; celles sans jeu sont grisées. L'Amiga et la Neo Geo sont testées avec de vrais fichiers ; les 12 autres (T15, T30, T50) sont vérifiées dans le code d'EmulatorJS 4.2.3 mais **pas encore essayées avec de vrais jeux** (section « Autres machines »).
 
 ### BIOS Amiga
 
@@ -158,10 +158,13 @@ Dans chaque dossier, un jeu peut aussi être un `.zip` contenant le fichier du j
 | `nes` | `.nes`, `.unf`, `.unif`, `.fds` | FCEUmm | `disksys.rom` (posé) : seulement pour les `.fds` |
 | `snes` | `.sfc`, `.smc`, `.swc`, `.fig` | Snes9x | aucun |
 | `gameboycolor` | `.gbc` | Gambatte | `gbc_bios.bin` (facultatif, posé) |
-
-Game Boy d'origine retirée (T49, demande de Hicham) : un dossier `roms/gameboy/` n'est plus lu (rien n'est effacé). Pour jouer à un jeu `.gb`, renommez-le en `.gbc` et rangez-le dans `roms/gameboycolor/` : la Game Boy Color lit les jeux Game Boy.
+| `gba` | `.gba` | mGBA | `gba_bios.bin` (facultatif, posé : logo de démarrage officiel) |
 | `pcengine` | `.pce`, `.sgx` (SuperGrafx) | Beetle PCE (mednafen_pce) | aucun |
 | `pcenginecd` | `.cue` + ses `.bin`, `.chd` | Beetle PCE (mednafen_pce) | `syscard3.pce` (System Card 3) : **obligatoire pour tous les jeux CD** |
+
+Game Boy d'origine retirée (T49, demande de Hicham) : un dossier `roms/gameboy/` n'est plus lu (rien n'est effacé). Pour jouer à un jeu `.gb`, renommez-le en `.gbc` et rangez-le dans `roms/gameboycolor/` : la Game Boy Color lit les jeux Game Boy.
+
+Game Boy Advance (T50) : les jeux `.gba` (ou zippés) vont dans `roms/gba/`. Un jeu `.gb` ou `.gbc` reste à la Game Boy Color. Sur le téléphone, la manette tactile d'EmulatorJS ajoute les boutons L et R.
 
 Mega-CD : mettez le `.cue` et ses `.bin` (et pistes audio) dans le même dossier, **sans les renommer** (le `.cue` contient leurs noms). Le générateur n'en fait qu'UNE tuile (le `.cue`). Un `.bin` sans `.cue` est ignoré avec un avertissement. Les images CD sont lourdes (300 à 700 Mo) et sont chargées entièrement en mémoire par le navigateur : préférez le format `.chd` ou `.iso` (un seul fichier). **`cue+bin` n'est pas testé avec de vrais fichiers** et peut échouer sans message utile si le disque dépasse la mémoire du navigateur. Les `.m3u` (multi-disques) ne sont pas pris en charge.
 
