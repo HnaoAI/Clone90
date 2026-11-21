@@ -3,7 +3,7 @@
 // Contrat d'un écran : il rend dans #screen des éléments `data-nav` ; `current.onBack` (facultatif) traite l'action retour.
 // T27 : écran « Mes fichiers » (#/fichiers) ; après un ajout ou une suppression, les données sont rechargées (reload) sans recharger la page.
 // T34 : écran « Depuis une page web » (#/telecharger), source Mac (API locale) si elle répond, sinon navigateur (bibliothèque locale).
-// T35 : vérification des mises à jour 5 s après l'ouverture, fenêtre js/ui/update-dialog.js.
+// T35 : vérification des mises à jour 5 s après l'ouverture, fenêtre js/ui/update-dialog.js ; T47 : revérifiée au retour sur l'onglet après 5 h.
 // T43 : synchronisation Mac -> téléphone (js/sync-client.js) à l'ouverture et dans « Mes fichiers » ; panneau du partage sur le Mac (ui/sync-panel.js).
 // T44 : « Envoyer mes jeux au Mac » dans « Mes fichiers » (sendGamesToMac), au clic seulement.
 // T40 : après chaque import de jeux dans « Mes fichiers » (fichiers, dossier, page web) et sur un bouton, pochettes manquantes (local-covers.js) ;
@@ -31,6 +31,7 @@ import { createLinkScreen, LINK_INPUT_NAV_ID } from './ui/link-screen.js';
 import { createMacLinkSource, createBrowserLinkSource } from './link-download.js';
 import { createMacUpdateSource, createBrowserUpdateSource } from './update-check.js';
 import { openUpdateDialog } from './ui/update-dialog.js';
+import { readLastCheck, markChecked, isCheckDue, canCheckNow } from './update-schedule.js';
 import { renderGameGrid, initialFocusId, EMPTY_NAV_ID, ADD_LOCAL_NAV_ID } from './ui/game-grid.js';
 import { renderFatalError } from './ui/error-screen.js';
 import { createToast } from './ui/toast.js';
@@ -47,9 +48,8 @@ const toast = createToast(document.getElementById('toast'));
 watchPointer();
 
 const localSupported = canUseLocalLibrary(window);
-/** T35 : délai avant la vérification des mises à jour, et marque « déjà vérifié dans cet onglet ». */
+/** T35 : délai avant la vérification des mises à jour (l'heure de la dernière vérification est dans update-schedule.js, T47). */
 const UPDATE_CHECK_DELAY_MS = 5000;
-const UPDATE_CHECKED_KEY = 'clone90-update-checked';
 /** T46 : l'appareil sait-il faire du WebGL 2 (choisit la variante du cœur, comme EmulatorJS) ? */
 const hasWebgl2 = () => { try { return Boolean(document.createElement('canvas').getContext('webgl2')); } catch { return false; } };
 /** T46 : langue de l'appareil telle qu'EmulatorJS la lit (loader.js), pour garder sa traduction si elle existe. */
@@ -81,6 +81,8 @@ async function main() {
   let folderSettings = await fetchFolderSettings();
   let foldersPanel = null;
   let updateDialog = null;
+  let updatePending = false; // T47 : vérification prévue dans les 5 s
+  let updateCheckedInMemory = null; // T47 : repli si sessionStorage est refusé
   // T41 : la barre du bas est dans la racine de la navigation (bas depuis la dernière rangée), à côté de l'écran ; rendue une fois.
   const appRoot = document.getElementById('app');
   const dock = renderBottomNav({ localSupported, linksAvailable: Boolean(folderSettings) || localSupported, onOpenFolders: folderSettings ? () => openFolders() : undefined });
@@ -362,6 +364,7 @@ async function main() {
     foldersPanel = null;
     if (openSyncNext) { openSyncNext = false; await openSyncPanel(); return; }
     nav.focusById(FOLDERS_NAV_ID); // T41 : l'onglet « Dossiers » de la barre du bas reprend le focus
+    scheduleUpdateCheck(); // T47 : une vérification due pendant que le panneau était ouvert
   }
 
   /** T43 (Mac) : panneau « Partager avec le téléphone », ouvert depuis le panneau des dossiers ; capte les actions comme lui. */
@@ -371,6 +374,7 @@ async function main() {
     await foldersPanel.result;
     foldersPanel = null;
     nav.focusById(FOLDERS_NAV_ID);
+    scheduleUpdateCheck(); // T47
   }
 
   /** T43 (téléphone associé) : synchronisation sans clic à l'ouverture ; message seulement si quelque chose a changé ou échoué. Ne lève jamais. */
@@ -428,28 +432,42 @@ async function main() {
   });
   router.start(onRoute);
   scheduleUpdateCheck();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleUpdateCheck(); }); // T47
+  window.addEventListener('focus', () => scheduleUpdateCheck()); // T47
 
   /**
    * T35 : vérification des mises à jour à chaque ouverture de Clone90, 5 s après le lancement (règle de Hicham, 2026-11-13).
    * Mac (API locale) : le serveur lit la dernière version sur github.com ; sinon (site, téléphone) : version du site relue au réseau.
-   * Une fois par onglet (sessionStorage) : revenir d'un jeu recharge index.html, ce n'est pas une nouvelle ouverture.
+   * T47 : l'heure de la dernière vérification est gardée pour l'onglet (sessionStorage, js/update-schedule.js) ; revenir d'un jeu
+   * recharge index.html sans revérifier, sauf si la dernière vérification a plus de 5 h. Au retour sur l'onglet (visibilitychange, focus),
+   * même règle : un onglet laissé ouvert des jours finit par revérifier. Jamais pendant une partie : le jeu est dans player.html, sans vérification.
    */
   function scheduleUpdateCheck() {
-    try {
-      if (sessionStorage.getItem(UPDATE_CHECKED_KEY)) return;
-      sessionStorage.setItem(UPDATE_CHECKED_KEY, '1');
-    } catch { /* stockage refusé : on vérifie quand même */ }
+    if (!isCheckDue({ lastCheckedAt: lastUpdateCheck(), now: Date.now() })) return;
+    if (!canCheckNow({ hidden: document.hidden, dialogOpen: Boolean(updateDialog), panelOpen: Boolean(foldersPanel), pending: updatePending })) return;
+    updatePending = true;
     setTimeout(async () => {
+      updatePending = false;
+      // T47 : onglet quitté ou panneau ouvert pendant les 5 s : on attend le prochain retour (ou la fermeture du panneau).
+      if (!canCheckNow({ hidden: document.hidden, dialogOpen: Boolean(updateDialog), panelOpen: Boolean(foldersPanel), pending: false })) return;
+      const previous = lastUpdateCheck();
+      rememberUpdateCheck(Date.now());
       const source = folderSettings ? createMacUpdateSource() : createBrowserUpdateSource();
       const update = await source.check();
       if (update.status !== 'available') { autoCovers(); autoSync(); return; } // T43 : synchronisation avec le Mac, après la vérification // T40 : après la vérification, jamais pendant une mise à jour
-      if (foldersPanel) return;
+      if (foldersPanel || updateDialog) { rememberUpdateCheck(previous ?? 0); return; } // T47 : panneau ouvert entre-temps : on reproposera à sa fermeture
       const { dialog, done } = openUpdateDialog({ update, source, parent: document.body });
       updateDialog = dialog;
       await done;
       updateDialog = null;
     }, UPDATE_CHECK_DELAY_MS);
   }
+
+  /** T47 : stockage de l'onglet, ou null s'il est refusé (navigation privée stricte). */
+  function tabStorage() { try { return window.sessionStorage; } catch { return null; } }
+  /** T47 : heure de la dernière vérification (sessionStorage, sinon mémoire de la page). */
+  function lastUpdateCheck() { return readLastCheck(tabStorage()) ?? updateCheckedInMemory; }
+  function rememberUpdateCheck(now) { updateCheckedInMemory = now; markChecked(tabStorage(), now); }
 }
 
 main();
