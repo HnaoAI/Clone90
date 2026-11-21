@@ -118,6 +118,30 @@ test('T43 plan : retire seulement les fichiers venus du Mac et supprimés sur le
   assert.deepEqual(plan.remove, ['roms/nes/VenuDuMac.nes']);
 });
 
+test('T49 plan : un fichier venu du Mac d\'une machine retirée (Game Boy) n\'est jamais effacé du téléphone', () => {
+  const plan = planSync({
+    remote: [],
+    local: [{ path: 'roms/gameboy/Tetris.gb', size: 1 }, { path: 'roms/gameboy/Tetris.png', size: 1 }, { path: 'roms/nes/Parti.nes', size: 1 }],
+    synced: { 'roms/gameboy/Tetris.gb': { size: 1, mtime: 1 }, 'roms/gameboy/Tetris.png': { size: 1, mtime: 1 }, 'roms/nes/Parti.nes': { size: 1, mtime: 1 } },
+    systemIds: IDS,
+  });
+  assert.deepEqual(plan.remove, ['roms/nes/Parti.nes']);
+});
+
+test('T49 synchro : syncFromMac garde les jeux d\'une machine retirée venus du Mac', async () => {
+  const files = new Map([['roms/gameboy/Tetris.gb', 1], ['roms/nes/Parti.nes', 1]]);
+  const library = {
+    list: async () => [...files].map(([path, size]) => ({ path, size })),
+    put: async () => {},
+    remove: async (path) => { files.delete(path); },
+  };
+  const store = new Map([[SYNC_STORAGE_KEY, JSON.stringify({ url: 'https://192.168.1.20:8443', token: TOKEN, files: { 'roms/gameboy/Tetris.gb': { size: 1, mtime: 1 }, 'roms/nes/Parti.nes': { size: 1, mtime: 1 } } })]]);
+  const storage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) };
+  const fetchFn = async () => ({ ok: true, status: 200, json: async () => ({ version: 1, files: [] }) });
+  await syncFromMac({ library, systems: SYSTEMS, fetchFn, storage });
+  assert.deepEqual([...files.keys()], ['roms/gameboy/Tetris.gb']);
+});
+
 test('T43 plan : ordre de copie logos, pochettes, BIOS, puis jeux du plus petit au plus gros', () => {
   const plan = planSync({ remote: [R('roms/nes/Gros.nes', 900), R('roms/nes/Petit.nes', 5), R('bios/neogeo.zip', 500), R('roms/nes/Petit.png', 50), R('roms/clone90-logos/nes.svg', 70)], local: [] });
   assert.deepEqual(plan.copy.map((e) => e.target), ['roms/clone90-logos/nes.svg', 'roms/nes/Petit.png', 'bios/neogeo.zip', 'roms/nes/Petit.nes', 'roms/nes/Gros.nes']);

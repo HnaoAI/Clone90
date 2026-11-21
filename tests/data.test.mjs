@@ -244,3 +244,13 @@ test('T21 validateSystems : ejsVersion facultative, au format x.y.z, sinon erreu
     assert.throws(() => validateSystems({ version: 1, systems: [sys('amiga', 10, { ejsVersion: bad })] }), /amiga.*ejsVersion/, String(bad));
   }
 });
+
+test('T49 un jeu Game Boy d\'une ancienne bibliothèque est écarté sans erreur (machine retirée), les autres restent', () => {
+  const raw = { version: 1, games: [
+    { id: 'gameboy/tetris', system: 'gameboy', title: 'Tetris', file: 'roms/gameboy/Tetris.gb', cover: null },
+    { id: 'gameboycolor/zelda', system: 'gameboycolor', title: 'Zelda', file: 'roms/gameboycolor/Zelda.gbc', cover: null },
+  ] };
+  const { games, skipped } = validateGames(raw, ['gameboycolor', 'nes']);
+  assert.deepEqual(games.map((g) => g.id), ['gameboycolor/zelda']);
+  assert.equal(skipped, 1);
+});

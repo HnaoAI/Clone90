@@ -85,7 +85,9 @@ test('T34 machine devinée : mots entiers seulement (« genesis » ne donne pas 
   const zip = systems.filter((s) => s.extensions.includes('zip'));
   assert.equal(guessSystemFromPath('https://a.org/genesis/x.zip', zip), null);
   assert.equal(guessSystemFromPath('https://a.org/snes/x.zip', zip), 'snes');
-  assert.equal(guessSystemFromPath('https://a.org/game-boy/x.zip', zip), 'gameboy');
+  assert.equal(guessSystemFromPath('https://a.org/game-boy-color/x.zip', zip), 'gameboycolor');
+  // T49 : Game Boy d'origine retirée : un dossier « game-boy » ne doit pas envoyer ses jeux chez la Game Boy Color
+  assert.equal(guessSystemFromPath('https://a.org/game-boy/x.zip', zip), null);
   assert.equal(guessSystemFromPath('https://a.org/PC_Engine/x.zip', zip), 'pcengine');
   assert.equal(guessSystemFromPath('https://a.org/Mega-CD/x.zip', zip), 'megacd');
 });
@@ -106,5 +108,7 @@ test('T34 choix de téléchargement : la machine doit accepter l\'extension, un 
   assert.equal(checkDownloadItem({ url: 'a.org/x.adf', target: 'amiga' }, systems).ok, false, 'protocole explicite exigé');
   assert.equal(checkDownloadItem({ url: 'ftp://a.org/x.adf', target: 'amiga' }, systems).ok, false);
   assert.equal(checkDownloadItem(null, systems).ok, false);
-  assert.deepEqual(checkDownloadItem({ url: 'https://a.org/GB_BIOS.BIN', target: 'bios' }, systems).name, 'gb_bios.bin');
+  assert.deepEqual(checkDownloadItem({ url: 'https://a.org/GBC_BIOS.BIN', target: 'bios' }, systems).name, 'gbc_bios.bin');
+  // T49 : gb_bios.bin n'est plus un BIOS déclaré (Game Boy d'origine retirée)
+  assert.equal(checkDownloadItem({ url: 'https://a.org/gb_bios.bin', target: 'bios' }, systems).ok, false);
 });
