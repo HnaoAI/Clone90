@@ -38,7 +38,8 @@ import { createToast } from './ui/toast.js';
 import { clear } from './ui/dom.js';
 import { setGamepadMode, watchPointer } from './ui/input-mode.js';
 import { registerServiceWorker } from './pwa.js';
-import { readSyncPairing, pairWithMac, syncFromMac, sendGamesToMac, forgetSyncPairing } from './sync-client.js';
+import { readSyncPairing, pairWithMac, syncFromMac, sendGamesToMac, forgetSyncPairing, keepScreenOn } from './sync-client.js';
+import { describeUploadProgress } from './sync-plan.js';
 import { createSyncPanel, fetchSyncStatus } from './ui/sync-panel.js';
 import { SYNC_NAV } from './ui/sync-section.js';
 
@@ -232,12 +233,20 @@ async function main() {
       libraryBusyText = 'Lecture de la liste du Mac…';
       render(null);
       let result;
+      // T52 : écran gardé allumé (Chrome Android met l'envoi en pause écran éteint) ; avancement en Mo, rendu au plus 4 fois par seconde.
+      const releaseScreen = await keepScreenOn();
+      let lastRender = 0;
       try {
         result = await sendGamesToMac({ library, systems: data.systems, onProgress: (p) => {
-          libraryBusyText = p.total ? `Envoi au Mac : ${Math.min(p.done + 1, p.total)} sur ${p.total}${p.name ? ` (${p.name})` : ''}…` : 'Envoi au Mac…';
+          const text = describeUploadProgress(p);
+          const now = Date.now();
+          if (text === libraryBusyText || (p.sentBytes > 0 && p.sentBytes < p.size && now - lastRender < 250)) return;
+          lastRender = now;
+          libraryBusyText = text;
           render(null);
         } });
       } finally {
+        await releaseScreen();
         libraryBusy = false;
         libraryBusyText = null;
       }

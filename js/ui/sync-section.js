@@ -3,9 +3,10 @@
 // « Synchroniser maintenant », « Envoyer mes jeux au Mac » (T44) et « Oublier ce Mac ». Les actions sont fournies par app.js (js/sync-client.js) ;
 // aucun réseau ici. Dépend de ui/dom.js. INVARIANT : chaque champ et bouton est `data-nav` (clavier et manette via js/input/).
 import { el } from './dom.js';
+import { createPasswordToggle } from './password-toggle.js';
 
 /** data-nav-id des éléments de la rubrique. */
-export const SYNC_NAV = Object.freeze({ password: 'sync-password', address: 'sync-address', pair: 'sync-pair', now: 'sync-now', send: 'sync-send', forget: 'sync-forget' });
+export const SYNC_NAV = Object.freeze({ password: 'sync-password', showPassword: 'sync-show-password', address: 'sync-address', pair: 'sync-pair', now: 'sync-now', send: 'sync-send', forget: 'sync-forget' });
 /** T44 : ce que fait « Envoyer mes jeux au Mac ». */
 export const SEND_INFO = '« Envoyer mes jeux au Mac » copie sur le Mac les jeux et pochettes ajoutés sur ce téléphone qu\'il n\'a pas encore (pas les BIOS). '
   + 'Ensuite, ils suivent le Mac : supprimés sur le Mac, ils sont retirés de ce téléphone.';
@@ -62,6 +63,7 @@ export function renderSyncSection({ pairing, disabled = false, message = null, o
     { type: 'text', inputmode: 'url', autocomplete: 'off', placeholder: '192.168.1.20' });
   const form = el('form', { class: 'link-form', on: { submit: (e) => { e.preventDefault(); onPair(password.value, address.value); } } }, [
     passwordLabel, el('div', { class: 'link-row' }, [password,
+      createPasswordToggle(password, { navId: SYNC_NAV.showPassword, controls: 'sync-password', disabled }, doc),
       off(el('button', { class: 'button', text: 'Associer', attrs: { type: 'submit' }, dataset: { nav: '', navId: SYNC_NAV.pair } }, [], doc))], doc),
     addressLabel, el('div', { class: 'link-row' }, [address], doc),
   ], doc);

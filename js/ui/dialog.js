@@ -82,8 +82,10 @@ export function createDialog({ title, content = [], buttons, defaultIndex = 0, v
 
   const focusButton = (i) => { focusIndex = i; buttonNodes[i].focus(); };
   // Piège à focus sans lire le clavier : si le focus sort des boutons, on le ramène. T51 : sauf vers un champ de saisie de la boîte
-  // (mot de passe du partage), qui se tape au clavier (js/input ignore les champs, isEditable).
-  const isOwnField = (t) => t?.tagName && String(t.tagName).toUpperCase() === 'INPUT' && typeof element.contains === 'function' && element.contains(t);
+  // (mot de passe du partage), qui se tape au clavier (js/input ignore les champs, isEditable). T52 : ni vers son bouton « œil »
+  // (afficher le mot de passe) : ramener le focus pendant le clic l'empêchait de basculer.
+  const isOwnField = (t) => t?.tagName && (String(t.tagName).toUpperCase() === 'INPUT' || t.classList?.contains?.('password-toggle'))
+    && typeof element.contains === 'function' && element.contains(t);
   const trapFocus = (e) => { if (isOpen && !buttonNodes.includes(e.target) && !isOwnField(e.target)) buttonNodes[focusIndex].focus(); };
 
   function close(value) {

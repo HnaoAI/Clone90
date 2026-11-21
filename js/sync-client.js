@@ -8,12 +8,14 @@
 // Dépend de sync-plan.js (règles partagées avec le Mac). Réseau, bibliothèque, stockage et place disponible injectables (tests sans navigateur).
 // T51 : si le Mac n'est plus à son adresse (box qui en donne une autre), le téléphone essaie son nom .local, puis (synchronisation demandée
 //   par la personne seulement, pas à l'ouverture) balaie le réseau local ; l'adresse trouvée est gardée si le Mac accepte le jeton.
+// T52 : envoi au Mac surveillé (progression en octets, abandon propre après 1 min sans progression page visible, 1 nouvel essai, jeu
+//   suivant) et écran gardé allumé (keepScreenOn) : Chrome Android mettait l'envoi en pause sans que rien ne le montre.
 // INVARIANT (CLAUDE.md règle 5, exception e) : le téléphone ne parle qu'à des adresses privées ou .local du réseau local, en HTTPS ;
 //   il n'envoie qu'au Mac Clone90 trouvé le mot de passe (association), le jeton d'association, les chemins des fichiers demandés et, au clic sur « Envoyer mes jeux au Mac » (T44), les
 //   jeux et pochettes du téléphone que le Mac n'a pas ; rien n'est envoyé ailleurs.
 // INVARIANT : ne remplace ni n'efface jamais un fichier que la personne a mis elle-même sur le téléphone (voir planSync) ; ne lève jamais.
 import { normalizeMacAddress, isSyncPassword, discoveryCandidates, readManifest, planSync, describeSyncResult, planUpload, describeUploadResult, SYNC_ROUTES,
-  PASSWORD_MIN_LENGTH } from './sync-plan.js';
+  PASSWORD_MIN_LENGTH, UPLOAD_STALL_MS, declaredBiosFiles } from './sync-plan.js';
 import { findMac, probeMac } from './sync-discovery.js';
 
 /** Clé du stockage local : {url, name (T51, `<nom>.local` du Mac ou null), token, files: {cheminTéléphone: {size, mtime}}, lastSync}. */
@@ -179,16 +181,81 @@ export async function syncFromMac({ library, systems, fetchFn = globalThis.fetch
 
 /** T44 : erreurs du Mac qui arrêtent tout l'envoi (les suivants échoueraient de même). */
 const STOP_ERRORS = new Set(['uploads-off', 'not-paired', 'no-folder']);
+/** T52 : essais par fichier quand plus rien ne passe (le 2e après abandon propre du 1er). */
+const STALL_TRIES = 2;
+
+/**
+ * T52 : envoi d'un fichier par XMLHttpRequest, seul moyen d'un navigateur de suivre les octets ENVOYÉS (fetch ne le permet pas).
+ * Mêmes en-têtes et mêmes garanties que fetch : jeton, aucun cookie (withCredentials false).
+ * @param {string} url @param {{token: string, blob: Blob, signal: AbortSignal, onBytes: (n: number) => void}} input
+ * @returns {Promise<{status: number, body: object|null}>} rejette sur erreur réseau ou abandon
+ */
+export function xhrUpload(url, { token, blob, signal, onBytes }) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.withCredentials = false;
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.upload.onprogress = (e) => onBytes(e.loaded);
+    xhr.onload = () => { let body = null; try { body = JSON.parse(xhr.responseText); } catch { body = null; } resolve({ status: xhr.status, body }); };
+    xhr.onerror = () => reject(new Error('réseau'));
+    xhr.onabort = () => reject(new Error('abandon'));
+    signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    xhr.send(blob);
+  });
+}
+
+/** Envoi par fetch (hors navigateur, tests) : pas de suivi des octets, seulement le début et la fin. */
+function fetchUpload(fetchFn) {
+  return async (url, { token, blob, signal, onBytes }) => {
+    onBytes(0);
+    const res = await fetchFn(url, { ...READ_INIT(token), method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream' },
+      body: blob, signal });
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
+}
+
+/**
+ * T52 : un essai d'envoi surveillé. Sans aucune progression pendant `stallMs`, l'envoi est abandonné (le Mac efface son fichier
+ * temporaire) ; jamais tant que Clone90 est caché (autre appli, écran éteint : Chrome Android met l'envoi en pause, il reprend au retour).
+ * @returns {Promise<{status: number, body: object|null}|{stalled: true}>} rejette sur erreur réseau
+ */
+async function watchedUpload(upload, url, { token, blob, stallMs, isHidden, onBytes }) {
+  const ctrl = new AbortController();
+  let timer = null;
+  let giveUp;
+  const stalled = new Promise((resolve) => { giveUp = resolve; });
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { if (isHidden()) arm(); else { ctrl.abort(); giveUp({ stalled: true }); } }, stallMs);
+  };
+  arm();
+  try {
+    return await Promise.race([upload(url, { token, blob, signal: ctrl.signal, onBytes: (n) => { arm(); onBytes(n); } }).catch((err) => {
+      if (ctrl.signal.aborted) return { stalled: true };
+      throw err;
+    }), stalled]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * T44 : envoie au Mac les jeux puis les pochettes mis par la personne sur ce téléphone et absents du Mac (même chemin), du plus petit au plus gros.
- * Jamais les BIOS ni les logos ; jamais un jeu venu du Mac ; le Mac ne remplace jamais un fichier existant.
+ * Jamais les BIOS (T52 : ni un BIOS déclaré rangé avec les jeux) ni les logos ; jamais un jeu venu du Mac ; le Mac ne remplace jamais un fichier.
+ * T52 : progression en octets par fichier ; un fichier sans progression pendant `stallMs` (page visible) est abandonné, réessayé une fois,
+ * puis compté « interrompu », et l'envoi passe au suivant ; Mac occupé (429) : attente `busyWaitMs` puis nouvel essai, `busyTries` fois.
  * @param {{library: {list: Function, get: Function}, systems: object[], fetchFn?: typeof fetch, storage?: Storage,
- *   onProgress?: (p: {done: number, total: number, name?: string}) => void}} input
+ *   onProgress?: (p: {done: number, total: number, name?: string, sentBytes?: number, size?: number, retry?: boolean}) => void,
+ *   upload?: Function, stallMs?: number, isHidden?: () => boolean, busyWaitMs?: number, busyTries?: number, wait?: (ms: number) => Promise<void>}} input
+ *   `upload` : envoi d'un fichier (défaut : XMLHttpRequest dans le navigateur, sinon fetchFn) ; les autres options sont injectables pour les tests
  * @returns {Promise<{status: 'done'|'unpaired'|'unreachable'|'refused'|'busy'|'error', text: string|null, sent: number}>} ne lève jamais
  *   `refused` : le Mac n'accepte pas les jeux (case à cocher sur le Mac)
  */
-export async function sendGamesToMac({ library, systems, fetchFn = globalThis.fetch, storage = globalThis.localStorage, onProgress = () => {}, find = findMac }) {
+export async function sendGamesToMac({ library, systems, fetchFn = globalThis.fetch, storage = globalThis.localStorage, onProgress = () => {}, find = findMac,
+  upload = fetchFn === globalThis.fetch && typeof globalThis.XMLHttpRequest === 'function' ? xhrUpload : fetchUpload(fetchFn), stallMs = UPLOAD_STALL_MS,
+  isHidden = () => globalThis.document?.visibilityState === 'hidden', busyWaitMs = 5000, busyTries = 14, wait = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   const saved = readSyncPairing(storage);
   if (!saved?.token) return { status: 'unpaired', text: null, sent: 0 };
   if (running) return { status: 'busy', text: 'Une synchronisation est déjà en cours.', sent: 0 };
@@ -203,28 +270,46 @@ export async function sendGamesToMac({ library, systems, fetchFn = globalThis.fe
     const remote = readManifest(body, systemIds);
     if (!remote) return { status: 'error', text: `Réponse inattendue du Mac (${res.status}).`, sent: 0 };
     if (body.uploads !== true) return { status: 'refused', text: UPLOADS_OFF_TEXT, sent: 0 };
-    const plan = planUpload({ remote, local: await library.list(), synced: pairing.files, systemIds });
-    const result = { sent: 0, covers: 0, already: plan.already, tooBig: plan.tooBig, noSpace: 0, failed: 0 };
+    const plan = planUpload({ remote, local: await library.list(), synced: pairing.files, systemIds, biosFiles: declaredBiosFiles(systems) });
+    const result = { sent: 0, covers: 0, already: plan.already, tooBig: plan.tooBig, noSpace: 0, failed: 0, interrupted: 0, busy: 0 };
     const files = { ...pairing.files };
     let stop = null;
     for (const [i, entry] of plan.send.entries()) {
-      onProgress({ done: i, total: plan.send.length, name: entry.path.split('/').pop() });
+      const name = entry.path.split('/').pop();
+      const step = { done: i, total: plan.send.length, name, size: entry.size };
+      onProgress({ ...step, sentBytes: 0 });
       try {
         const blob = await library.get(entry.path);
         if (!blob) throw new Error('fichier absent');
-        const up = await fetchFn(`${pairing.url}${SYNC_ROUTES.upload}?path=${encodeURIComponent(entry.path)}`, {
-          ...READ_INIT(pairing.token), method: 'POST', headers: { Authorization: `Bearer ${pairing.token}`, 'Content-Type': 'application/octet-stream' }, body: blob });
-        const answer = await up.json().catch(() => null);
-        if (up.status === 201 && Number.isSafeInteger(answer?.size) && Number.isFinite(answer?.mtime)) {
-          files[entry.path] = { size: answer.size, mtime: answer.mtime };
+        const url = `${pairing.url}${SYNC_ROUTES.upload}?path=${encodeURIComponent(entry.path)}`;
+        let answer = null;
+        let stalls = 0;
+        let busy = 0;
+        for (;;) {
+          const retry = stalls > 0 || busy > 0;
+          const out = await watchedUpload(upload, url, { token: pairing.token, blob, stallMs, isHidden, onBytes: (n) => onProgress({ ...step, sentBytes: n, retry }) });
+          if (out.stalled) {
+            stalls += 1;
+            console.warn('Envoi au Mac : plus rien ne passe,', entry.path);
+            if (stalls >= STALL_TRIES) break;
+          } else if (out.status === 429 && out.body?.error === 'busy') {
+            busy += 1;
+            if (busy >= busyTries) break;
+            await wait(busyWaitMs);
+          } else { answer = out; break; }
+        }
+        if (!answer) { result[stalls >= STALL_TRIES ? 'interrupted' : 'busy'] += 1; continue; }
+        const { status, body: reply } = answer;
+        if (status === 201 && Number.isSafeInteger(reply?.size) && Number.isFinite(reply?.mtime)) {
+          files[entry.path] = { size: reply.size, mtime: reply.mtime };
           saveSyncPairing({ ...pairing, files }, storage);
           result[entry.cover ? 'covers' : 'sent'] += 1;
-        } else if (answer?.error === 'exists') { if (!entry.cover) result.already += 1; }
-        else if (answer?.error === 'no-space') result.noSpace += 1;
-        else if (answer?.error === 'too-big') result.tooBig += 1;
+        } else if (reply?.error === 'exists') { if (!entry.cover) result.already += 1; }
+        else if (reply?.error === 'no-space') result.noSpace += 1;
+        else if (reply?.error === 'too-big') result.tooBig += 1;
         else {
           result.failed += 1;
-          if (STOP_ERRORS.has(answer?.error) || up.status === 401) { stop = answer?.error === 'uploads-off' ? UPLOADS_OFF_TEXT : (answer?.message ?? null); break; }
+          if (STOP_ERRORS.has(reply?.error) || status === 401) { stop = reply?.error === 'uploads-off' ? UPLOADS_OFF_TEXT : (reply?.message ?? null); break; }
         }
       } catch (err) {
         console.warn('Envoi au Mac :', entry.path, err.message);
@@ -240,6 +325,26 @@ export async function sendGamesToMac({ library, systems, fetchFn = globalThis.fe
   } finally {
     running = false;
   }
+}
+
+/**
+ * T52 : garde l'écran allumé pendant l'envoi (Wake Lock API), pour que Chrome Android ne mette pas l'envoi en pause. Le navigateur rend
+ * le verrou quand la page est cachée : il est redemandé au retour sur Clone90. Sans Wake Lock (ou refusé) : rien, sans erreur.
+ * @param {{nav?: Navigator, doc?: Document}} [env] @returns {Promise<() => Promise<void>>} fonction qui rend l'écran
+ */
+export async function keepScreenOn({ nav = globalThis.navigator, doc = globalThis.document } = {}) {
+  if (typeof nav?.wakeLock?.request !== 'function' || !doc) return async () => {};
+  let lock = null;
+  let ended = false;
+  const ask = async () => { try { const l = await nav.wakeLock.request('screen'); if (ended) await l.release(); else lock = l; } catch { lock = null; } };
+  const onVisible = () => { if (doc.visibilityState === 'visible') ask(); };
+  await ask();
+  doc.addEventListener('visibilitychange', onVisible);
+  return async () => {
+    ended = true;
+    doc.removeEventListener('visibilitychange', onVisible);
+    try { await lock?.release(); } catch { /* déjà rendu */ }
+  };
 }
 
 /** T44 : message quand la réception n'est pas permise sur le Mac. */

@@ -211,14 +211,30 @@ export const isCoverPath = (path) => typeof path === 'string' && COVER_EXT.test(
  * Accepté : `roms/<machine de systems.json>/<fichier>` exactement (bibliothèque du téléphone rangée à plat, T38) ; une image
  * (png, jpg, webp) est une pochette (décision de Hicham du 2026-11-15 : « Il faut synchroniser les pochettes aussi »).
  * Refusés (« tout sauf le BIOS ») : BIOS, logos, fichier caché, `..`, sous-dossier, machine inconnue.
- * @param {string} path @param {Iterable<string>} systemIds @returns {string|null}
+ * T52 : `biosFiles` (declaredBiosFiles) refuse aussi un BIOS déclaré rangé avec les jeux de sa machine.
+ * @param {string} path @param {Iterable<string>} systemIds @param {Set<string>} [biosFiles] @returns {string|null}
  */
-export function uploadTargetPath(path, systemIds) {
+export function uploadTargetPath(path, systemIds, biosFiles = new Set()) {
   if (typeof path !== 'string' || path.length > 1024) return null;
   const parts = path.split('/');
   if (parts.length !== 3 || parts[0] !== ROMS_DIR || !parts.every(NAME_OK)) return null;
   if (parts[1] === LOGOS_DIR || !new Set(systemIds).has(parts[1])) return null;
+  if (biosFiles.has(`${parts[1]}/${parts[2].toLowerCase()}`)) return null;
   return path;
+}
+
+/**
+ * T52 : BIOS déclarés dans systems.json, sous la forme `<machine>/<fichier en minuscules>`. Un BIOS rangé par erreur avec les jeux de SA
+ * machine (roms/neogeo/neogeo.zip, vu sur le Mac de Hicham le 2026-11-21) n'est ni envoyé ni accepté comme un jeu (T44 : « tout sauf le
+ * BIOS »), comme games-builder.js ne le liste pas comme jeu (T38).
+ * @param {{id: string, bios?: {file?: unknown}[]}[]} systems @returns {Set<string>}
+ */
+export function declaredBiosFiles(systems) {
+  const out = new Set();
+  for (const s of systems ?? []) {
+    for (const b of Array.isArray(s?.bios) ? s.bios : []) if (typeof b?.file === 'string' && typeof s.id === 'string') out.add(`${s.id}/${b.file.toLowerCase()}`);
+  }
+  return out;
 }
 
 /** T44 : taille maximale permise pour un fichier envoyé (pochette : 10 Mo, jeu : 1 Go). @param {string} path */
@@ -228,19 +244,20 @@ export const maxUploadBytes = (path) => (isCoverPath(path) ? MAX_COVER_UPLOAD_BY
  * T44 : plan d'envoi des jeux et pochettes du téléphone vers le Mac (rien n'est fait ici).
  * Envoyés : les fichiers mis par la personne sur le téléphone (pas ceux venus du Mac, liste `synced`) que le Mac n'a pas au même chemin ;
  * les jeux d'abord, puis les pochettes (chacun du plus petit au plus gros).
- * @param {{remote: {target: string}[], local: {path: string, size: number}[], synced: Record<string, unknown>, systemIds: Iterable<string>}} input
+ * @param {{remote: {target: string}[], local: {path: string, size: number}[], synced: Record<string, unknown>, systemIds: Iterable<string>,
+ *   biosFiles?: Set<string>}} input `biosFiles` (T52) : declaredBiosFiles(systems), jamais envoyés
  *   `remote` : liste du Mac (readManifest), `local` : bibliothèque du téléphone
  * @returns {{send: {path: string, size: number, cover: boolean}[], already: number, tooBig: number}} `already` : JEU de même nom déjà sur
  *   le Mac (jamais remplacé, signalé ; une pochette déjà sur le Mac est simplement gardée, sans message) ; `tooBig` : au-delà de maxUploadBytes
  */
-export function planUpload({ remote, local, synced = {}, systemIds }) {
+export function planUpload({ remote, local, synced = {}, systemIds, biosFiles }) {
   const ids = [...systemIds];
   const onMac = new Set(remote.map((e) => e.target));
   const send = [];
   let already = 0;
   let tooBig = 0;
   for (const entry of local) {
-    if (!uploadTargetPath(entry.path, ids) || Object.hasOwn(synced, entry.path)) continue;
+    if (!uploadTargetPath(entry.path, ids, biosFiles) || Object.hasOwn(synced, entry.path)) continue;
     const cover = isCoverPath(entry.path);
     if (onMac.has(entry.path)) { if (!cover) already += 1; } else if (!Number.isSafeInteger(entry.size) || entry.size > maxUploadBytes(entry.path)) tooBig += 1;
     else send.push({ path: entry.path, size: entry.size, cover });
@@ -251,11 +268,12 @@ export function planUpload({ remote, local, synced = {}, systemIds }) {
 
 /**
  * T44 : message de fin d'un envoi vers le Mac.
- * @param {{sent?: number, covers?: number, already?: number, tooBig?: number, noSpace?: number, failed?: number}} result
+ * @param {{sent?: number, covers?: number, already?: number, tooBig?: number, noSpace?: number, failed?: number, interrupted?: number, busy?: number}} result
+ *   T52 : `interrupted` : fichiers abandonnés après deux essais sans progression ; `busy` : Mac toujours occupé par un autre envoi
  *   `sent` : jeux envoyés, `covers` : pochettes envoyées ; les autres comptes valent pour les jeux et les pochettes
  * @returns {string}
  */
-export function describeUploadResult({ sent = 0, covers = 0, already = 0, tooBig = 0, noSpace = 0, failed = 0 }) {
+export function describeUploadResult({ sent = 0, covers = 0, already = 0, tooBig = 0, noSpace = 0, failed = 0, interrupted = 0, busy = 0 }) {
   const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
   const parts = [];
   if (sent) parts.push(`${plural(sent, 'jeu envoyé', 'jeux envoyés')} au Mac`);
@@ -263,7 +281,35 @@ export function describeUploadResult({ sent = 0, covers = 0, already = 0, tooBig
   if (already) parts.push(`${plural(already, 'jeu non envoyé', 'jeux non envoyés')} : un fichier du même nom est déjà sur le Mac`);
   if (tooBig) parts.push(`${plural(tooBig, 'fichier trop gros', 'fichiers trop gros')} (jeu de plus de 1 Go ou pochette de plus de 10 Mo)`);
   if (noSpace) parts.push(`${plural(noSpace, 'fichier non envoyé', 'fichiers non envoyés')} : plus assez de place sur le Mac`);
+  if (busy) parts.push(`${plural(busy, 'fichier non envoyé', 'fichiers non envoyés')} : le Mac recevait déjà un autre envoi`);
   if (failed) parts.push(plural(failed, 'fichier en échec', 'fichiers en échec'));
+  if (interrupted) {
+    parts.push(`${plural(interrupted, 'fichier interrompu', 'fichiers interrompus')} (plus rien ne passait depuis 1 min ; rien n'est gardé à moitié sur le Mac) : `
+      + 'relancez l\'envoi pour le reprendre');
+  }
   if (!parts.length) return 'Envoi : le Mac a déjà tous les jeux et pochettes de ce téléphone.';
   return `Envoi : ${parts.join(' ; ')}.`;
+}
+
+/** T52 : délai sans aucune progression après lequel un fichier envoyé au Mac est abandonné (téléphone ET Mac, voir sync-upload.mjs). */
+export const UPLOAD_STALL_MS = 60 * 1000;
+
+/** T52 : taille lisible (Ko sous 1 Mo, sinon Mo avec une décimale, virgule française). @param {number} bytes */
+export function formatSize(bytes) {
+  const n = Math.max(0, Number(bytes) || 0);
+  if (n < 1024 * 1024) return `${Math.floor(n / 1024)} Ko`;
+  return `${(n / (1024 * 1024)).toFixed(1).replace('.', ',')} Mo`;
+}
+
+/**
+ * T52 : texte d'avancement de l'envoi au Mac (fichier en cours, octets envoyés, consigne). Chrome Android met l'envoi en pause quand
+ * Clone90 passe en arrière-plan ou que l'écran s'éteint : la consigne le dit, et la progression montre que le fichier avance.
+ * @param {{done: number, total: number, name?: string, sentBytes?: number, size?: number, retry?: boolean}} p @returns {string}
+ */
+export function describeUploadProgress({ done, total, name, sentBytes, size, retry = false }) {
+  if (!total) return 'Envoi au Mac…';
+  if (!name) return 'Envoi au Mac : fin…';
+  const bytes = Number.isFinite(size) ? `, ${formatSize(sentBytes)} sur ${formatSize(size)}` : '';
+  return `Envoi au Mac : ${Math.min(done + 1, total)} sur ${total} (${name}${bytes}${retry ? ', nouvel essai' : ''})… `
+    + 'Gardez Clone90 ouvert et l\'écran allumé jusqu\'à la fin.';
 }
