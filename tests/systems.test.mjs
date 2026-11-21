@@ -10,7 +10,7 @@ const byId = (id) => systems.find((s) => s.id === id);
 
 const EXPECTED_IDS = [
   'amiga', 'neogeo', 'arcade', 'mastersystem', 'megadrive', 'gamegear', 'megacd',
-  '32x', 'nes', 'snes', 'gameboycolor', 'pcengine', 'pcenginecd',
+  '32x', 'nes', 'snes', 'gameboycolor', 'pcengine', 'pcenginecd', 'gba',
 ];
 
 test('systems.json : version 1 et liste de machines non vide', () => {
@@ -18,7 +18,7 @@ test('systems.json : version 1 et liste de machines non vide', () => {
   assert.ok(Array.isArray(systems) && systems.length > 0);
 });
 
-test('systems.json : contient les 13 machines du tableau de la section 2 (12 jusqu\'à T29, PC Engine et PC Engine CD depuis T30, Game Boy d\'origine retirée en T49)', () => {
+test('systems.json : contient les 14 machines du tableau de la section 2 (12 jusqu\'à T29, PC Engine et PC Engine CD depuis T30, Game Boy d\'origine retirée en T49, Game Boy Advance depuis T50)', () => {
   assert.deepEqual([...systems.map((s) => s.id)].sort(), [...EXPECTED_IDS].sort());
 });
 
@@ -126,7 +126,7 @@ test('systems.json : cores EmulatorJS conformes au tableau (alias sans neogeo ni
   assert.deepEqual(cores, {
     amiga: 'amiga', neogeo: 'arcade', arcade: 'arcade', mastersystem: 'segaMS',
     megadrive: 'segaMD', gamegear: 'segaGG', megacd: 'segaCD', '32x': 'sega32x',
-    nes: 'nes', snes: 'snes', gameboycolor: 'gb', pcengine: 'pce', pcenginecd: 'pce',
+    nes: 'nes', snes: 'snes', gameboycolor: 'gb', pcengine: 'pce', pcenginecd: 'pce', gba: 'gba',
   });
 });
 
@@ -191,10 +191,10 @@ test('T15 Mega-CD : les trois BIOS régionaux sont posés (preload) quand ils ex
   }
 });
 
-test('T15 preload : seulement les BIOS dont le cœur se sert vraiment (Mega-CD, Game Boy Color, NES disksys.rom)', () => {
+test('T15 preload : seulement les BIOS dont le cœur se sert vraiment (Mega-CD, Game Boy Color, Game Boy Advance, NES disksys.rom)', () => {
   const preloaded = systems.flatMap((s) => s.bios.filter((b) => b.preload).map((b) => `${s.id}/${b.file}`)).sort();
   assert.deepEqual(preloaded, [
-    'gameboycolor/gbc_bios.bin', 'megacd/bios_CD_E.bin', 'megacd/bios_CD_J.bin', 'megacd/bios_CD_U.bin', 'nes/disksys.rom',
+    'gameboycolor/gbc_bios.bin', 'gba/gba_bios.bin', 'megacd/bios_CD_E.bin', 'megacd/bios_CD_J.bin', 'megacd/bios_CD_U.bin', 'nes/disksys.rom',
   ]);
   for (const s of systems) for (const b of s.bios) if ('preload' in b) assert.equal(typeof b.preload, 'boolean');
 });
@@ -288,4 +288,37 @@ test('T49 la Game Boy Color reste entière : cœur gb (gambatte), .gbc et zip, B
   assert.equal(gbc.emulatorjsCore, 'gb');
   assert.deepEqual(gbc.extensions, ['gbc', 'zip']);
   assert.deepEqual(gbc.bios.map((b) => [b.file, b.required, b.preload]), [['gbc_bios.bin', false, true]]);
+});
+
+// --- T50 : Game Boy Advance, vérifiée contre EmulatorJS 4.2.3 (paquets npm @emulatorjs/emulatorjs et @emulatorjs/core-mgba, lus le 2026-11-21) ---
+// getCores() 4.2.3 : "gba": ["mgba"]. core.json de mgba : extensions gb, gbc, gba ; le cœur cherche gba_bios.bin (et gbc_bios.bin, sgb_bios.bin).
+const MGBA_EXTENSIONS = ['gb', 'gbc', 'gba'];
+
+test('T50 la Game Boy Advance est une machine : id gba, alias gba (cœur mgba), wave 2, rangée juste après la Game Boy Color', () => {
+  const gba = byId('gba');
+  assert.ok(gba, 'gba absente');
+  assert.equal(gba.name, 'Game Boy Advance');
+  assert.equal(gba.emulatorjsCore, 'gba');
+  assert.equal(gba.wave, 2);
+  const sorted = [...systems].sort((a, b) => a.order - b.order).map((s) => s.id);
+  assert.equal(sorted[sorted.indexOf('gameboycolor') + 1], 'gba');
+});
+
+test('T50 Game Boy Advance : .gba et zip seulement (acceptés par mgba) ; .gb et .gbc restent à la Game Boy Color', () => {
+  const gba = byId('gba');
+  assert.deepEqual(gba.extensions, ['gba', 'zip']);
+  for (const ext of gba.extensions) assert.ok(ext === 'zip' || MGBA_EXTENSIONS.includes(ext), ext);
+  assert.deepEqual(byId('gameboycolor').extensions, ['gbc', 'zip']);
+});
+
+test('T50 Game Boy Advance : BIOS gba_bios.bin facultatif, posé s\'il existe (preload), jamais requis', () => {
+  assert.deepEqual(byId('gba').bios.map((b) => [b.file, b.required, b.role, b.preload]), [['gba_bios.bin', false, 'optional', true]]);
+});
+
+test('T50 Game Boy Advance : pochettes libretro-thumbnails, dossier gba du thème, logo maison et couleur propres', () => {
+  const gba = byId('gba');
+  assert.equal(gba.thumbnailsRepo, 'Nintendo_-_Game_Boy_Advance');
+  assert.equal(gba.logoTheme, 'gba');
+  assert.equal(gba.logo, 'assets/logos/gba.svg');
+  assert.equal(gba.accent, '--m-gba');
 });

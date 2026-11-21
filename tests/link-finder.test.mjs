@@ -112,3 +112,13 @@ test('T34 choix de téléchargement : la machine doit accepter l\'extension, un 
   // T49 : gb_bios.bin n'est plus un BIOS déclaré (Game Boy d'origine retirée)
   assert.equal(checkDownloadItem({ url: 'https://a.org/gb_bios.bin', target: 'bios' }, systems).ok, false);
 });
+
+// --- T50 : Game Boy Advance ---
+test('T50 « Depuis une page web » : un .gba va à la Game Boy Advance, un zip d\'un dossier « game-boy-advance » ou « gba » aussi, gba_bios.bin est un BIOS', () => {
+  assert.equal(classifyFile('https://a.org/x/Jeu.gba', systems).target, 'gba');
+  const zip = systems.filter((s) => s.extensions.includes('zip'));
+  assert.equal(guessSystemFromPath('https://a.org/game-boy-advance/x.zip', zip), 'gba');
+  assert.equal(guessSystemFromPath('https://a.org/roms/gba/x.zip', zip), 'gba');
+  assert.equal(guessSystemFromPath('https://a.org/game-boy-color/x.zip', zip), 'gameboycolor', 'la Game Boy Color ne change pas');
+  assert.deepEqual(classifyFile('https://a.org/GBA_BIOS.BIN', systems), { name: 'gba_bios.bin', kind: 'bios', target: 'bios', candidates: [] });
+});

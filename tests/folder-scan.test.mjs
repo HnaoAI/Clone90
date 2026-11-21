@@ -204,3 +204,11 @@ test('T38 critère 8 : le résultat du scan reste affiché dans l\'écran (régi
   assert.equal(notice.attrs.role, 'status');
   assert.equal(find(renderLibrary({ ...base, busy: true, notice: 'x' }, doc), (n) => n.attrs.class === 'library-notice').length, 0);
 });
+
+// --- T50 : Game Boy Advance ---
+test('T50 scan du dossier : roms/gba/ rangé sous roms/gba/, gba_bios.bin trouvé avec les jeux va dans bios/, un .gb n\'est pas un jeu GBA', () => {
+  const plan = planFolderImport([file('roms/gba/Homebrew.gba'), file('roms/GBA/Autre.zip'), file('roms/gba/gba_bios.bin'), file('roms/gba/Vieux.gb')], SYSTEMS);
+  assert.deepEqual(paths(plan), ['roms/gba/Homebrew.gba', 'roms/gba/Autre.zip', 'bios/gba_bios.bin']);
+  assert.deepEqual(plan.items.map((i) => i.kind), ['rom', 'rom', 'bios']);
+  assert.deepEqual(plan.skipped.map((s) => [s.relativePath, s.reason]), [['roms/gba/Vieux.gb', 'format']]);
+});

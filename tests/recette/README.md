@@ -29,4 +29,6 @@ Playwright est cherché dans `PLAYWRIGHT_PATH` (défaut : `~/node_modules/playwr
 
 - `hors-ligne.mjs` : jeu hors ligne (T46), montage autonome (application sans jeux, Pixel 7, vrai service worker) avec le VRAI EmulatorJS 4.2.3 et le cœur fceumm (`EJS_DATA`, `EJS_CORE`, servis comme le CDN avec CORS) et une ROM NES homebrew importée : « Préparer le jeu hors ligne » (message, contenu du cache, seulement ce qui manque), puis jeu lancé serveur arrêté, CDN coupé et navigateur hors ligne ; même chose après une seule partie en ligne sans le bouton ; sans préparation, message qui cite le bouton. `node tests/recette/hors-ligne.mjs [dossier de captures]`.
 
+- `gba.mjs` : Game Boy Advance (T50), montage autonome avec le VRAI EmulatorJS 4.2.3 et le cœur mgba (`EJS_DATA`, `EJS_CORE` = paquet `@emulatorjs/core-mgba`) et une ROM GBA homebrew écrite par le script (écran magenta) : tuile après la Game Boy Color, jeu démarré (couleur au centre de l'image), cœur mgba chargé ; Pixel 7 debout et couché, 640x360, 800x300 : L, R, A, B, Start, Select présents, dans l'écran, hors de l'image, jamais cachés (Menu, ☰, croix) ni superposés ; L et R arrivent au cœur. `node tests/recette/gba.mjs [dossier de captures]`.
+
 Chaque script écrit une ligne JSON par vérification sur la sortie standard (`id`, `verdict`, `detail`).

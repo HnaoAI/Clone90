@@ -317,6 +317,30 @@
       "logo": "assets/logos/pcenginecd.svg",
       "accent": "--m-pcenginecd",
       "wave": 2
+    },
+    {
+      "id": "gba",
+      "name": "Game Boy Advance",
+      "order": 125,
+      "emulatorjsCore": "gba",
+      "thumbnailsRepo": "Nintendo_-_Game_Boy_Advance",
+      "logoTheme": "gba",
+      "extensions": [
+        "gba",
+        "zip"
+      ],
+      "bios": [
+        {
+          "file": "gba_bios.bin",
+          "required": false,
+          "role": "optional",
+          "preload": true,
+          "note": "BIOS facultatif (logo de démarrage officiel ; sans lui, mGBA démarre le jeu directement)"
+        }
+      ],
+      "logo": "assets/logos/gba.svg",
+      "accent": "--m-gba",
+      "wave": 2
     }
   ]
 }

@@ -81,7 +81,7 @@ test('couleurs machine inchangées (les logos les lisent dans base.css)', () => 
   assert.equal(c['--m-neogeo'], '#7a5a06');
   assert.equal(c['--m-amiga'], '#a84300');
   assert.equal(c['--m-arcade'], '#c0392b');
-  assert.equal(Object.keys(c).filter((n) => n.startsWith('--m-')).length, 13); // 12, puis PC Engine et PC Engine CD (T30), moins la Game Boy d'origine (T49)
+  assert.equal(Object.keys(c).filter((n) => n.startsWith('--m-')).length, 14); // 12, puis PC Engine et PC Engine CD (T30), moins la Game Boy d'origine (T49), plus la Game Boy Advance (T50)
 });
 
 test('logos, manifeste, pages et icônes reprennent la palette de base.css (aucune copie qui diverge)', () => {

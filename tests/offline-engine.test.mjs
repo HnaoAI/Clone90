@@ -19,7 +19,7 @@ const CDN = `https://cdn.emulatorjs.org/${EJS_CDN_VERSION}/data/`;
 
 test('T46 cœur EmulatorJS : chaque machine de systems.json a un vrai nom de cœur (celui que télécharge EmulatorJS 4.2.3)', () => {
   const expected = { amiga: 'puae', neogeo: 'fbneo', arcade: 'fbneo', mastersystem: 'smsplus', megadrive: 'genesis_plus_gx', gamegear: 'genesis_plus_gx',
-    megacd: 'genesis_plus_gx', '32x': 'picodrive', nes: 'fceumm', snes: 'snes9x', gameboycolor: 'gambatte', pcengine: 'mednafen_pce', pcenginecd: 'mednafen_pce' };
+    megacd: 'genesis_plus_gx', '32x': 'picodrive', nes: 'fceumm', snes: 'snes9x', gameboycolor: 'gambatte', pcengine: 'mednafen_pce', pcenginecd: 'mednafen_pce', gba: 'mgba' };
   for (const s of systems) assert.equal(ejsCoreFor(s.emulatorjsCore), expected[s.id], `${s.id} : nouvelle machine, ajouter son cœur ici`);
   assert.equal(ejsCoreFor('fceumm'), 'fceumm', 'un nom de cœur précis reste tel quel');
 });
@@ -197,4 +197,13 @@ test('T46 navigateur sans Cache Storage : préparation impossible, dite claireme
 test('T46 message : plusieurs machines et taille lisible', () => {
   assert.equal(describeOfflineResult({ ready: ['NES', 'Super Nintendo'], failed: [], downloaded: 3 * 1024 * 1024 }), 'Jeu hors ligne prêt pour NES, Super Nintendo (3 Mo téléchargés).');
   assert.equal(describeOfflineResult({ ready: ['NES'], failed: [], downloaded: 0 }), 'Jeu hors ligne prêt pour NES (déjà sur cet appareil).');
+});
+
+test('T50 jeu hors ligne : la Game Boy Advance garde le cœur mgba (variante legacy par défaut, environ 1 Mo)', () => {
+  const gba = byId('gba');
+  assert.equal(ejsCoreFor(gba.emulatorjsCore), 'mgba');
+  const urls = engineFiles({ system: gba, report: null, webgl2: true }).map((f) => f.url);
+  assert.ok(urls.includes(`${CDN}cores/mgba-legacy-wasm.data`), urls.join('\n'));
+  assert.ok(urls.includes(`${CDN}cores/reports/mgba.json`));
+  assert.deepEqual(machinesWithGames(systems, [{ system: 'gba' }]).map((s) => s.id), ['gba']);
 });
