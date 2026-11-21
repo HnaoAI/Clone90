@@ -2,11 +2,11 @@
 // Routes : GET / (page d'aide), GET /clone90-ca.crt (autorité à installer sur le téléphone), T51 : GET /sync/hello (« je suis un Mac
 // Clone90 » + nom .local, sans jeton, pour que le téléphone trouve le Mac), POST /sync/pair ({password} -> {token}),
 // GET /sync/manifest (liste des jeux, pochettes, logos et BIOS, + `uploads` : réception permise), GET /sync/file?path=... (un fichier),
-// T44 : POST /sync/upload?path=roms/<machine>/<fichier> (un jeu ou une pochette du téléphone, voir sync-upload.mjs). Démarré par sync-api.mjs.
+// T44 : POST /sync/upload?path=roms/<machine>/<fichier> (un jeu ou une pochette du téléphone ; T53 : ou bios/<fichier>, voir sync-upload.mjs). Démarré par sync-api.mjs.
 // Dépend de js/sync-plan.js (fichiers partagés, partagé avec le téléphone), sync-pairing.mjs (mot de passe, jetons), sync-upload.mjs, local-settings.mjs.
 // INVARIANT (sécurité, décisions de Hicham du 2026-11-15) : ce serveur n'efface et ne télécharge RIEN ; il ne sert que les fichiers des
 //   dossiers des jeux et des BIOS acceptés par `syncTargetPath` (chemin réel vérifié : un lien qui sort du dossier est refusé) ; sa SEULE
-//   écriture est l'ajout d'un jeu ou d'une pochette (T44), seulement si la personne a coché « Accepter les jeux du téléphone » sur le Mac, sans jamais
+//   écriture est l'ajout d'un jeu, d'une pochette (T44) ou d'un BIOS (T53), seulement si la personne a coché « Accepter les jeux du téléphone » sur le Mac, sans jamais
 //   remplacer un fichier ; liste, fichiers et envoi exigent le jeton d'un téléphone associé (Authorization: Bearer) ; aucune route api/ ici.
 import https from 'node:https';
 import { createReadStream } from 'node:fs';
@@ -61,7 +61,7 @@ export async function buildManifest({ romsDir, biosDir, systemIds }) {
     }
   }
   for (const id of [...systemIds, LOGOS_DIR]) await walk(romsDir, ROMS_DIR, [id], id === LOGOS_DIR ? 0 : 1);
-  await walk(biosDir, BIOS_DIR, [], 0);
+  await walk(biosDir, BIOS_DIR, [], 1); // T53 : un niveau de sous-dossier (bios/samples/, T22)
   return out.sort((a, b) => (a.path < b.path ? -1 : 1));
 }
 
@@ -185,8 +185,8 @@ export function createSyncHandler({ pairing, getDirs, getSystemIds, getBiosFiles
     if (uploading) return reply(429, { error: 'busy', message: 'Un autre envoi est en cours.' });
     uploading = true;
     try {
-      const [{ romsDir }, systemIds, biosFiles] = await Promise.all([getDirs(), getSystemIds(), getBiosFiles()]);
-      const result = await receiveUpload(req, { path: url.searchParams.get('path') ?? '', romsDir, systemIds, biosFiles, ...(getFreeBytes && { getFreeBytes }),
+      const [{ romsDir, biosDir }, systemIds, biosFiles] = await Promise.all([getDirs(), getSystemIds(), getBiosFiles()]);
+      const result = await receiveUpload(req, { path: url.searchParams.get('path') ?? '', romsDir, biosDir, systemIds, biosFiles, ...(getFreeBytes && { getFreeBytes }),
         ...(idleMs && { idleMs }) });
       if (result.status === 201) {
         console.log(`Partage : fichier reçu du téléphone : ${result.body.path}`);

@@ -2,13 +2,17 @@
 // et par le téléphone (js/sync-client.js) : fichiers partagés et leur chemin sur le téléphone, adresse du Mac, mot de passe,
 // liste reçue du Mac, plan de copie (ce qu'il faut copier, remplacer ou retirer) et message de fin.
 // T51 : mot de passe du partage (remplace le code à 6 chiffres) et adresses où le téléphone cherche le Mac (`discoveryCandidates`).
-// T44 : envoi téléphone -> Mac (jeux et pochettes, jamais les BIOS ni les logos) : chemins acceptés par le Mac (`uploadTargetPath`),
+// T44 : envoi téléphone -> Mac (jeux et pochettes ; T53 : et BIOS ; jamais les logos) : chemins acceptés par le Mac (`uploadTargetPath`),
 // taille permise (`maxUploadBytes`), plan d'envoi (`planUpload`), message.
-// Dépend de config.js (ROMS_DIR, BIOS_DIR) et logo-source.js (LOGOS_DIR). Aucun accès réseau ni disque ici.
+// T53 : BIOS dans les deux sens, rangés sur le téléphone sous leur nom déclaré dans bios/ (règles dans sync-bios.js).
+// Dépend de config.js (ROMS_DIR, BIOS_DIR), logo-source.js (LOGOS_DIR) et sync-bios.js. Aucun accès réseau ni disque ici.
 // INVARIANT : le téléphone ne retire QUE des fichiers venus du Mac par cette synchronisation (liste `synced`) ; un fichier importé à la main
 //   (« Mes fichiers », dossier, page web, pochette cherchée par le téléphone) n'est jamais remplacé ni effacé.
 import { ROMS_DIR, BIOS_DIR } from './config.js';
 import { LOGOS_DIR } from './logo-source.js';
+import { biosTargetPath, isBiosPath, declaredBiosFiles } from './sync-bios.js';
+
+export { declaredBiosFiles, biosIndex, isBiosPath } from './sync-bios.js';
 
 /** Port du serveur de partage du Mac (HTTPS), distinct du serveur de Clone90 (8080, limité au Mac). */
 export const SYNC_PORT = 8443;
@@ -34,21 +38,25 @@ const NAME_OK = (s) => typeof s === 'string' && s.length > 0 && s.length <= 255 
 /**
  * Chemin sur le téléphone d'un fichier partagé par le Mac, ou null s'il n'est pas partagé.
  * Partagés : `roms/<machine>/<fichier>` (un niveau de sous-dossier est lu, comme le générateur, et rangé À PLAT comme « Choisir le dossier
- * des jeux », T38), `roms/clone90-logos/<id>.svg` (logos, T29) et `bios/<fichier>`. Jamais de fichier caché, de `..` ni de machine inconnue.
+ * des jeux », T38), `roms/clone90-logos/<id>.svg` (logos, T29), `bios/<fichier>` et (T53) `bios/<sous-dossier>/<fichier>` (samples).
+ * Jamais de fichier caché, de `..` ni de machine inconnue.
+ * T53 : avec `bios` (biosIndex(systems), côté téléphone), un BIOS déclaré va dans `bios/<nom déclaré>`, même rangé avec les jeux sur le Mac
+ * ou écrit avec une autre casse (voir biosTargetPath).
  * @param {string} path chemin relatif sur le Mac, séparateur `/`
  * @param {Iterable<string>} systemIds ids de systems.json
+ * @param {{names: Map<string, string>, files: Set<string>}|null} [bios] biosIndex(systems)
  * @returns {string|null}
  */
-export function syncTargetPath(path, systemIds) {
+export function syncTargetPath(path, systemIds, bios = null) {
   if (typeof path !== 'string' || path.length > 1024) return null;
   const parts = path.split('/');
   if (!parts.every(NAME_OK)) return null;
   const ids = new Set(systemIds);
-  if (parts[0] === BIOS_DIR && parts.length === 2) return path;
+  if (parts[0] === BIOS_DIR) return biosTargetPath(parts, bios);
   if (parts[0] !== ROMS_DIR || parts.length < 3 || parts.length > 4) return null;
   if (parts[1] === LOGOS_DIR) return parts.length === 3 && /^[a-z0-9]+\.svg$/.test(parts[2]) ? path : null;
   if (!ids.has(parts[1])) return null;
-  return `${ROMS_DIR}/${parts[1]}/${parts[parts.length - 1]}`;
+  return biosTargetPath(parts, bios) ?? `${ROMS_DIR}/${parts[1]}/${parts[parts.length - 1]}`;
 }
 
 const PRIVATE_V4 = [/^10\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[01])\./];
@@ -126,18 +134,18 @@ export function readHello(body) {
 
 /**
  * Liste reçue du Mac (`{files: [{path, size, mtime}]}`), contrôlée : entrées mal formées ou non partagées ignorées, doublons de chemin
- * sur le téléphone gardés une fois (premier vu).
- * @param {unknown} body @param {Iterable<string>} systemIds
+ * sur le téléphone gardés une fois (premier vu : la liste du Mac est triée, donc bios/neogeo.zip passe avant roms/neogeo/neogeo.zip).
+ * @param {unknown} body @param {Iterable<string>} systemIds @param {{names: Map<string, string>, files: Set<string>}|null} [bios] T53 : biosIndex(systems)
  * @returns {{path: string, target: string, size: number, mtime: number}[]|null} null si la réponse n'a pas la forme attendue
  */
-export function readManifest(body, systemIds) {
+export function readManifest(body, systemIds, bios = null) {
   if (!body || typeof body !== 'object' || !Array.isArray(body.files) || body.files.length > MAX_MANIFEST_FILES) return null;
   const ids = [...systemIds];
   const seen = new Set();
   const out = [];
   for (const f of body.files) {
     if (!f || typeof f !== 'object' || !Number.isSafeInteger(f.size) || f.size < 0 || !Number.isFinite(f.mtime)) continue;
-    const target = syncTargetPath(f.path, ids);
+    const target = syncTargetPath(f.path, ids, bios);
     if (!target || seen.has(target)) continue;
     seen.add(target);
     out.push({ path: f.path, target, size: f.size, mtime: f.mtime });
@@ -207,76 +215,70 @@ const COVER_EXT = /\.(png|jpe?g|webp)$/i;
 export const isCoverPath = (path) => typeof path === 'string' && COVER_EXT.test(path);
 
 /**
- * T44 : chemin d'un jeu ou d'une pochette que le Mac accepte de recevoir du téléphone, ou null.
+ * T44 : chemin d'un jeu, d'une pochette ou (T53) d'un BIOS que le Mac accepte de recevoir du téléphone, ou null.
  * Accepté : `roms/<machine de systems.json>/<fichier>` exactement (bibliothèque du téléphone rangée à plat, T38) ; une image
- * (png, jpg, webp) est une pochette (décision de Hicham du 2026-11-15 : « Il faut synchroniser les pochettes aussi »).
- * Refusés (« tout sauf le BIOS ») : BIOS, logos, fichier caché, `..`, sous-dossier, machine inconnue.
- * T52 : `biosFiles` (declaredBiosFiles) refuse aussi un BIOS déclaré rangé avec les jeux de sa machine.
+ * (png, jpg, webp) est une pochette (décision de Hicham du 2026-11-15 : « Il faut synchroniser les pochettes aussi ») ;
+ * T53 (décision de Hicham du 2026-11-22, remplace « tout sauf le BIOS » de T44) : `bios/<fichier>` et `bios/<sous-dossier>/<fichier>` (samples).
+ * Refusés : logos, fichier caché, `..`, sous-dossier de roms/, machine inconnue.
+ * T52 : `biosFiles` (declaredBiosFiles) refuse un BIOS déclaré rangé avec les JEUX de sa machine : ce n'est pas un jeu (sa place est bios/).
  * @param {string} path @param {Iterable<string>} systemIds @param {Set<string>} [biosFiles] @returns {string|null}
  */
 export function uploadTargetPath(path, systemIds, biosFiles = new Set()) {
   if (typeof path !== 'string' || path.length > 1024) return null;
   const parts = path.split('/');
-  if (parts.length !== 3 || parts[0] !== ROMS_DIR || !parts.every(NAME_OK)) return null;
+  if (!parts.every(NAME_OK)) return null;
+  if (parts[0] === BIOS_DIR) return parts.length === 2 || parts.length === 3 ? path : null;
+  if (parts.length !== 3 || parts[0] !== ROMS_DIR) return null;
   if (parts[1] === LOGOS_DIR || !new Set(systemIds).has(parts[1])) return null;
   if (biosFiles.has(`${parts[1]}/${parts[2].toLowerCase()}`)) return null;
   return path;
 }
 
-/**
- * T52 : BIOS déclarés dans systems.json, sous la forme `<machine>/<fichier en minuscules>`. Un BIOS rangé par erreur avec les jeux de SA
- * machine (roms/neogeo/neogeo.zip, vu sur le Mac de Hicham le 2026-11-21) n'est ni envoyé ni accepté comme un jeu (T44 : « tout sauf le
- * BIOS »), comme games-builder.js ne le liste pas comme jeu (T38).
- * @param {{id: string, bios?: {file?: unknown}[]}[]} systems @returns {Set<string>}
- */
-export function declaredBiosFiles(systems) {
-  const out = new Set();
-  for (const s of systems ?? []) {
-    for (const b of Array.isArray(s?.bios) ? s.bios : []) if (typeof b?.file === 'string' && typeof s.id === 'string') out.add(`${s.id}/${b.file.toLowerCase()}`);
-  }
-  return out;
-}
-
-/** T44 : taille maximale permise pour un fichier envoyé (pochette : 10 Mo, jeu : 1 Go). @param {string} path */
-export const maxUploadBytes = (path) => (isCoverPath(path) ? MAX_COVER_UPLOAD_BYTES : MAX_UPLOAD_BYTES);
+/** T44 : taille maximale permise pour un fichier envoyé (pochette : 10 Mo, jeu et BIOS (T53) : 1 Go). @param {string} path */
+export const maxUploadBytes = (path) => (isCoverPath(path) && !isBiosPath(path) ? MAX_COVER_UPLOAD_BYTES : MAX_UPLOAD_BYTES);
 
 /**
- * T44 : plan d'envoi des jeux et pochettes du téléphone vers le Mac (rien n'est fait ici).
- * Envoyés : les fichiers mis par la personne sur le téléphone (pas ceux venus du Mac, liste `synced`) que le Mac n'a pas au même chemin ;
- * les jeux d'abord, puis les pochettes (chacun du plus petit au plus gros).
+ * T44 : plan d'envoi des jeux, BIOS (T53) et pochettes du téléphone vers le Mac (rien n'est fait ici).
+ * Envoyés : les fichiers mis par la personne sur le téléphone (pas ceux venus du Mac, liste `synced`) que le Mac n'a pas au même chemin
+ * (T53 : pour un BIOS, sans tenir compte de la casse) ; les jeux d'abord, puis les BIOS, puis les pochettes (chacun du plus petit au plus gros).
  * @param {{remote: {target: string}[], local: {path: string, size: number}[], synced: Record<string, unknown>, systemIds: Iterable<string>,
  *   biosFiles?: Set<string>}} input `biosFiles` (T52) : declaredBiosFiles(systems), jamais envoyés
  *   `remote` : liste du Mac (readManifest), `local` : bibliothèque du téléphone
- * @returns {{send: {path: string, size: number, cover: boolean}[], already: number, tooBig: number}} `already` : JEU de même nom déjà sur
- *   le Mac (jamais remplacé, signalé ; une pochette déjà sur le Mac est simplement gardée, sans message) ; `tooBig` : au-delà de maxUploadBytes
+ * @returns {{send: {path: string, size: number, cover: boolean, bios: boolean}[], already: number, tooBig: number}} `already` : JEU de même nom
+ *   déjà sur le Mac (jamais remplacé, signalé ; une pochette ou un BIOS déjà sur le Mac est simplement gardé, sans message) ; `tooBig` : au-delà de maxUploadBytes
  */
 export function planUpload({ remote, local, synced = {}, systemIds, biosFiles }) {
   const ids = [...systemIds];
   const onMac = new Set(remote.map((e) => e.target));
+  const biosOnMac = new Set(remote.map((e) => e.target).filter(isBiosPath).map((t) => t.toLowerCase()));
   const send = [];
   let already = 0;
   let tooBig = 0;
   for (const entry of local) {
     if (!uploadTargetPath(entry.path, ids, biosFiles) || Object.hasOwn(synced, entry.path)) continue;
-    const cover = isCoverPath(entry.path);
-    if (onMac.has(entry.path)) { if (!cover) already += 1; } else if (!Number.isSafeInteger(entry.size) || entry.size > maxUploadBytes(entry.path)) tooBig += 1;
-    else send.push({ path: entry.path, size: entry.size, cover });
+    const bios = isBiosPath(entry.path);
+    const cover = !bios && isCoverPath(entry.path);
+    if (bios ? biosOnMac.has(entry.path.toLowerCase()) : onMac.has(entry.path)) { if (!cover && !bios) already += 1; }
+    else if (!Number.isSafeInteger(entry.size) || entry.size > maxUploadBytes(entry.path)) tooBig += 1;
+    else send.push({ path: entry.path, size: entry.size, cover, bios });
   }
-  send.sort((a, b) => Number(a.cover) - Number(b.cover) || a.size - b.size || (a.path < b.path ? -1 : 1));
+  const rank = (e) => (e.cover ? 2 : e.bios ? 1 : 0);
+  send.sort((a, b) => rank(a) - rank(b) || a.size - b.size || (a.path < b.path ? -1 : 1));
   return { send, already, tooBig };
 }
 
 /**
  * T44 : message de fin d'un envoi vers le Mac.
- * @param {{sent?: number, covers?: number, already?: number, tooBig?: number, noSpace?: number, failed?: number, interrupted?: number, busy?: number}} result
+ * @param {{sent?: number, bios?: number, covers?: number, already?: number, tooBig?: number, noSpace?: number, failed?: number, interrupted?: number, busy?: number}} result
  *   T52 : `interrupted` : fichiers abandonnés après deux essais sans progression ; `busy` : Mac toujours occupé par un autre envoi
- *   `sent` : jeux envoyés, `covers` : pochettes envoyées ; les autres comptes valent pour les jeux et les pochettes
+ *   `sent` : jeux envoyés, `bios` (T53) : BIOS envoyés, `covers` : pochettes envoyées ; les autres comptes valent pour les jeux et les pochettes
  * @returns {string}
  */
-export function describeUploadResult({ sent = 0, covers = 0, already = 0, tooBig = 0, noSpace = 0, failed = 0, interrupted = 0, busy = 0 }) {
+export function describeUploadResult({ sent = 0, bios = 0, covers = 0, already = 0, tooBig = 0, noSpace = 0, failed = 0, interrupted = 0, busy = 0 }) {
   const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
   const parts = [];
   if (sent) parts.push(`${plural(sent, 'jeu envoyé', 'jeux envoyés')} au Mac`);
+  if (bios) parts.push(`${bios} BIOS ${bios > 1 ? 'envoyés' : 'envoyé'} au Mac`);
   if (covers) parts.push(`${plural(covers, 'pochette envoyée', 'pochettes envoyées')} au Mac`);
   if (already) parts.push(`${plural(already, 'jeu non envoyé', 'jeux non envoyés')} : un fichier du même nom est déjà sur le Mac`);
   if (tooBig) parts.push(`${plural(tooBig, 'fichier trop gros', 'fichiers trop gros')} (jeu de plus de 1 Go ou pochette de plus de 10 Mo)`);
@@ -287,7 +289,7 @@ export function describeUploadResult({ sent = 0, covers = 0, already = 0, tooBig
     parts.push(`${plural(interrupted, 'fichier interrompu', 'fichiers interrompus')} (plus rien ne passait depuis 1 min ; rien n'est gardé à moitié sur le Mac) : `
       + 'relancez l\'envoi pour le reprendre');
   }
-  if (!parts.length) return 'Envoi : le Mac a déjà tous les jeux et pochettes de ce téléphone.';
+  if (!parts.length) return 'Envoi : le Mac a déjà tous les jeux, BIOS et pochettes de ce téléphone.';
   return `Envoi : ${parts.join(' ; ')}.`;
 }
 

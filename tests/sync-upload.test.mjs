@@ -22,14 +22,15 @@ const TOKEN = 'a'.repeat(64);
 const hasOpenssl = (() => { try { execFileSync('openssl', ['version']); return true; } catch { return false; } })();
 
 // --- Règles pures ---
-test('T44 jeux et pochettes acceptés par le Mac : seulement roms/<machine connue>/<fichier>, ni BIOS, ni logo, ni fichier caché', () => {
+// T53 (décision de Hicham du 2026-11-22) : les BIOS sont maintenant envoyés au Mac ; leurs cas sont dans tests/sync-bios.test.mjs.
+test('T44 jeux et pochettes acceptés par le Mac : seulement roms/<machine connue>/<fichier>, ni logo, ni fichier caché', () => {
   assert.equal(uploadTargetPath('roms/nes/Mario.nes', IDS), 'roms/nes/Mario.nes');
   assert.equal(uploadTargetPath('roms/amiga/Leander (Disk 1).adf', IDS), 'roms/amiga/Leander (Disk 1).adf');
   assert.equal(uploadTargetPath('roms/nes/Mario.png', IDS), 'roms/nes/Mario.png');
   assert.equal(uploadTargetPath('roms/nes/Mario.JPG', IDS), 'roms/nes/Mario.JPG');
   assert.equal(maxUploadBytes('roms/nes/Mario.png'), MAX_COVER_UPLOAD_BYTES);
   assert.equal(maxUploadBytes('roms/nes/Mario.nes'), MAX_UPLOAD_BYTES);
-  for (const p of ['bios/neogeo.zip', 'roms/clone90-logos/nes.svg', 'roms/clone90-logos/nes.png', 'roms/nes/.DS_Store', 'roms/nes/.x.png', 'roms/psx/jeu.bin',
+  for (const p of ['bios/a/b/neogeo.zip', 'roms/clone90-logos/nes.svg', 'roms/clone90-logos/nes.png', 'roms/nes/.DS_Store', 'roms/nes/.x.png', 'roms/psx/jeu.bin',
     'roms/nes/../x.nes', 'roms/../x', 'roms/nes/sous/x.nes', 'roms/nes/', 'roms/nes/a\\b.nes', 'games.json', '', null, `roms/nes/${'x'.repeat(300)}.nes`]) {
     assert.equal(uploadTargetPath(p, IDS), null, String(p));
   }
@@ -42,15 +43,16 @@ test('T44 plan d\'envoi : jeux puis pochettes mis sur le téléphone et absents 
     { path: 'roms/nes/Mario.png', size: 7 }, { path: 'roms/nes/Geante.png', size: MAX_COVER_UPLOAD_BYTES + 1 }];
   const remote = [{ target: 'roms/nes/Mario.nes' }, { target: 'roms/nes/VenuDuMac.nes' }, { target: 'roms/nes/Mario.png' }];
   const plan = planUpload({ remote, local, synced: { 'roms/nes/VenuDuMac.nes': { size: 4, mtime: 1 } }, systemIds: IDS });
-  assert.deepEqual(plan.send.map((e) => e.path), ['roms/nes/Petit.nes', 'roms/nes/AMoi.nes', 'roms/nes/AMoi.png'], 'jeux du plus petit au plus gros, puis pochettes');
-  assert.deepEqual(plan.send.map((e) => e.cover), [false, false, true]);
+  assert.deepEqual(plan.send.map((e) => e.path), ['roms/nes/Petit.nes', 'roms/nes/AMoi.nes', 'bios/neogeo.zip', 'roms/nes/AMoi.png'],
+    'jeux du plus petit au plus gros, puis BIOS (T53), puis pochettes');
+  assert.deepEqual(plan.send.map((e) => e.cover), [false, false, false, true]);
   assert.equal(plan.already, 1, 'une pochette déjà sur le Mac est gardée sans message');
   assert.equal(plan.tooBig, 2, 'jeu de plus de 1 Go, pochette de plus de 10 Mo');
   assert.deepEqual(planUpload({ remote: [], local: [], synced: {}, systemIds: IDS }), { send: [], already: 0, tooBig: 0 });
 });
 
 test('T44 message de fin de l\'envoi', () => {
-  assert.equal(describeUploadResult({}), 'Envoi : le Mac a déjà tous les jeux et pochettes de ce téléphone.');
+  assert.equal(describeUploadResult({}), 'Envoi : le Mac a déjà tous les jeux, BIOS et pochettes de ce téléphone.');
   assert.equal(describeUploadResult({ sent: 1, covers: 2 }), 'Envoi : 1 jeu envoyé au Mac ; 2 pochettes envoyées au Mac.');
   assert.equal(describeUploadResult({ sent: 2, already: 1 }), 'Envoi : 2 jeux envoyés au Mac ; 1 jeu non envoyé : un fichier du même nom est déjà sur le Mac.');
   assert.match(describeUploadResult({ sent: 1, noSpace: 2, failed: 1, tooBig: 1 }), /1 jeu envoyé.*1 fichier trop gros.*2 fichiers non envoyés : plus assez de place sur le Mac.*1 fichier en échec/);
@@ -88,7 +90,7 @@ function fakeMac({ files = [], uploads = true, answers = {}, log = [] } = {}) {
   return { fetchFn, disk, log };
 }
 
-test('T44 téléphone : envoie ses jeux puis ses pochettes absents du Mac, avec le jeton, seulement au Mac associé ; ni BIOS, ni fichiers venus du Mac', async () => {
+test('T44 téléphone : envoie ses jeux, BIOS (T53) puis pochettes absents du Mac, avec le jeton, seulement au Mac associé ; jamais les fichiers venus du Mac', async () => {
   const storage = paired({ 'roms/nes/DuMac.nes': { size: 3, mtime: 1 } });
   const library = fakeLibrary({ 'roms/nes/AMoi.nes': blobOf(5), 'roms/nes/AMoi.png': blobOf(2), 'bios/neogeo.zip': blobOf(4), 'roms/nes/DuMac.nes': blobOf(3),
     'roms/nes/Mario.nes': blobOf(6) });
@@ -96,14 +98,14 @@ test('T44 téléphone : envoie ses jeux puis ses pochettes absents du Mac, avec 
   const progress = [];
   const out = await sendGamesToMac({ library, systems: SYSTEMS, fetchFn: mac.fetchFn, storage, onProgress: (p) => progress.push(p) });
   assert.equal(out.status, 'done');
-  assert.equal(out.sent, 2);
-  assert.equal(out.text, 'Envoi : 1 jeu envoyé au Mac ; 1 pochette envoyée au Mac ; 1 jeu non envoyé : un fichier du même nom est déjà sur le Mac.');
+  assert.equal(out.sent, 3);
+  assert.equal(out.text, 'Envoi : 1 jeu envoyé au Mac ; 1 BIOS envoyé au Mac ; 1 pochette envoyée au Mac ; 1 jeu non envoyé : un fichier du même nom est déjà sur le Mac.');
   const uploads = mac.log.filter((c) => c.url.includes('/sync/upload'));
-  assert.deepEqual(uploads.map((c) => new URL(c.url).searchParams.get('path')), ['roms/nes/AMoi.nes', 'roms/nes/AMoi.png']);
+  assert.deepEqual(uploads.map((c) => new URL(c.url).searchParams.get('path')), ['roms/nes/AMoi.nes', 'bios/neogeo.zip', 'roms/nes/AMoi.png']);
   assert.deepEqual(readSyncPairing(storage).files['roms/nes/AMoi.png'], { size: 2, mtime: 77 }, 'la pochette suit ensuite le Mac');
   assert.ok(mac.log.every((c) => c.url.startsWith('https://192.168.1.20:8443/') && c.init.headers.Authorization === `Bearer ${TOKEN}` && c.init.credentials === 'omit'));
   assert.equal(uploads[0].init.method, 'POST');
-  assert.deepEqual(progress.at(-1), { done: 2, total: 2 });
+  assert.deepEqual(progress.at(-1), { done: 3, total: 3 });
 });
 
 test('T44 téléphone : un jeu envoyé devient géré par le Mac : supprimé sur le Mac, il est retiré du téléphone à la synchronisation suivante', async () => {
@@ -162,7 +164,7 @@ test('T44 « Mes fichiers » : bouton « Envoyer mes jeux au Mac » (data-nav) s
   button.listeners.click();
   assert.equal(sent, 1);
   assert.ok(findAll(nodes, (n) => n.textContent === SEND_INFO).length === 1);
-  assert.match(SEND_INFO, /pas les BIOS/);
+  assert.match(SEND_INFO, /BIOS/, 'T53 : les BIOS sont envoyés aussi');
   const unpaired = renderSyncSection({ pairing: null, onPair() {}, onSyncNow() {}, onForget() {} }, fakeDoc());
   assert.equal(findAll(unpaired, (n) => n.dataset?.navId === SYNC_NAV.send).length, 0);
 });
@@ -272,10 +274,10 @@ test('T44 Mac : jamais d\'écrasement d\'un fichier existant', { skip }, async (
   } finally { await m.close(); }
 });
 
-test('T44 Mac : seulement des jeux et pochettes de machines connues ; ni BIOS, logo, fichier caché, .., ni dossier lié hors du dossier des jeux', { skip }, async () => {
+test('T44 Mac : seulement des jeux, pochettes et BIOS (T53) de machines connues ; ni logo, fichier caché, .., ni dossier lié hors du dossier des jeux', { skip }, async () => {
   const m = await startMac();
   try {
-    for (const p of ['bios/neogeo.zip', 'roms/clone90-logos/nes.svg', 'roms/nes/.cache', 'roms/nes/.x.png', 'roms/../evil.nes', 'roms/nes/../../evil.nes',
+    for (const p of ['bios/a/b/neogeo.zip', 'bios/.cache', 'bios/../evil', 'roms/clone90-logos/nes.svg', 'roms/nes/.cache', 'roms/nes/.x.png', 'roms/../evil.nes', 'roms/nes/../../evil.nes',
       'roms/psx/jeu.bin', 'roms/nes/sous/x.nes', 'systems.json', '']) {
       const res = await m.upload(p, 'X');
       assert.equal(res.status, 400, p);
@@ -364,7 +366,7 @@ function findAll(nodes, pred, out = []) {
 }
 
 // --- T50 : Game Boy Advance ---
-test('T50 synchro et envoi au Mac : les jeux et pochettes de roms/gba/ sont partagés, le BIOS gba_bios.bin seulement dans le sens Mac -> téléphone', async () => {
+test('T50 synchro et envoi au Mac : les jeux et pochettes de roms/gba/ sont partagés, le BIOS gba_bios.bin dans les deux sens (T53)', async () => {
   const { readFileSync } = await import('node:fs');
   const { syncTargetPath } = await import('../js/sync-plan.js');
   const ids = JSON.parse(readFileSync(new URL('../systems.json', import.meta.url), 'utf8')).systems.map((s) => s.id);
@@ -372,5 +374,5 @@ test('T50 synchro et envoi au Mac : les jeux et pochettes de roms/gba/ sont part
   assert.equal(syncTargetPath('roms/gba/Homebrew.png', ids), 'roms/gba/Homebrew.png');
   assert.equal(syncTargetPath('bios/gba_bios.bin', ids), 'bios/gba_bios.bin');
   assert.equal(uploadTargetPath('roms/gba/Homebrew.gba', ids), 'roms/gba/Homebrew.gba');
-  assert.equal(uploadTargetPath('bios/gba_bios.bin', ids), null);
+  assert.equal(uploadTargetPath('bios/gba_bios.bin', ids), 'bios/gba_bios.bin');
 });

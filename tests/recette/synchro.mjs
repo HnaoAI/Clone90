@@ -34,13 +34,16 @@ async function appCopy(prefix) {
 const macRoot = await appCopy('clone90-recette-mac-');
 const phoneRoot = await appCopy('clone90-recette-tel-');
 const COVER = await readFile(join(PROJECT_ROOT, 'assets/icons/icon-192.png'));
-for (const d of ['roms/nes', 'roms/amiga/Leander', 'roms/clone90-logos', 'bios']) await mkdir(join(macRoot, d), { recursive: true });
+for (const d of ['roms/nes', 'roms/amiga/Leander', 'roms/clone90-logos', 'bios/samples']) await mkdir(join(macRoot, d), { recursive: true });
 await writeFile(join(macRoot, 'roms/nes/Mario.nes'), 'NES-MARIO');
 await writeFile(join(macRoot, 'roms/nes/Mario.png'), COVER);
 await writeFile(join(macRoot, 'roms/nes/Ancien.nes'), 'NES-ANCIEN');
 await writeFile(join(macRoot, 'roms/amiga/Leander/Leander.adf'), 'ADF-LEANDER');
 await writeFile(join(macRoot, 'roms/clone90-logos/nes.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>');
 await writeFile(join(macRoot, 'bios/neogeo.zip'), 'ZIP-NEOGEO');
+// T53 : BIOS écrit en majuscules sur le Mac et samples arcade (sous-dossier de bios/).
+await writeFile(join(macRoot, 'bios/SYSCARD3.PCE'), 'BIOS-SYSCARD3');
+await writeFile(join(macRoot, 'bios/samples/mslug.zip'), 'SAMPLES-MSLUG');
 
 // « Mac » : même branchement que serve.mjs (API des dossiers + commande du partage), sur 127.0.0.1.
 let macPort = 0;
@@ -162,9 +165,9 @@ try {
   await phone.getByText('copiés depuis le Mac').waitFor({ timeout: 60000 });
   verdict('T51-duree-recherche', Date.now() - t0 < 30000, `${Date.now() - t0} ms`);
   const first = await phone.locator('.library-notice').textContent();
-  verdict('T43-premiere-synchro', /6 fichiers copiés depuis le Mac/.test(first), first);
+  verdict('T43-premiere-synchro', /8 fichiers copiés depuis le Mac/.test(first), first);
   const keys = await storedKeys(phone);
-  const expected = ['bios/neogeo.zip', 'roms/amiga/Leander.adf', 'roms/clone90-logos/nes.svg', 'roms/nes/Ancien.nes', 'roms/nes/Mario.nes', 'roms/nes/Mario.png'];
+  const expected = ['bios/neogeo.zip', 'bios/samples/mslug.zip', 'bios/syscard3.pce', 'roms/amiga/Leander.adf', 'roms/clone90-logos/nes.svg', 'roms/nes/Ancien.nes', 'roms/nes/Mario.nes', 'roms/nes/Mario.png'];
   verdict('T43-fichiers-ranges', JSON.stringify(keys) === JSON.stringify(expected), keys.join(', '));
   verdict('T51-associe-nom-du-mac', await phone.getByText('mac-de-recette', { exact: true }).count() > 0, '');
   await shot(phone, 'telephone-1-mes-fichiers');
@@ -172,6 +175,8 @@ try {
   // 3. Jeu servi par le service worker depuis le téléphone, tuile avec pochette.
   const served = await phone.evaluate(async () => (await fetch('roms/nes/Mario.nes')).text());
   verdict('T43-jeu-servi-hors-mac', served === 'NES-MARIO', served);
+  const bios = await phone.evaluate(async () => (await fetch('bios/syscard3.pce')).text());
+  verdict('T53-bios-servi-sous-son-nom', bios === 'BIOS-SYSCARD3', bios);
   await phone.goto(`${PHONE}/index.html#/nes`);
   await phone.locator('.game-tile').first().waitFor();
   await phone.waitForFunction(() => [...document.querySelectorAll('.game-cover img')].every((i) => i.complete));
