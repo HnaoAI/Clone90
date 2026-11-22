@@ -106,7 +106,7 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
   const withDisabled = (node) => { if (disabled) node.setAttribute('disabled', ''); return node; };
   const header = el('header', { class: 'grid-header' }, [
     el('a', { class: 'back-button', attrs: { href: buildHash({ name: 'home' }), 'aria-label': 'Retour aux machines' }, dataset: { nav: '', navId: LIBRARY_BACK_NAV_ID } }, [
-      el('span', { text: '◀︎', attrs: { 'aria-hidden': 'true' } }, [], doc),
+      el('span', { class: 'back-arrow', attrs: { 'aria-hidden': 'true' } }, [], doc),
       el('span', { class: 'back-label', text: 'Machines' }, [], doc),
     ], doc),
     el('h2', { class: 'grid-title', text: 'Mes fichiers' }, [], doc),

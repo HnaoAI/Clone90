@@ -1,30 +1,32 @@
-/* Écran « Mes fichiers » (T27). Couleurs : variables de base.css uniquement (tests/design.test.mjs). */
+/* Écran « Mes fichiers » (T27, style « Swared » T54 : lignes sombres arrondies, filets, accent vert). Couleurs : variables de base.css uniquement (tests/design.test.mjs). */
 
 .grid-add { margin-left: auto; }
 
 .library { max-width: 48rem; margin: 0 auto; }
 .library .grid-header { margin-bottom: 20px; }
 .library-intro { margin: 0 4px 24px; color: var(--text-muted); }
-.library-heading { margin: 32px 4px 8px; font-family: var(--font-title); font-size: 1.125rem; font-weight: 900; line-height: 1.6; color: var(--accent); }
+.library-heading { margin: 28px 4px 8px; font-family: var(--font-title); font-size: 1.0625rem; font-weight: 800; line-height: 1.5; color: var(--text); }
 .library > .muted { margin: 0 4px 16px; }
 
-.library-machines { display: flex; flex-wrap: wrap; gap: 16px; margin: 0; padding: 4px; list-style: none; }
+.library-machines { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 4px; list-style: none; }
 .library-machines .back-button { min-width: 8rem; }
-.library-machines .is-selected { background: var(--accent); color: var(--on-accent); box-shadow: var(--frame-accent); }
+.library-machines .is-selected { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
-.library .button { margin: 4px; }
+.library .button { margin: 8px 4px 16px; }
 /* T38 : résultat du scan d'un dossier, gardé à l'écran sous le bouton. */
-.library-notice { margin: 12px 4px 0; padding: 12px 16px; border-left: 4px solid var(--accent); background: var(--panel); color: var(--text); }
+.library-notice { margin: 12px 4px 0; padding: 12px 16px; border: 1px solid var(--edge); border-left: 4px solid var(--accent); border-radius: var(--round-sm); background: var(--panel); color: var(--text); }
 .library-bios { margin: 16px 4px 0; padding: 0; list-style: none; color: var(--text-muted); }
-.library-bios li { padding: 4px 0; }
+.library-bios li { padding: 8px 0; border-bottom: 1px solid var(--sep); }
+.library-bios li:last-child { border-bottom: 0; }
 .library-bios li.is-present { color: var(--text); }
 
 .library-group { margin: 16px 4px 0; }
 .library-group-title { margin: 0 0 8px; font-size: 1rem; }
 .library-files { margin: 0; padding: 0; list-style: none; }
-.library-file { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px; margin-bottom: 12px; background: var(--panel); box-shadow: var(--frame); }
-.library-file-name { flex: 1 1 12rem; overflow-wrap: anywhere; }
-.library-file-size { flex: 0 0 auto; }
+.library-file { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 4px; border-bottom: 1px solid var(--sep); }
+.library-file:last-child { border-bottom: 0; }
+.library-file-name { flex: 1 1 12rem; overflow-wrap: anywhere; font-weight: 700; }
+.library-file-size { flex: 0 0 auto; color: var(--accent); font-weight: 700; }
 
 button[disabled], .back-button[disabled] { opacity: 0.5; cursor: not-allowed; }
 @media (max-width: 599px) {
@@ -39,7 +41,7 @@ button[disabled], .back-button[disabled] { opacity: 0.5; cursor: not-allowed; }
 .link-label { display: block; margin: 0 0 8px; font-weight: 700; }
 .link-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
 .link-input, .link-machine, .link-depth {
-  min-height: 44px; padding: 8px 12px; font: inherit; color: var(--text); background: var(--panel); border: 0; box-shadow: var(--frame);
+  min-height: 48px; padding: 10px 14px; font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid transparent; border-radius: 12px;
 }
 .link-input { flex: 1 1 16rem; min-width: 0; }
 .link-input::placeholder { color: var(--text-muted); }
@@ -51,8 +53,8 @@ button[disabled], .back-button[disabled] { opacity: 0.5; cursor: not-allowed; }
   flex: 1 1 14rem; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 4px; text-align: left; font: inherit; color: var(--text);
   background: none; border: 0; overflow-wrap: anywhere; cursor: pointer;
 }
-.link-toggle::before { content: ''; flex: 0 0 auto; width: 20px; height: 20px; background: var(--panel-3); box-shadow: 0 0 0 3px var(--line); }
-.link-toggle[aria-pressed="true"]::before { background: var(--accent); box-shadow: 0 0 0 3px var(--line), inset 0 0 0 4px var(--panel-3); }
+.link-toggle::before { content: ''; flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-2); border: 2px solid var(--edge); }
+.link-toggle[aria-pressed="true"]::before { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 4px var(--panel-2); }
 .link-toggle:focus-visible, .input-gamepad .link-toggle:focus { outline: 4px solid var(--focus); outline-offset: 2px; }
 .link-machine { flex: 0 1 14rem; max-width: 100%; }
 .library-links .back-button { margin-left: 8px; }

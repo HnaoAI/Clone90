@@ -17,8 +17,8 @@ test('manifest : nom, démarrage et portée relatifs (GitHub Pages sous /<dépô
   assert.equal(manifest.scope, './');
   assert.equal(manifest.display, 'fullscreen');
   assert.deepEqual(manifest.display_override, ['fullscreen', 'standalone']);
-  assert.equal(manifest.theme_color, '#1239b0'); // T41 : --bg de la palette Y2K
-  assert.equal(manifest.background_color, '#1239b0');
+  assert.equal(manifest.theme_color, '#1f1e1d'); // T54 : --bg de la palette Swared (T41 : Y2K)
+  assert.equal(manifest.background_color, '#1f1e1d');
   assert.equal(manifest.lang, 'fr');
 });
 

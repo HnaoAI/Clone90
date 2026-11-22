@@ -38,7 +38,9 @@ const SHELL_FILES = [
   'js/pwa.js',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/icon-192-maskable.png', 'assets/icons/icon-512-maskable.png',
   'assets/icons/dock-machines.svg', 'assets/icons/dock-files.svg', 'assets/icons/dock-web.svg', 'assets/icons/dock-folders.svg',
+  'assets/icons/arrow-right.svg', 'assets/icons/arrow-left.svg',
   'assets/fonts/PressStart2P-Regular.ttf', 'assets/fonts/OFL.txt',
+  'assets/fonts/Nunito-500.woff2', 'assets/fonts/Nunito-700.woff2', 'assets/fonts/Nunito-800.woff2', 'assets/fonts/Nunito-OFL.txt',
 ];
 
 /**

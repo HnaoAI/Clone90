@@ -27,22 +27,12 @@ export function buildMachineTiles(systems, gamesBySystem) {
   return [...tiles.filter((t) => !t.empty), ...tiles.filter((t) => t.empty)];
 }
 
-/** Nombre de segments de la jauge d'une tuile. */
-export const GAUGE_SEGMENTS = 6;
-
 /**
- * Segments allumés de la jauge décorative d'une machine (T24) : un segment pour 2 jeux, de 0 à GAUGE_SEGMENTS.
- * @param {number} count nombre de jeux (valeur invalide ou négative : 0)
- * @returns {boolean[]} GAUGE_SEGMENTS booléens, du bas vers le haut
+ * Nombre total de jeux des machines affichées (T54 : gros chiffre vert en tête de l'accueil).
+ * @param {{count: number}[]} tiles résultat de buildMachineTiles
+ * @returns {number} somme des nombres valides (négatif, NaN : ignorés)
  */
-export function gaugeSegments(count) {
-  const lit = Number.isFinite(count) && count > 0 ? Math.min(GAUGE_SEGMENTS, Math.ceil(count / 2)) : 0;
-  return Array.from({ length: GAUGE_SEGMENTS }, (_, i) => i < lit);
-}
-
-/** Jauge décorative (aria-hidden), des voyants ronds depuis T41 : le texte « N jeux » reste l'information. */
-const renderGauge = (count, doc) => el('span', { class: 'gauge', attrs: { 'aria-hidden': 'true' } },
-  gaugeSegments(count).map((on) => el('i', { class: on ? 'is-on' : '' }, [], doc)), doc);
+export const totalGames = (tiles) => tiles.reduce((sum, t) => sum + (Number.isFinite(t.count) && t.count > 0 ? t.count : 0), 0);
 
 /**
  * Message à afficher selon l'état de games.json (architecture 8.1 : message dédié, jamais bloquant).
@@ -91,14 +81,14 @@ export function renderMachineGrid(tiles, doc = globalThis.document) {
       createLogo(t, doc),
       el('span', { class: 'machine-name', text: t.name }, [], doc),
       el('span', { class: 'machine-count', text: t.countLabel }, [], doc),
-      renderGauge(t.count, doc), // T41 : voyants à côté de la pastille du nombre de jeux, hors de la bulle du logo
+      el('span', { class: 'machine-go', attrs: { 'aria-hidden': 'true' } }, [], doc), // T54 : flèche (dans un disque vert quand la carte est choisie)
     ], doc),
   ], doc));
   return el('ul', { class: 'machine-list' }, items, doc);
 }
 
 /**
- * Écran d'accueil complet : titre, message sur l'état de games.json (le cas échéant), cartes, rappel des touches, version.
+ * Écran d'accueil complet : nombre total de jeux (T54), titre, message sur l'état de games.json (le cas échéant), cartes, rappel des touches, version.
  * T41 : « Mes fichiers » (T27), « Dossiers des jeux » (T25) et « Depuis une page web » (T34) sont des onglets de la barre du bas
  * (js/ui/bottom-nav.js), plus des boutons de l'accueil ; les options d'avant sont ignorées.
  * @param {{tiles: ReturnType<typeof buildMachineTiles>, gamesStatus: string, skipped?: number}} model
@@ -106,7 +96,9 @@ export function renderMachineGrid(tiles, doc = globalThis.document) {
  */
 export function renderHome({ tiles, gamesStatus, skipped = 0 }, doc = globalThis.document) {
   const status = describeGamesStatus(gamesStatus, skipped);
+  const total = totalGames(tiles);
   return el('section', { class: 'home' }, [
+    total > 0 && el('p', { class: 'home-total', text: formatGameCount(total) }, [], doc), // T54 : « 37 jeux » en gros, en vert
     el('h2', { class: 'screen-title', text: 'Choisis une machine' }, [], doc),
     status && el('div', { class: 'banner', attrs: { role: 'status' } }, [
       el('strong', { text: status.title }, [], doc),

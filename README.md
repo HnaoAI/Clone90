@@ -238,6 +238,7 @@ Le guide de publication sur GitHub Pages est dans [docs/guide.md](docs/guide.md)
 ## Crédits
 
 - Police **Press Start 2P** (Copyright 2012 The Press Start 2P Project Authors, licence SIL Open Font License 1.1) : fichiers `PressStart2P-Regular.ttf` et `OFL.txt` pris dans le dépôt google/fonts (https://github.com/google/fonts/tree/main/ofl/pressstart2p), copiés dans `assets/fonts/`. Téléchargement accepté par Hicham le 2026-11-09.
+- Police **Nunito** (Copyright 2014 The Nunito Project Authors, licence SIL Open Font License 1.1, T54) : graisses 500, 700 et 800, sous-ensemble latin, fichiers woff2 du paquet npm `@fontsource/nunito` 5.1.0, copiés dans `assets/fonts/` avec la licence `Nunito-OFL.txt`.
 - Logos des machines : dessins maison générés par `scripts/generate-logos.mjs`, sans reprise des logos officiels. Les vrais logos peuvent être téléchargés sur le Mac, pour un usage personnel, sans jamais être publiés (T29, « Logos des machines »).
 
 ## Versions d'EmulatorJS (une par machine)
