@@ -4,6 +4,7 @@
 // est dans js/local-covers.js, lancée par app.js (après chaque import de jeux et sur ce bouton).
 // T43 : rubrique « Synchroniser avec le Mac » (js/ui/sync-section.js) si l'hôte fournit `sync`.
 // T42 : la même recherche range les vrais logos des machines (js/local-logos.js) ; ils ne sont pas listés comme fichiers de la personne.
+// T55 : rubriques repliables, une ouverte à la fois (js/ui/library-sections.js) ; message du dernier import en haut de l'écran.
 // T46 : rubrique « Jouer sans réseau » (bouton « Préparer le jeu hors ligne ») ; la préparation est dans js/offline-engine.js, lancée par app.js.
 // Dépend de router.js, config.js, ui/dom.js, local-library.js (describeBiosStatus). Les actions (choisir, supprimer) sont transmises par app.js.
 // INVARIANT : aucune liste de machines ici, tout vient de systems.json. Chaque bouton est `data-nav` (clavier et manette via js/input/).
@@ -13,6 +14,7 @@ import { describeBiosStatus } from '../local-library.js';
 import { isLocalLogoPath } from '../local-logos.js';
 import { el } from './dom.js';
 import { renderSyncSection } from './sync-section.js';
+import { renderSections, initialOpenSection, lastOpenSection, describeSyncSummary, describeBiosSummary } from './library-sections.js';
 
 /** data-nav-id du bouton retour et du bouton « Choisir des BIOS ». */
 export const LIBRARY_BACK_NAV_ID = 'back';
@@ -94,11 +96,12 @@ const secondaryButton = (text, navId, onClick, doc, extraClass = '') => el('butt
  *   `folderPicking` : le navigateur sait choisir un dossier (T38), sinon une phrase remplace le bouton ; `notice` : résultat du dernier scan
  *   (et des pochettes, T40) ; `busyText` : avancement affiché pendant `busy` (T40, défaut « Copie des fichiers en cours… »)
  *   `sync` (T43) : modèle de la rubrique « Synchroniser avec le Mac » (voir renderSyncSection, sans `disabled`) ; absent : pas de rubrique
+ *   `focus` (T55) : bouton qui reprendra le focus après ce rendu ; sa rubrique est ouverte
  *   `offlineSupported` (T46) : le navigateur peut garder le moteur (Cache Storage), sinon une phrase remplace le bouton ; `onPrepareOffline` : son action
  * @param {Document} [doc]
  * @returns {HTMLElement}
  */
-export function renderLibrary({ systems, entries, supported, machine = null, busy = false, folderPicking = false, onScanFolder = () => {}, notice = null, busyText = null, onFindCovers = () => {}, sync = null, offlineSupported = false, onPrepareOffline = () => {}, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
+export function renderLibrary({ systems, entries, supported, machine = null, focus = null, busy = false, folderPicking = false, onScanFolder = () => {}, notice = null, busyText = null, onFindCovers = () => {}, sync = null, offlineSupported = false, onPrepareOffline = () => {}, onAddGames, onAddBios, onRemove }, doc = globalThis.document) {
   const groups = groupLibraryEntries(entries, systems);
   const total = entries.filter((e) => !isLocalLogoPath(e.path)).reduce((sum, e) => sum + (e.size || 0), 0);
   const bios = describeBiosStatus(systems, entries.map((e) => e.path));
@@ -112,59 +115,69 @@ export function renderLibrary({ systems, entries, supported, machine = null, bus
     el('h2', { class: 'grid-title', text: 'Mes fichiers' }, [], doc),
   ], doc);
   const highlighted = systems.find((s) => s.id === machine);
+  const sections = [
+    { id: 'games', title: 'Ajouter des jeux', label: 'Depuis cet appareil', tile: true, primary: true, content: [
+      el('p', { class: 'muted', text: highlighted
+        ? `Formats acceptés pour ${highlighted.name} : ${(highlighted.extensions ?? []).map((e) => `.${e}`).join(' ')}. Touchez la machine, puis choisissez vos fichiers.`
+        : 'Touchez la machine, puis choisissez vos fichiers de jeux (plusieurs à la fois si vous voulez).' }, [], doc),
+      el('ul', { class: 'library-machines' }, systems.map((s) => el('li', {}, [
+        withDisabled(secondaryButton(s.name, addGamesNavId(s.id), () => onAddGames(s.id), doc, s.id === machine ? ' is-selected' : '')),
+      ], doc)), doc),
+      el('p', { class: 'muted library-links' }, [
+        'Ou bien depuis une page web : ',
+        el('a', { class: 'back-button', text: 'Depuis une page web', attrs: { href: buildHash({ name: 'links' }) }, dataset: { nav: '', navId: 'links' } }, [], doc),
+      ], doc),
+    ] },
+    { id: 'folder', title: 'Importer un dossier', label: 'Tout d\'un coup', tile: true, content: [
+      el('p', { class: 'muted', text: 'Choisissez le dossier qui contient un sous-dossier par machine (amiga, neogeo, nes…), comme le dossier roms du Mac, et bios s\'il existe. Chaque jeu est rangé dans sa machine ; neogeo.zip va dans les BIOS. Les fichiers déjà présents ne sont pas recopiés.' }, [], doc),
+      folderPicking
+        ? withDisabled(el('button', { class: 'button', text: 'Choisir le dossier des jeux', attrs: { type: 'button' }, dataset: { nav: '', navId: SCAN_FOLDER_NAV_ID }, on: { click: () => onScanFolder() } }, [], doc))
+        : el('p', { class: 'muted', text: 'Ce navigateur ne permet pas de choisir un dossier : ajoutez les jeux machine par machine (« Ajouter des jeux »).' }, [], doc),
+    ] },
+    sync && supported && { id: 'sync', title: 'Synchroniser avec le Mac', summary: describeSyncSummary(sync.pairing), content: renderSyncSection({ ...sync, disabled, heading: false }, doc) },
+    { id: 'bios', title: 'Ajouter des BIOS', summary: describeBiosSummary(bios), content: [
+      el('p', { class: 'muted', text: 'Certaines machines ont besoin d\'un BIOS, avec un nom de fichier exact.' }, [], doc),
+      withDisabled(el('button', { class: 'button', text: 'Choisir des BIOS', attrs: { type: 'button' }, dataset: { nav: '', navId: ADD_BIOS_NAV_ID }, on: { click: () => onAddBios() } }, [], doc)),
+      el('ul', { class: 'library-bios' }, bios.map((b) => el('li', { class: b.present ? 'is-present' : '' }, [
+        `${b.systemName} : `, el('code', { text: b.file }, [], doc),
+        ` - ${b.present ? 'présent' : b.required ? 'manquant (requis)' : 'absent (facultatif)'}`,
+      ], doc)), doc),
+    ] },
+    { id: 'covers', title: 'Pochettes', summary: 'Chercher les pochettes manquantes', content: [
+      el('p', { class: 'muted', text: COVERS_LIBRARY_INFO, attrs: { id: 'library-covers-info' } }, [], doc),
+      withDisabled(el('button', { class: 'button', text: 'Chercher les pochettes manquantes', attrs: { type: 'button', 'aria-describedby': 'library-covers-info' },
+        dataset: { nav: '', navId: FIND_COVERS_NAV_ID }, on: { click: () => onFindCovers() } }, [], doc)),
+    ] },
+    { id: 'offline', title: 'Jouer sans réseau', summary: 'Préparer le jeu hors ligne', content: [
+      el('p', { class: 'muted', text: OFFLINE_LIBRARY_INFO, attrs: { id: 'library-offline-info' } }, [], doc),
+      offlineSupported
+        ? withDisabled(el('button', { class: 'button', text: 'Préparer le jeu hors ligne', attrs: { type: 'button', 'aria-describedby': 'library-offline-info' },
+          dataset: { nav: '', navId: PREPARE_OFFLINE_NAV_ID }, on: { click: () => onPrepareOffline() } }, [], doc))
+        : el('p', { class: 'muted', text: 'Ce navigateur ne peut pas garder le moteur d\'émulation : il faut le site en HTTPS, hors navigation privée.' }, [], doc),
+    ] },
+  ].filter(Boolean);
   return el('section', { class: 'library' }, [
     header,
-    el('p', { class: 'library-intro', text: 'Ajoutez vos jeux et vos BIOS depuis cet appareil (téléphone, tablette ou ordinateur). Ils restent dans ce navigateur : rien n\'est envoyé sur internet. Le moteur d\'émulation vient d\'internet, sauf s\'il est préparé pour jouer sans réseau (plus bas).' }, [], doc),
+    el('p', { class: 'library-intro', text: 'Ajoutez vos jeux et vos BIOS depuis cet appareil (téléphone, tablette ou ordinateur). Ils restent dans ce navigateur : rien n\'est envoyé sur internet. Le moteur d\'émulation vient d\'internet, sauf s\'il est préparé pour jouer sans réseau (« Jouer sans réseau »).' }, [], doc),
     !supported && el('div', { class: 'banner', attrs: { role: 'status' } }, [
       el('strong', { text: 'Ce navigateur ne peut pas garder de fichiers' }, [], doc),
       el('p', { text: 'Ouvrez le site en HTTPS dans Chrome ou Firefox, hors navigation privée.' }, [], doc),
     ], doc),
     busy && el('p', { class: 'banner', attrs: { role: 'status' }, text: busyText ?? 'Copie des fichiers en cours…' }, [], doc),
-    ...(sync && supported ? renderSyncSection({ ...sync, disabled }, doc) : []),
-    el('h3', { class: 'library-heading', text: 'Importer tout un dossier' }, [], doc),
-    el('p', { class: 'muted', text: 'Choisissez le dossier qui contient un sous-dossier par machine (amiga, neogeo, nes…), comme le dossier roms du Mac, et bios s\'il existe. Chaque jeu est rangé dans sa machine ; neogeo.zip va dans les BIOS. Les fichiers déjà présents ne sont pas recopiés.' }, [], doc),
-    folderPicking
-      ? withDisabled(el('button', { class: 'button', text: 'Choisir le dossier des jeux', attrs: { type: 'button' }, dataset: { nav: '', navId: SCAN_FOLDER_NAV_ID }, on: { click: () => onScanFolder() } }, [], doc))
-      : el('p', { class: 'muted', text: 'Ce navigateur ne permet pas de choisir un dossier : ajoutez les jeux machine par machine ci-dessous.' }, [], doc),
     notice && !busy && el('p', { class: 'library-notice', attrs: { role: 'status' }, text: notice }, [], doc),
-    el('h3', { class: 'library-heading', text: 'Ajouter des jeux' }, [], doc),
-    el('p', { class: 'muted', text: highlighted
-      ? `Formats acceptés pour ${highlighted.name} : ${(highlighted.extensions ?? []).map((e) => `.${e}`).join(' ')}. Touchez la machine, puis choisissez vos fichiers.`
-      : 'Touchez la machine, puis choisissez vos fichiers de jeux (plusieurs à la fois si vous voulez).' }, [], doc),
-    el('ul', { class: 'library-machines' }, systems.map((s) => el('li', {}, [
-      withDisabled(secondaryButton(s.name, addGamesNavId(s.id), () => onAddGames(s.id), doc, s.id === machine ? ' is-selected' : '')),
-    ], doc)), doc),
-    el('p', { class: 'muted library-links' }, [
-      'Ou bien depuis une page web : ',
-      el('a', { class: 'back-button', text: 'Depuis une page web', attrs: { href: buildHash({ name: 'links' }) }, dataset: { nav: '', navId: 'links' } }, [], doc),
+    ...renderSections(sections, initialOpenSection({ focus, machine, lastOpen: lastOpenSection() }), doc, disabled),
+    el('div', { class: 'library-files-block' }, [
+      el('h3', { class: 'library-heading', text: `Sur cet appareil${groups.length ? ` (${formatSize(total)})` : ''}` }, [], doc),
+      groups.length === 0 ? el('p', { class: 'muted', text: 'Aucun fichier pour l\'instant.' }, [], doc) : null,
+      ...groups.map((g) => el('div', { class: 'library-group' }, [
+        el('h4', { class: 'library-group-title', text: g.title }, [], doc),
+        el('ul', { class: 'library-files' }, g.files.map((f) => el('li', { class: 'library-file' }, [
+          el('span', { class: 'library-file-name', text: f.name }, [], doc),
+          el('span', { class: 'library-file-size muted', text: formatSize(f.size) }, [], doc),
+          withDisabled(secondaryButton('Supprimer', `del-${f.path}`, () => onRemove(f.path), doc)),
+        ], doc)), doc),
+      ], doc)),
     ], doc),
-    el('h3', { class: 'library-heading', text: 'Ajouter des BIOS' }, [], doc),
-    el('p', { class: 'muted', text: 'Certaines machines ont besoin d\'un BIOS, avec un nom de fichier exact.' }, [], doc),
-    withDisabled(el('button', { class: 'button', text: 'Choisir des BIOS', attrs: { type: 'button' }, dataset: { nav: '', navId: ADD_BIOS_NAV_ID }, on: { click: () => onAddBios() } }, [], doc)),
-    el('ul', { class: 'library-bios' }, bios.map((b) => el('li', { class: b.present ? 'is-present' : '' }, [
-      `${b.systemName} : `, el('code', { text: b.file }, [], doc),
-      ` - ${b.present ? 'présent' : b.required ? 'manquant (requis)' : 'absent (facultatif)'}`,
-    ], doc)), doc),
-    el('h3', { class: 'library-heading', text: 'Pochettes' }, [], doc),
-    el('p', { class: 'muted', text: COVERS_LIBRARY_INFO, attrs: { id: 'library-covers-info' } }, [], doc),
-    withDisabled(el('button', { class: 'button', text: 'Chercher les pochettes manquantes', attrs: { type: 'button', 'aria-describedby': 'library-covers-info' },
-      dataset: { nav: '', navId: FIND_COVERS_NAV_ID }, on: { click: () => onFindCovers() } }, [], doc)),
-    el('h3', { class: 'library-heading', text: 'Jouer sans réseau' }, [], doc),
-    el('p', { class: 'muted', text: OFFLINE_LIBRARY_INFO, attrs: { id: 'library-offline-info' } }, [], doc),
-    offlineSupported
-      ? withDisabled(el('button', { class: 'button', text: 'Préparer le jeu hors ligne', attrs: { type: 'button', 'aria-describedby': 'library-offline-info' },
-        dataset: { nav: '', navId: PREPARE_OFFLINE_NAV_ID }, on: { click: () => onPrepareOffline() } }, [], doc))
-      : el('p', { class: 'muted', text: 'Ce navigateur ne peut pas garder le moteur d\'émulation : il faut le site en HTTPS, hors navigation privée.' }, [], doc),
-    el('h3', { class: 'library-heading', text: `Sur cet appareil${groups.length ? ` (${formatSize(total)})` : ''}` }, [], doc),
-    groups.length === 0 ? el('p', { class: 'muted', text: 'Aucun fichier pour l\'instant.' }, [], doc) : null,
-    ...groups.map((g) => el('div', { class: 'library-group' }, [
-      el('h4', { class: 'library-group-title', text: g.title }, [], doc),
-      el('ul', { class: 'library-files' }, g.files.map((f) => el('li', { class: 'library-file' }, [
-        el('span', { class: 'library-file-name', text: f.name }, [], doc),
-        el('span', { class: 'library-file-size muted', text: formatSize(f.size) }, [], doc),
-        withDisabled(secondaryButton('Supprimer', `del-${f.path}`, () => onRemove(f.path), doc)),
-      ], doc)), doc),
-    ], doc)),
   ], doc);
 }
 

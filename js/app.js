@@ -137,7 +137,7 @@ async function main() {
     const render = (focus) => {
       clear(screen);
       screen.append(renderLibrary({
-        systems: data.systems, entries, supported: Boolean(library), machine, busy: libraryBusy, busyText: libraryBusyText,
+        systems: data.systems, entries, supported: Boolean(library), machine, focus, busy: libraryBusy, busyText: libraryBusyText,
         folderPicking: folderPickingSupported(window), onScanFolder: () => importFolder(), notice,
         onAddGames: (systemId) => importFiles((file) => ({ path: romStoragePath(systemId, file.name) }), addGamesNavId(systemId), true),
         onFindCovers: () => findCovers(FIND_COVERS_NAV_ID),

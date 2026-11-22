@@ -37,14 +37,15 @@ const macLabel = (pairing) => (pairing.name ? pairing.name.replace(/\.local$/, '
  * Rubrique complète.
  * @param {{pairing: {url: string, name?: string|null, token?: string|null, lastSync: number|null}|null, disabled?: boolean, message?: string|null,
  *   onPair: (password: string, address: string) => void, onSyncNow: () => void, onSend?: () => void, onForget: () => void}} model
+ *   `heading` (T55) : false quand la rubrique est dans « Mes fichiers » repliable (son bouton porte déjà le titre)
  *   `onSend` (T44) : « Envoyer mes jeux au Mac » ; `pairing.token` null (T51) : le Mac a refusé le jeton, le mot de passe est redemandé
  * @param {Document} [doc]
  * @returns {HTMLElement[]}
  */
-export function renderSyncSection({ pairing, disabled = false, message = null, onPair, onSyncNow, onSend = () => {}, onForget }, doc = globalThis.document) {
+export function renderSyncSection({ pairing, disabled = false, message = null, heading: withHeading = true, onPair, onSyncNow, onSend = () => {}, onForget }, doc = globalThis.document) {
   const note = message ? [el('p', { class: 'library-notice', attrs: { role: 'status' }, text: message }, [], doc)] : [];
   const off = (node) => { if (disabled) node.setAttribute('disabled', ''); return node; };
-  const heading = el('h3', { class: 'library-heading', text: 'Synchroniser avec le Mac' }, [], doc);
+  const heading = withHeading && el('h3', { class: 'library-heading', text: 'Synchroniser avec le Mac' }, [], doc); // T55 : sans titre dans la rubrique repliable
   if (pairing && pairing.token !== null) {
     return [heading,
       el('p', { class: 'muted' }, ['Associé au Mac ', el('code', { text: macLabel(pairing) }, [], doc), `. ${describeLastSync(pairing.lastSync)}`], doc),
@@ -52,7 +53,7 @@ export function renderSyncSection({ pairing, disabled = false, message = null, o
         off(el('button', { class: 'button', text: 'Synchroniser maintenant', attrs: { type: 'button' }, dataset: { nav: '', navId: SYNC_NAV.now }, on: { click: () => onSyncNow() } }, [], doc)),
         off(el('button', { class: 'button', text: 'Envoyer mes jeux au Mac', attrs: { type: 'button' }, dataset: { nav: '', navId: SYNC_NAV.send }, on: { click: () => onSend() } }, [], doc)),
         off(el('button', { class: 'back-button', text: 'Oublier ce Mac', attrs: { type: 'button' }, dataset: { nav: '', navId: SYNC_NAV.forget }, on: { click: () => onForget() } }, [], doc)),
-      ], doc), el('p', { class: 'muted', text: SEND_INFO }, [], doc), ...note];
+      ], doc), el('p', { class: 'muted', text: SEND_INFO }, [], doc), ...note].filter(Boolean);
   }
   const field = (id, navId, label, attrs) => [
     el('label', { class: 'link-label', text: label, attrs: { for: id } }, [], doc),
@@ -71,5 +72,5 @@ export function renderSyncSection({ pairing, disabled = false, message = null, o
     el('h4', { class: 'library-heading', text: 'Première fois : installer le certificat du Mac' }, [], doc),
     el('ol', { class: 'muted sync-guide' }, CERT_GUIDE.map((step) => el('li', { text: step }, [], doc)), doc),
   ];
-  return [heading, el('p', { class: 'muted', text: SYNC_SECTION_INFO }, [], doc), form, ...note, ...guide];
+  return [heading, el('p', { class: 'muted', text: SYNC_SECTION_INFO }, [], doc), form, ...note, ...guide].filter(Boolean);
 }
