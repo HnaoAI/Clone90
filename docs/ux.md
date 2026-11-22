@@ -289,7 +289,17 @@ Pendant le jeu, **toutes les touches et boutons vont à EmulatorJS**. Le site n'
 
 ## 5. Direction visuelle
 
-### 5.0 Style Y2K (T41, remplace « Cartouche bleue » le 2026-11-15)
+### 5.0 Style « Swared » (T54, remplace le style Y2K le 2026-11-22)
+
+Maquette validée par Hicham le 2026-11-22 (`maquette-swared.html` et `captures/Swared/` des fichiers du projet), d'après la planche « Swared, Wallet / Screens » qu'il a fournie. Fond anthracite très sombre, un peu plus clair en haut ; cartes presque noires à coins très arrondis et fine bordure claire (`--edge`) ; une seule couleur d'accent, le vert vif `#3fd04a` (nombre de jeux, bouton principal plein, onglet actif, flèches, sélection) ; texte blanc ; en-tête à plat avec la marque « C90 » (deux traits arrondis, vert et blanc) et « Clone90 » (« 90 » en vert). Accueil : nombre total de jeux en gros chiffre vert centré au-dessus de « Choisis une machine » ; machines en cartes (logo dans une tuile gris foncé, nom, nombre de jeux, flèche →) ; machine sélectionnée : bordure verte, halo, flèche dans un disque vert, nombre en vert, agrandissement 1.05 ; 0 jeu : logo délavé, nom en texte discret, pas de flèche. Écrans secondaires : bouton retour rond (flèche ←), titre centré, nombre de jeux en vert ; pochettes dans des cartes arrondies, titre vert quand choisi. Boutons : principal vert plein (texte sombre), secondaires sombres à fine bordure, danger rouge ; dans les panneaux (dossiers, partage), les choix sont des lignes sombres avec une flèche verte. Plus de curseur ▶ clignotant ; seul « PRÊT ? » clignote. Aucun prénom dans l'interface (demande de Hicham).
+
+**Barre de navigation du bas** (T41, mêmes onglets, mêmes conditions, mêmes `data-nav-id`) : barre grise flottante, icônes fines, libellés gardés sous les icônes (choix validé avec la maquette), onglet actif en vert avec un point sous le libellé.
+
+**Police** : Nunito (licence OFL, `assets/fonts/Nunito-*.woff2`, sous-ensemble latin, graisses 500, 700 et 800), gardée hors ligne par le service worker. Press Start 2P reste pour les visuels de repli (logos, jaquettes) et « PRÊT ? ».
+
+Palette et contrastes : bloc `:root` de `css/base.css`, vérifiés par `tests/design.test.mjs` (`--text` sur `--bg` 16.64 ; `--text-muted` sur `--panel-2` 6.64 ; `--accent` sur `--panel` 8.37 ; `--on-accent` sur `--accent` 7.64 ; `--text` sur `--danger` 6.06 ; vert et libellés lisibles sur la barre du bas). Prévu ensuite (T55) : les rubriques de « Mes fichiers » en lignes qui s'ouvrent une par une. Les sections 5.1 à 5.4 ci-dessous décrivent l'ancienne direction T24 ; les règles d'accessibilité (5.5) restent valables, sauf le curseur ▶, retiré.
+
+### 5.0 bis Style Y2K (T41, 2026-11-15, remplacé par T54)
 
 Maquette validée par Hicham (`maquette-y2k.html` et `captures/Y2K/` des fichiers du projet). Esprit début des années 2000 (Windows XP, premiers smartphones) : fond dégradé bleu, violet, rose avec rayures diagonales ; en-tête en plaque chromée, titre « Clone90 » en relief (« 90 » en rose) ; boutons « gel » en pilule (reflet clair en haut, tranche et ombre portée) ; machines en bulles qui alternent rose, bleu, vert citron, violet, logo dans une bulle blanche, nombre de jeux en pastille chromée, 6 voyants jaunes ; machine sélectionnée : anneau blanc, halo jaune, plaque de nom jaune, agrandissement 1.05 ; 0 jeu : chrome terne.
 

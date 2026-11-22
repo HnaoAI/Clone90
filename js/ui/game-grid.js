@@ -90,7 +90,7 @@ export function createCover(tile, machine, doc) {
 function renderHeader(machine, count, doc, showAdd = false) {
   return el('header', { class: 'grid-header' }, [
     el('a', { class: 'back-button', attrs: { href: buildHash({ name: 'home' }), 'aria-label': 'Retour aux machines' }, dataset: { nav: '', navId: BACK_NAV_ID } }, [
-      el('span', { text: '\u25C0\uFE0E', attrs: { 'aria-hidden': 'true' } }, [], doc),
+      el('span', { class: 'back-arrow', attrs: { 'aria-hidden': 'true' } }, [], doc),
       el('span', { class: 'back-label', text: 'Machines' }, [], doc),
     ], doc),
     el('h2', { class: 'grid-title' }, [machine.name], doc),

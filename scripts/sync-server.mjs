@@ -26,7 +26,7 @@ const MAX_PAIR_BODY = 64 + PASSWORD_MAX_LENGTH * 12;
  * (la page s'ouvre sans avertissement une fois le certificat installé).
  */
 export const HELP_PAGE = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Clone90 - partage</title><style>body{font:18px/1.5 sans-serif;margin:24px;max-width:40em}a{display:inline-block;padding:12px 16px;background:#1239b0;color:#fff;border-radius:24px;text-decoration:none}li{margin:0 0 12px}</style></head>
+<title>Clone90 - partage</title><style>body{font:18px/1.5 sans-serif;margin:24px;max-width:40em}a{display:inline-block;padding:12px 16px;background:#3fd04a;color:#0c2a0e;font-weight:700;border-radius:14px;text-decoration:none}li{margin:0 0 12px}</style></head>
 <body><h1>Clone90 : partage avec le téléphone</h1>
 <p>Ce Mac partage ses jeux, pochettes et logos avec les téléphones qui connaissent son mot de passe. À faire une seule fois sur le téléphone :</p>
 <ol><li>Téléchargez le certificat de ce Mac :<br><a href="${SYNC_ROUTES.ca.slice(1)}" download="clone90-ca.crt">Télécharger le certificat</a></li>

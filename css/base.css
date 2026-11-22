@@ -1,5 +1,5 @@
-/* Base commune (T5, « Cartouche bleue » T24, style Y2K T41) : variables (docs/ux.md 5.2), typographie, formes « gel », fond, en-tête chromé,
-   focus, boutons, toast, boîte de dialogue, barre de navigation du bas (T41).
+/* Base commune (T5, « Cartouche bleue » T24, Y2K T41, style « Swared » T54) : variables (docs/ux.md 5.2), polices, fond anthracite, en-tête,
+   focus, boutons, toast, boîte de dialogue. La barre du bas est dans dock.css.
    Les écrans ont leur feuille : home.css (accueil), grid.css (grille), library.css (Mes fichiers), player.css (page de jeu).
    INVARIANT : toute couleur est déclarée ici, dans :root, et nulle part ailleurs (tests/design.test.mjs). */
 @font-face {
@@ -9,76 +9,64 @@
   font-style: normal;
   font-display: swap;
 }
+/* T54 : Nunito (licence OFL, assets/fonts/Nunito-OFL.txt), police ronde de la maquette Swared ; sous-ensemble latin (français compris),
+   3 graisses. Dans le dépôt et dans la coquille du service worker : même rendu sur le Mac, Android et hors ligne. */
+@font-face {
+  font-family: "Nunito";
+  src: url("../assets/fonts/Nunito-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Nunito";
+  src: url("../assets/fonts/Nunito-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Nunito";
+  src: url("../assets/fonts/Nunito-800.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
-  /* Fond (T41) : ciel bleu en haut (décor, sous l'en-tête), puis --bg, --bg-mid (violet) et --band (rose) ; rayures diagonales --gloss-faint.
-     --bg-deep / --band-deep : fond sombre derrière le jeu (page player), inchangé. */
-  --sky: #2a8cff;
-  --bg: #1239b0;
-  --bg-mid: #3a1690;
-  --band: #8a0f6e;
-  --bg-deep: #05091f;
-  --band-deep: #070d2c;
-  /* Gels bleus : cartes, boîtes, boutons secondaires (--panel-2), haut des dégradés (--panel-3). */
-  --panel: #0d3fb8;
-  --panel-2: #1a55d6;
-  --panel-3: #2a62dc;
-  /* --line : contours noirs (jaquettes, fond du jeu). Biseaux des gels : --bevel-hi (reflet), --bevel-lo (tranche sous le gel). */
+  /* Fond (T54) : anthracite chaud, plus clair en haut (--bg-top) qu'en bas (--bg, aussi couleur du thème et de l'icône).
+     --bg-deep / --band-deep : fond derrière le jeu (page player). */
+  --bg: #1f1e1d;
+  --bg-top: #34312f;
+  --bg-deep: #0d0c0c;
+  --band-deep: #141312;
+  /* Cartes presque noires (machines, pochettes, boîtes), tuiles et champs (--panel-2), lignes et survol (--panel-3). */
+  --panel: #1d1c1b;
+  --panel-2: #2b2a29;
+  --panel-3: #363432;
+  /* --line : fond du jeu, contours de jaquettes. --edge : fine bordure claire des cartes ; --sep : filet entre deux lignes. */
   --line: #000000;
-  --bevel-hi: #9fd6ff;
-  --bevel-lo: #062a7a;
+  --edge: rgba(255, 255, 255, 0.18);
+  --sep: rgba(255, 255, 255, 0.1);
   --text: #ffffff;
-  --text-muted: #d6e4ff;
-  /* Jaune : bouton principal, halo et plaque de nom des éléments focalisés, voyants allumés. */
-  --accent: #ffe11a;
-  --accent-hi: #fff8b0;
-  --accent-lo: #d68a00;
-  --on-accent: #2a1a00;
-  /* Anneau de focus vert-jaune : >= 3:1 sur tous les fonds et toutes les bulles. */
-  --focus: #c8ff3d;
-  /* Couleurs des bulles (machines, onglets) : rose vif, bleu électrique, vert citron (texte sombre --on-lime), violet. */
-  --pink: #c8007f;
-  --pink-hi: #ff8fd8;
-  --pink-lo: #7a004d;
-  --blue: #0f55d8;
-  --blue-hi: #8fc8ff;
-  --blue-lo: #062a7a;
-  --lime: #7ee01a;
-  --lime-hi: #e4ffb0;
-  --lime-lo: #3f8a00;
-  --on-lime: #102600;
-  --violet: #6a1fe0;
-  --violet-hi: #c9a6ff;
-  --violet-lo: #36098a;
-  /* Chrome argenté : en-tête, barre du bas, pastilles ; texte --ink. */
-  --chrome: #c9d2de;
-  --chrome-hi: #ffffff;
-  --chrome-lo: #6d7a8c;
-  --ink: #16133a;
-  --chrome-veil: rgb(255 255 255 / 0.6); /* T45 : pastille du numéro de version dans l'en-tête */
-  /* Bouton Quitter et texte d'erreur. */
+  --text-muted: #b3b0ad;
+  /* Seule couleur d'accent (T54) : vert vif. Nombre de jeux, bouton principal (texte --on-accent), onglet actif, flèches, sélection. */
+  --accent: #3fd04a;
+  --on-accent: #0c2a0e;
+  --focus: #3fd04a;
+  --glow: rgba(63, 208, 74, 0.25);
+  /* Barre du bas : gris flottant, libellés --dock-text, onglet actif --accent. */
+  --dock: #3a393c;
+  --dock-text: #c9c7cb;
+  /* Bouton Quitter, Supprimer et texte d'erreur. */
   --danger: #c4122a;
-  --danger-hi: #ff7b8a;
-  --danger-lo: #6e0f16;
-  --danger-text: #ffb3b8;
-  /* Machine à 0 jeu : chrome terne. */
-  --disabled-bg: #4a5370;
-  --disabled-hi: #c3cad8;
-  --disabled-lo: #2a3045;
-  --stripe-a: #5a6380;
-  --stripe-b: #525a76;
-  /* Reflets, ombres et halos (transparences). */
-  --gloss: rgba(255, 255, 255, 0.85);
-  --gloss-top: rgba(255, 255, 255, 0.5);
-  --gloss-soft: rgba(255, 255, 255, 0.08);
-  --gloss-faint: rgba(255, 255, 255, 0.07);
-  --shade: rgba(0, 0, 0, 0.28);
-  --shadow: rgba(10, 8, 40, 0.45);
-  --glow: rgba(255, 225, 26, 0.75);
-  --glow-pink: rgba(255, 60, 190, 0.7);
-  /* Voiles semi-transparents : fond de la boîte de dialogue, panneau de diagnostic. */
-  --scrim: rgba(10, 8, 40, 0.82);
-  --scrim-strong: rgba(5, 9, 31, 0.94);
+  --danger-text: #ff8f87;
+  /* Visuel de repli d'une machine à 0 jeu (js/ui/game-grid.js). */
+  --disabled-bg: #2b2a29;
+  /* Ombres et voiles. */
+  --shadow: rgba(0, 0, 0, 0.45);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --scrim-strong: rgba(13, 12, 12, 0.94);
 
   /* Couleur d'accent par machine (visuel de repli et logos). Une variable par machine de systems.json (champ `accent`). */
   --m-arcade: #c0392b; --m-neogeo: #7a5a06; --m-amiga: #a84300;
@@ -86,40 +74,31 @@
   --m-gameboycolor: #7d3c98; --m-mastersystem: #1f5fa8; --m-gamegear: #2c3e50;
   --m-megadrive: #2b2b2b; --m-megacd: #34495e; --m-32x: #8e2a2a;
   --m-pcengine: #8a3a5c; --m-pcenginecd: #1e6b6b; --m-gba: #4b3a9e;
-  /* Plaque claire sous les logos (T29 : vrais logos dessinés pour un fond clair ; T41 : bulle blanche des machines). */
+  /* Plaque claire sous les vrais logos téléchargés (T29 : dessinés pour un fond clair). */
   --logo-plaque: #e9edf7;
 
-  /* Formes arrondies (T41). Pas de clip-path : il couperait l'anneau de focus. */
-  --round: 26px;
+  /* Coins très arrondis (T54). Pas de clip-path : il couperait l'anneau de focus. */
+  --round: 22px;
   --round-sm: 14px;
   --pill: 999px;
-  /* Reflet « gel » : bande claire sur le haut d'un élément, posée en premier fond (background: var(--gloss-layer), <couleur>). */
-  --gloss-layer: linear-gradient(180deg, var(--gloss-top) 0%, var(--gloss-soft) 46%, transparent 47%);
-  /* Cadres « gel » (box-shadow) : tranche sombre dessous, ombre portée, reflet et ombre internes. Un par ton. */
-  --frame: 0 0 0 2px var(--bevel-lo), 0 4px 0 2px var(--bevel-lo), 0 8px 14px var(--shadow), inset 0 2px 0 var(--bevel-hi), inset 0 -4px 8px var(--shade);
-  --frame-accent: 0 0 0 3px var(--text), 0 0 0 7px var(--accent), 0 0 22px 8px var(--glow), inset 0 2px 0 var(--accent-hi), inset 0 -4px 8px var(--shade);
-  --frame-danger: 0 0 0 2px var(--danger-lo), 0 4px 0 2px var(--danger-lo), 0 8px 14px var(--shadow), inset 0 2px 0 var(--danger-hi), inset 0 -4px 8px var(--shade);
-  --frame-disabled: 0 0 0 2px var(--disabled-lo), 0 4px 0 2px var(--disabled-lo), 0 8px 14px var(--shadow), inset 0 2px 0 var(--disabled-hi), inset 0 -4px 8px var(--shade);
-  --frame-chrome: 0 0 0 2px var(--chrome-lo), 0 5px 0 2px var(--chrome-lo), 0 10px 18px var(--shadow), inset 0 2px 0 var(--chrome-hi), inset 0 -3px 0 var(--shade);
 
-  /* Polices (T41, maquette validée) : interface façon Windows XP, titres arrondis ; polices du système, rien à télécharger.
-     Press Start 2P (licence OFL, assets/fonts/OFL.txt) reste pour les visuels de repli (logos, jaquettes) et l'écran de jeu ;
-     elle pourrait revenir sur le seul titre « Clone90 » si Hicham le demande. */
-  --font-text: "Trebuchet MS", Verdana, Tahoma, "Segoe UI", system-ui, sans-serif;
-  --font-title: "Arial Rounded MT Bold", "Trebuchet MS", Verdana, "Segoe UI", system-ui, sans-serif;
+  /* Polices (T54) : Nunito pour l'interface et les titres. Press Start 2P (licence OFL, assets/fonts/OFL.txt) reste pour les visuels
+     de repli (logos, jaquettes) et l'écran de jeu. */
+  --font-text: "Nunito", "Arial Rounded MT Bold", "Segoe UI", system-ui, sans-serif;
+  --font-title: "Nunito", "Arial Rounded MT Bold", "Segoe UI", system-ui, sans-serif;
   --font-pixel: "Press Start 2P", ui-monospace, "SF Mono", Consolas, monospace;
   --font-mono: ui-monospace, "SF Mono", Consolas, monospace;
 
-  --gap: 24px;
+  --gap: 20px;
   --margin-x: 48px;
-  --dock-space: 104px; /* hauteur de la barre du bas (T41) + marge : place réservée sous le contenu */
+  --dock-space: 104px; /* hauteur de la barre du bas + marge : place réservée sous le contenu */
   --game-scale: 1; /* T37 : taille de l'image du jeu (0.4 à 1), posée sur <body> par la réglette */
   --player-bar: 0px; /* barre du haut de la page de jeu (T28), redéfinie en portrait par player.css */
-  --focus-offset: 8px;
+  --focus-offset: 6px;
 }
 
 @media (max-width: 599px) {
-  :root { --gap: 16px; --margin-x: 16px; --focus-offset: 4px; }
+  :root { --gap: 12px; --margin-x: 16px; --focus-offset: 4px; }
 }
 
 * { box-sizing: border-box; }
@@ -129,92 +108,68 @@ html { color-scheme: dark; }
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    repeating-linear-gradient(45deg, var(--gloss-faint) 0 10px, transparent 10px 20px),
-    linear-gradient(180deg, var(--sky) 0, var(--bg) 220px, var(--bg-mid) 60%, var(--band) 100%);
-  background-attachment: fixed;
+  background: linear-gradient(180deg, var(--bg-top) 0, var(--bg) 480px);
   background-color: var(--bg);
+  background-repeat: no-repeat;
   color: var(--text);
   font-family: var(--font-text);
   font-size: 1rem;
-  line-height: 1.4;
+  font-weight: 500;
+  line-height: 1.45;
   overflow-x: hidden;
 }
 
-/* En-tête (T41) : plaque chromée arrondie, pastille rose, titre « Clone90 » en relief (« 90 » en rose). */
+/* En-tête (T54) : à plat, marque « C90 » (deux traits arrondis, SVG de index.html) et « Clone90 », « 90 » en vert. */
 .app-header {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   min-height: 64px;
-  margin: 12px var(--margin-x) 0;
-  padding: 8px 20px;
-  border-radius: var(--round);
-  background: linear-gradient(180deg, var(--chrome-hi) 0%, var(--chrome) 48%, var(--chrome-lo) 52%, var(--chrome) 100%);
-  box-shadow: var(--frame-chrome);
+  margin: 0 var(--margin-x);
+  padding: 16px 0 4px;
 }
-@media (max-width: 599px) { .app-header { margin: 10px 12px 0; padding: 8px 14px; } }
-
-.header-orb {
-  flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 28%, var(--chrome-hi) 0 12%, var(--pink-hi) 24%, var(--pink) 60%, var(--pink-lo) 100%);
-  box-shadow: 0 3px 0 var(--pink-lo), 0 5px 8px var(--shade);
-}
+.header-mark { flex: 0 0 auto; width: 32px; height: 32px; }
+.header-mark .mark-green { stroke: var(--accent); }
+.header-mark .mark-white { stroke: var(--text); }
+@media (max-width: 599px) { .app-header { justify-content: center; text-align: center; } }
 
 /* T45 : titre et, sur le téléphone, numéro de version juste dessous. */
-.site-brand { flex: 1; min-width: 0; }
+.site-brand { min-width: 0; }
 .site-title {
   margin: 0;
   font-family: var(--font-title);
-  font-size: 1.75rem;
-  font-weight: 900;
+  font-size: 1.5rem;
+  font-weight: 800;
   line-height: 1.1;
-  color: var(--blue);
-  text-shadow: 0 1px 0 var(--chrome-hi), 0 2px 0 var(--blue-lo), 0 3px 3px var(--shade);
+  letter-spacing: -0.01em;
 }
-/* T45 : numéro de version sous le titre, téléphone seulement (sur ordinateur, il reste en bas de l'accueil, T16).
-   Texte foncé sur le chrome clair de l'en-tête. Rempli par js/app.js depuis js/version.js. */
+.site-title-90 { color: var(--accent); }
+/* T45 : numéro de version sous le titre, téléphone seulement (sur ordinateur, il reste en bas de l'accueil, T16). Rempli par js/app.js. */
 .site-version {
   display: none;
-  width: fit-content;
-  margin: 3px 0 0;
-  padding: 1px 8px;
-  border-radius: var(--pill);
-  background: var(--chrome-veil); /* pastille claire : contraste AA même sur la bande sombre du chrome */
+  margin: 2px 0 0;
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.25;
-  color: var(--ink);
+  color: var(--text-muted);
 }
 @media (max-width: 599px) { .site-version { display: block; } }
-.site-title-90 { color: var(--pink); text-shadow: 0 1px 0 var(--chrome-hi), 0 2px 0 var(--pink-lo), 0 3px 3px var(--shade); }
 
-/* Petite jauge de 4 barres croissantes (réseau d'un téléphone des années 2000), purement décorative (aria-hidden dans index.html). */
-.header-bars { display: flex; gap: 3px; align-items: flex-end; }
-.header-bars i { width: 6px; border-radius: 3px; background: linear-gradient(180deg, var(--lime-hi), var(--lime) 50%, var(--lime-lo)); box-shadow: 0 0 0 1px var(--lime-lo); }
-.header-bars i:nth-child(1) { height: 10px; }
-.header-bars i:nth-child(2) { height: 16px; }
-.header-bars i:nth-child(3) { height: 22px; }
-.header-bars i:nth-child(4) { height: 28px; }
-
-.screen { padding: 24px var(--margin-x) 48px; }
+.screen { padding: 16px var(--margin-x) 48px; }
 
 .screen-title {
-  margin: 0 0 24px;
+  margin: 0 0 20px;
   font-family: var(--font-title);
-  font-size: 1.5rem;
-  font-weight: 900;
+  font-size: 1.375rem;
+  font-weight: 800;
   line-height: 1.3;
-  text-shadow: 0 1px 0 var(--bevel-hi), 0 2px 0 var(--bevel-lo), 0 3px 0 var(--bevel-lo), 0 5px 8px var(--shadow); /* texte en relief */
+  text-align: center;
 }
 
 .muted, .key-hint { color: var(--text-muted); }
 
 /* Anneau de focus (docs/ux.md 4.3) : clavier (focus-visible) ou manette (classe posée par app.js). Jamais la couleur seule :
-   s'y ajoutent le curseur ▶ (forme), la plaque de nom jaune et l'agrandissement (voir home.css, grid.css). */
+   les cartes ajoutent la flèche dans un disque et l'agrandissement (home.css, grid.css). */
 a:focus-visible, button:focus-visible,
 .input-gamepad a:focus, .input-gamepad button:focus {
   outline: 4px solid var(--focus);
@@ -223,35 +178,18 @@ a:focus-visible, button:focus-visible,
 a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: none; }
 .input-gamepad a:focus, .input-gamepad button:focus { outline: 4px solid var(--focus); }
 
-/* Curseur ▶ clignotant : pseudo-élément (aucun balisage JS, absent de l'arbre d'accessibilité grâce à l'alternative vide).
-   Visible seulement sur l'élément focalisé (mêmes sélecteurs que l'anneau). Clignotement 1 Hz, coupé par prefers-reduced-motion (curseur fixe). */
-.machine-tile::before, .game-tile::before, .button::before {
-  content: "\25B6\FE0E"; /* FE0E : forme texte, jamais l'emoji */
-  content: "\25B6\FE0E" / "";
-  display: none;
-  font-family: var(--font-text);
-  font-size: 1.25rem;
-  line-height: 1;
-  color: var(--accent);
-  text-shadow: 0 0 2px var(--line), 0 2px 0 var(--accent-lo);
-  animation: blink 1s steps(1) infinite;
-}
-.machine-tile::before, .game-tile::before { position: absolute; left: -6px; top: -14px; z-index: 3; }
-.button::before { margin-right: 10px; color: var(--on-accent); text-shadow: none; }
-.machine-tile:focus-visible::before, .game-tile:focus-visible::before, .button:focus-visible::before,
-.input-gamepad .machine-tile:focus::before, .input-gamepad .game-tile:focus::before, .input-gamepad .button:focus::before { display: block; }
-
+/* Clignotement 1 Hz (« PRÊT ? » de la page de jeu), coupé par prefers-reduced-motion. */
 @keyframes blink { 50% { opacity: 0; } }
 
-/* Message d'état (games.json absent, etc.) */
+/* Message d'état (games.json absent, etc.) : carte sombre à fine bordure. */
 .banner {
-  margin: 0 4px 28px;
-  padding: 16px 20px;
+  margin: 0 0 24px;
+  padding: 14px 18px;
+  border: 1px solid var(--edge);
   border-radius: var(--round-sm);
-  background: var(--gloss-layer), var(--panel);
-  box-shadow: var(--frame);
+  background: var(--panel);
 }
-.banner strong { display: block; margin-bottom: 4px; color: var(--accent); }
+.banner strong { display: block; margin-bottom: 4px; color: var(--accent); font-weight: 800; }
 .banner p { margin: 0; color: var(--text-muted); }
 
 code { font-family: var(--font-mono); color: var(--text); user-select: all; }
@@ -259,7 +197,7 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
 .message-screen { max-width: 40rem; margin: 0 auto; text-align: center; }
 .message-screen p { margin: 0 0 16px; }
 
-/* Boutons : principal jaune (.button), secondaire bleu (retour, Menu), danger rouge. Capitales légèrement espacées, état pressé décalé de 2 px. */
+/* Boutons (T54) : principal vert plein (.button), secondaires sombres à fine bordure claire (retour, Menu), danger rouge. */
 .button, .back-button, .menu-button {
   display: inline-flex;
   align-items: center;
@@ -267,23 +205,21 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
   gap: 8px;
   min-width: 48px;
   min-height: 48px;
-  padding: 12px 24px;
+  padding: 12px 22px;
   border: 0;
-  border-radius: var(--pill);
+  border-radius: var(--round-sm);
   font: inherit;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 800;
   text-decoration: none;
   cursor: pointer;
-  transition: transform 150ms;
+  transition: transform 150ms, filter 150ms;
 }
-/* Boutons « gel » (T41) : reflet clair en haut (--gloss-layer), tranche et ombre (--frame*), texte gravé ; appui = enfoncé de 3 px. */
-.button:active, .back-button:active, .menu-button:active { transform: translateY(3px); }
-.button { background: var(--gloss-layer), linear-gradient(180deg, var(--accent-hi), var(--accent) 55%, var(--accent-lo)); color: var(--on-accent); box-shadow: 0 0 0 2px var(--accent-lo), 0 4px 0 2px var(--accent-lo), 0 8px 14px var(--shadow), inset 0 2px 0 var(--chrome-hi); }
-.back-button, .menu-button, .button.is-secondary { background: var(--gloss-layer), var(--panel-2); color: var(--text); box-shadow: var(--frame); text-shadow: 0 -1px 0 var(--shade); }
-.back-button, .menu-button { padding: 8px 18px; }
-.button.is-secondary::before { color: var(--accent); text-shadow: 0 0 2px var(--line); }
-.dialog-button.is-danger { background: var(--gloss-layer), var(--danger); color: var(--text); box-shadow: var(--frame-danger); text-shadow: 0 -1px 0 var(--shade); }
+.button:active, .back-button:active, .menu-button:active { transform: translateY(2px); }
+.button { background: var(--accent); color: var(--on-accent); box-shadow: 0 10px 24px var(--glow); }
+.back-button, .menu-button, .button.is-secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--edge); box-shadow: none; font-weight: 700; }
+.back-button, .menu-button { padding: 8px 16px; }
+@media (hover: hover) { .button:hover, .back-button:hover, .menu-button:hover { filter: brightness(1.12); } }
+.dialog-button.is-danger { background: var(--danger); color: var(--text); border-color: var(--danger); box-shadow: none; }
 
 .toast {
   position: fixed;
@@ -292,76 +228,89 @@ code { font-family: var(--font-mono); color: var(--text); user-select: all; }
   transform: translateX(-50%);
   z-index: 50;
   max-width: calc(100vw - 40px);
-  padding: 12px 22px;
-  border-radius: var(--pill);
-  background: var(--gloss-layer), var(--panel);
-  box-shadow: var(--frame);
+  padding: 12px 20px;
+  border: 1px solid var(--edge);
+  border-radius: var(--round-sm);
+  background: var(--panel);
+  box-shadow: 0 12px 30px var(--shadow);
+  font-weight: 700;
   opacity: 0;
   pointer-events: none;
   transition: opacity 150ms;
 }
 .toast.is-visible { opacity: 1; }
 
-/* Boîte de confirmation (js/ui/dialog.js) : partagée par la grille et le player. Barre de titre rayée bleue, corps, boutons. */
+/* Boîte de confirmation (js/ui/dialog.js) : partagée par la grille et le player. Carte noire arrondie, titre centré, boutons. */
 .dialog-backdrop {
   position: fixed;
   inset: 0;
   z-index: 100;
   display: grid;
   place-items: center;
-  padding: 20px;
+  padding: 18px;
   background: var(--scrim);
 }
 .dialog-box {
   width: min(100%, 26rem);
-  max-height: calc(100vh - 40px); /* T29 : le panneau des dossiers peut dépasser la hauteur de l'écran : il défile au lieu d'être coupé */
+  max-height: calc(100vh - 36px); /* T29 : le panneau des dossiers peut dépasser la hauteur de l'écran : il défile au lieu d'être coupé */
   overflow-y: auto;
-  border-radius: var(--round);
+  border: 1px solid var(--edge);
+  border-radius: 26px;
   background: var(--panel);
-  box-shadow: var(--frame);
+  box-shadow: 0 30px 60px var(--shadow);
 }
-/* Barre de titre (T41) : gel bleu brillant façon fenêtre des années 2000. */
 .dialog-title {
   margin: 0;
-  padding: 16px 22px;
+  padding: 22px 22px 6px;
   font-family: var(--font-title);
   font-size: 1.25rem;
-  background: var(--gloss-layer), linear-gradient(180deg, var(--panel-3), var(--panel-2));
-  border-bottom: 2px solid var(--bevel-lo);
-  text-shadow: 0 -1px 0 var(--shade), 0 2px 3px var(--shade);
+  font-weight: 800;
+  text-align: center;
 }
-.dialog-body { padding: 20px 24px 28px; }
-.dialog-message { margin: 0 0 24px; color: var(--text-muted); }
-.dialog-actions { display: flex; gap: 20px; justify-content: flex-end; flex-wrap: wrap; }
-/* T39 : la place du curseur ▶ est toujours réservée dans les boutons de boîte (caché hors focus). Sinon, sur un téléphone, deux boutons
-   (« Annuler », « Supprimer ») passaient sur une ligne ou deux selon le curseur : au toucher, le focus changeait de bouton, la rangée se
-   recomposait sous le doigt et le relâchement tombait à côté (clic perdu, vu à la recette tests/recette/supprimer-jeu.mjs). */
-.dialog-button::before { display: block; visibility: hidden; }
-.dialog-button:focus-visible::before, .input-gamepad .dialog-button:focus::before { visibility: visible; }
+.dialog-body { padding: 8px 22px 22px; }
+.dialog-message { margin: 0 0 20px; color: var(--text-muted); text-align: center; }
+/* Boutons empilés pleine largeur, comme la maquette : le bouton de confirmation (vert) en premier visuellement reste celui de dialog.js. */
+.dialog-actions { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; }
+.dialog-actions > .dialog-button { flex: 1 1 10rem; }
+.dialog-button[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
 /* Panneau des dossiers (T25, js/ui/folders-panel.js) : boîte plus large, boutons en colonne, chemins longs coupés. */
 .dialog-box.is-wide { width: min(100%, 38rem); }
-.dialog-actions.is-vertical { flex-direction: column; align-items: stretch; gap: 16px; }
-.dialog-button[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
-.folder-list { margin: 0 0 20px; padding: 0; list-style: none; }
-.folder-line { margin-bottom: 8px; overflow-wrap: anywhere; }
-.folder-note { color: var(--text-muted); }
-.folders-status { min-height: 1.5em; margin: 0 0 20px; color: var(--text-muted); white-space: pre-line; }
+.dialog-actions.is-vertical { flex-direction: column; align-items: stretch; gap: 10px; }
+.dialog-actions.is-vertical > .dialog-button { flex: 0 0 auto; justify-content: space-between; text-align: left; }
+/* T54 : dans les panneaux (dossiers, partage), les choix sont des lignes sombres avec une flèche verte, comme les listes de la maquette. */
+.dialog-actions.is-vertical > .dialog-button:not(.is-danger) { background: var(--panel-2); color: var(--text); border: 1px solid transparent; box-shadow: none; font-weight: 700; }
+.dialog-actions.is-vertical > .dialog-button:not(.is-danger)::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  -webkit-mask: url("../assets/icons/arrow-right.svg") center / contain no-repeat;
+  mask: url("../assets/icons/arrow-right.svg") center / contain no-repeat;
+}
+.folder-list { margin: 0 0 16px; padding: 0; list-style: none; }
+.folder-line { padding: 10px 2px; border-bottom: 1px solid var(--sep); overflow-wrap: anywhere; }
+.folder-line:last-child { border-bottom: 0; }
+.folder-note { color: var(--accent); font-weight: 700; }
+.folders-status { min-height: 1.5em; margin: 0 0 16px; color: var(--text-muted); white-space: pre-line; }
 .folders-status.is-ok { color: var(--accent); }
 .folders-status.is-error { color: var(--danger-text); }
 /* Pochettes (T28) : groupe à part sous les choix de dossiers, barre de progression visuelle (hors zone annoncée). */
-.dialog-button.is-separated { margin-top: 12px; padding-top: 16px; border-top: 3px dotted var(--bevel-hi); }
-.covers-progress { display: block; width: 100%; height: 16px; margin: 0 0 12px; appearance: none; border: 0; border-radius: var(--pill); overflow: hidden; background: var(--panel-3); }
-.covers-progress::-webkit-progress-bar { background: var(--panel-3); border-radius: var(--pill); }
-.covers-progress::-webkit-progress-value { background: var(--gloss-layer), var(--accent); border-radius: var(--pill); }
+.dialog-button.is-separated { margin-top: 10px; }
+.covers-progress { display: block; width: 100%; height: 10px; margin: 0 0 12px; appearance: none; border: 0; border-radius: var(--pill); overflow: hidden; background: var(--panel-2); }
+.covers-progress::-webkit-progress-bar { background: var(--panel-2); border-radius: var(--pill); }
+.covers-progress::-webkit-progress-value { background: var(--accent); border-radius: var(--pill); }
 .covers-progress::-moz-progress-bar { background: var(--accent); }
 .covers-progress[hidden] { display: none; }
 .dialog-button[hidden] { display: none; } /* T35 : boutons cachés pendant la mise à jour (js/ui/update-dialog.js) */
 
-/* Marge de défilement : scrollIntoView (js/input/focus-nav.js) garde visibles le cadre (4 px), l'anneau de focus (4 px + décalage) et la mise à l'échelle 1.05 (CA-N6). */
+/* Marge de défilement : scrollIntoView (js/input/focus-nav.js) garde visibles l'anneau de focus et la mise à l'échelle 1.05 (CA-N6). */
 [data-nav] { scroll-margin: 32px; }
 
-/* Réduction des animations (docs/ux.md 4.3, CA-V4) : coupe TOUT (transitions, clignotement du curseur et de « PRÊT ? », échelle des tuiles).
+/* Réduction des animations (docs/ux.md 4.3, CA-V4) : coupe TOUT (transitions, clignotement de « PRÊT ? », échelle des cartes).
    INVARIANT : toute animation ajoutée dans css/ est couverte par cette règle (tests/design.test.mjs). */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+/* Panneaux longs (dossiers, partage) : paragraphes alignés à gauche. */
+.dialog-box.is-wide .dialog-message { text-align: left; }

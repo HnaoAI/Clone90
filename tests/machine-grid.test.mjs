@@ -1,7 +1,7 @@
 // Tests de l'accueil (T5) : tuiles machines, états, messages, choix d'écran, rendu avec document factice.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMachineTiles, describeGamesStatus, renderMachineGrid, renderHome, gaugeSegments, GAUGE_SEGMENTS } from '../js/ui/machine-grid.js';
+import { buildMachineTiles, describeGamesStatus, renderMachineGrid, renderHome, totalGames } from '../js/ui/machine-grid.js';
 import { accentVar } from '../js/ui/logo.js';
 import { formatGameCount } from '../js/ui/format.js';
 import { visibleSystems, resolveRoute } from '../js/screens.js';
@@ -164,24 +164,31 @@ test('T16 renderHome : le numéro de version « Clone90 vX - JJ/MM/AAAA » est a
   assert.equal(root.children.at(-1), versions[0], 'dernier élément de l\'accueil');
 });
 
-// --- T24 : jauge décorative de la tuile ---
-test('T24 gaugeSegments : un segment pour 2 jeux, plafonné à 6, 0 jeu = tout éteint', () => {
-  const lit = (count) => gaugeSegments(count).filter(Boolean).length;
-  assert.equal(gaugeSegments(0).length, GAUGE_SEGMENTS);
-  assert.deepEqual([0, 1, 2, 3, 8, 11, 12, 13, 5000].map(lit), [0, 1, 1, 2, 4, 6, 6, 6, 6]);
-  assert.deepEqual(gaugeSegments(3), [true, true, false, false, false, false], 'allumée du bas vers le haut');
-});
-
-test('T24 gaugeSegments : valeurs invalides (négatif, NaN, undefined) = jauge éteinte, jamais d\'erreur', () => {
-  for (const bad of [-4, Number.NaN, undefined, null, Infinity * -1]) assert.equal(gaugeSegments(bad).filter(Boolean).length, 0);
-});
-
-test('T24 renderMachineGrid : jauge aria-hidden de 6 segments dans le logo, texte du nombre de jeux conservé', () => {
+// --- T54 : flèche de la carte (remplace la jauge T24/T41) et nombre total de jeux en tête de l'accueil ---
+test('T54 CA5 renderMachineGrid : une flèche décorative (aria-hidden) par carte, plus de voyants, texte du nombre de jeux conservé', () => {
   const root = renderMachineGrid(tilesFor([sys('amiga', 1), sys('nes', 2)], [game('amiga', 1), game('amiga', 2), game('amiga', 3)]), doc);
-  const gauges = find(root, (n) => n.attrs?.class === 'gauge');
-  assert.equal(gauges.length, 2);
-  for (const g of gauges) { assert.equal(g.attrs['aria-hidden'], 'true'); assert.equal(g.children.length, GAUGE_SEGMENTS); }
-  assert.deepEqual(gauges[0].children.map((c) => c.attrs.class === 'is-on'), gaugeSegments(3));
-  assert.equal(find(gauges[1], (n) => n.attrs?.class === 'is-on').length, 0, '0 jeu : aucun segment allumé');
+  const arrows = find(root, (n) => n.attrs?.class === 'machine-go');
+  assert.equal(arrows.length, 2, 'une par carte, aussi sur la machine vide (cachée par le CSS)');
+  for (const a of arrows) assert.equal(a.attrs['aria-hidden'], 'true');
+  assert.equal(find(root, (n) => n.attrs?.class === 'gauge').length, 0);
   assert.ok(find(root, (n) => n.textContent === '3 jeux').length === 1);
+});
+
+test('T54 CA5 totalGames : somme des jeux des machines affichées ; vide ou valeurs invalides = 0', () => {
+  assert.equal(totalGames(tilesFor([sys('amiga', 1), sys('nes', 2)], [game('amiga', 1), game('amiga', 2), game('nes', 1)])), 3);
+  assert.equal(totalGames([]), 0);
+  assert.equal(totalGames([{ count: Number.NaN }, { count: -2 }, { count: 4 }]), 4);
+});
+
+test('T54 CA5 renderHome : « 37 jeux » en gros au-dessus de « Choisis une machine », absent sans aucun jeu', () => {
+  const withGames = renderHome({ tiles: tilesFor([sys('amiga', 1), sys('nes', 2)], [game('amiga', 1), game('nes', 1)]), gamesStatus: 'ok' }, doc);
+  const totals = find(withGames, (n) => n.attrs?.class === 'home-total');
+  assert.equal(totals.length, 1);
+  assert.equal(totals[0].textContent, '2 jeux');
+  const titles = find(withGames, (n) => n.attrs?.class === 'screen-title');
+  assert.equal(titles[0].textContent, 'Choisis une machine');
+  const flat = find(withGames, () => true);
+  assert.ok(flat.indexOf(totals[0]) < flat.indexOf(titles[0]), 'le total est avant le titre');
+  const empty = renderHome({ tiles: tilesFor([sys('amiga', 1)], []), gamesStatus: 'absent' }, doc);
+  assert.equal(find(empty, (n) => n.attrs?.class === 'home-total').length, 0);
 });

@@ -1,9 +1,10 @@
-/* Page de jeu (T7, design T24) : écran Jouer, chargement, bouton Menu avec anneau, rappel de sortie. docs/ux.md 3.4 et 4.4.
+/* Page de jeu (T7, design T24, style « Swared » T54) : écran Jouer, chargement, bouton Menu avec anneau, rappel de sortie. docs/ux.md 3.4 et 4.4.
    Les variables et la boîte de confirmation viennent de base.css ; la jaquette (.game-cover) de grid.css. */
 .player-body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg-deep) repeating-linear-gradient(180deg, var(--bg-deep) 0 32px, var(--band-deep) 32px 64px);
+  background: linear-gradient(180deg, var(--bg-top) 0, var(--bg) 60%, var(--band-deep) 100%);
+  background-color: var(--bg);
   overflow: hidden;
 }
 /* T28 : en portrait (et sur écran presque carré, tablette 4:3), EmulatorJS colle l'image du jeu en haut. Le bouton Menu et le ☰
@@ -38,21 +39,26 @@ body.has-game-scale #game { transform: scale(var(--game-scale)); transform-origi
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  max-width: 28rem;
+  gap: 12px;
+  width: min(100%, 24rem);
+  padding: 16px 16px 20px;
+  border: 1px solid var(--edge);
+  border-radius: 26px;
+  background: var(--panel);
   text-align: center;
 }
 .play-screen p { margin: 0; }
 .play-cover { width: min(60vw, 14rem); margin: 4px; }
-.play-title { margin: 0; font-family: var(--font-pixel); font-size: 1rem; font-weight: 400; line-height: 1.6; text-shadow: 2px 2px 0 var(--line); }
-.play-button { min-width: 12rem; min-height: 64px; font-family: var(--font-pixel); font-size: 1.5rem; letter-spacing: 0; text-transform: none; }
+.play-title { margin: 0; font-family: var(--font-title); font-size: 1.375rem; font-weight: 800; line-height: 1.25; }
+/* T54 : gros bouton vert plein sur toute la largeur de la carte. */
+.play-button { width: 100%; min-height: 64px; font-size: 1.25rem; }
 .play-message p { color: var(--text-muted); }
-/* T39 : « Supprimer le fichier » (jeu importé seulement) : petit bouton secondaire sous Jouer, texte rouge, confirmation ensuite. */
-.delete-game-button { min-height: 44px; color: var(--danger-text); }
+/* T39 : « Supprimer le fichier » (jeu importé seulement) : bouton secondaire sous Jouer, texte rouge, confirmation ensuite. */
+.delete-game-button { width: 100%; min-height: 48px; background: transparent; color: var(--danger-text); }
 .play-message .play-title { color: var(--danger-text); }
 
 /* « PRÊT ? » : décoratif (aria-hidden), clignote à 1 Hz comme le curseur ; fixe sous prefers-reduced-motion (base.css). */
-.ready { margin: 0; font-family: var(--font-pixel); font-size: 1rem; color: var(--accent); text-shadow: 2px 2px 0 var(--line); animation: blink 1s steps(1) infinite; }
+.ready { margin: 0; font-family: var(--font-pixel); font-size: 0.875rem; color: var(--accent); animation: blink 1s steps(1) infinite; }
 
 .loading-screen { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 body.is-playing .player-screen { background: var(--bg-deep); }
@@ -75,6 +81,7 @@ body.is-playing .player-screen:empty { display: none; }
     justify-items: start;
     column-gap: 24px;
     row-gap: 8px;
+    width: auto;
     max-width: none;
     text-align: left;
   }
@@ -129,8 +136,9 @@ body.is-playing .menu-wrap { opacity: 0.6; }
   max-width: calc(100vw - 40px);
   margin: 0;
   padding: 8px 16px;
+  border: 1px solid var(--edge);
+  border-radius: var(--round-sm);
   background: var(--panel);
-  box-shadow: var(--frame);
   color: var(--text);
   font-size: 0.875rem;
   text-align: center;
@@ -235,7 +243,7 @@ body.is-playing .menu-wrap { opacity: 0.6; }
 .diag-toggle, .diag-button {
   min-height: 32px;
   padding: 4px 10px;
-  border: 2px solid var(--bevel-hi);
+  border: 1px solid var(--edge);
   background: var(--panel-2);
   color: var(--text);
   font: inherit;
@@ -249,7 +257,7 @@ body.is-playing .menu-wrap { opacity: 0.6; }
   max-height: calc(100dvh - 120px);
   overflow-y: auto;
   padding: 8px;
-  border: 2px solid var(--bevel-hi);
+  border: 1px solid var(--edge);
   background: var(--scrim-strong);
   user-select: text;
 }

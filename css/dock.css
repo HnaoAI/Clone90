@@ -1,5 +1,5 @@
-/* Barre de navigation du bas (T41) : voir le bloc ci-dessous. Couleurs : variables de base.css uniquement (tests/design.test.mjs). */
-/* Barre de navigation du bas (T41, js/ui/bottom-nav.js) : plaque chromée fixe, un gel rond par onglet, onglet actif plus gros avec un halo rose.
+/* Barre de navigation du bas (T41, js/ui/bottom-nav.js ; style « Swared » T54) : barre grise flottante, icônes fines, libellés dessous,
+   onglet actif en vert avec un point sous le libellé. Couleurs : variables de base.css uniquement (tests/design.test.mjs).
    INVARIANT : .has-dock (posée par app.js) réserve --dock-space sous le contenu et sous le message temporaire : rien n'est caché dessous. */
 .has-dock .screen { padding-bottom: calc(var(--dock-space) + 24px); }
 .has-dock .screen [data-nav] { scroll-margin-bottom: calc(var(--dock-space) + 32px); } /* le focus clavier ou manette ne finit jamais sous la barre */
@@ -7,72 +7,65 @@
 .dock {
   position: fixed;
   left: 50%;
-  bottom: max(10px, env(safe-area-inset-bottom));
+  bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 40;
   transform: translateX(-50%);
-  width: min(calc(100% - 20px), 34rem);
+  width: min(calc(100% - 20px), 30rem);
   display: flex;
   justify-content: space-around;
   gap: 4px;
-  padding: 8px 8px 6px;
-  border-radius: var(--round);
-  background: linear-gradient(180deg, var(--chrome-hi) 0%, var(--chrome) 45%, var(--chrome-lo) 52%, var(--chrome) 100%);
-  box-shadow: var(--frame-chrome);
+  padding: 8px;
+  border-radius: 30px;
+  background: var(--dock);
+  box-shadow: 0 -8px 30px var(--shadow);
 }
 .dock-tab {
-  --gel: var(--blue); --gel-hi: var(--blue-hi); --gel-lo: var(--blue-lo);
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 4px;
   min-width: 48px;
   min-height: 64px;
   padding: 0 2px;
   border: 0;
-  border-radius: var(--round-sm);
+  border-radius: 20px;
   background: none;
-  color: var(--ink);
+  color: var(--dock-text);
   font: inherit;
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.1;
   text-align: center;
   text-decoration: none;
-  text-shadow: 0 1px 0 var(--chrome-hi);
   cursor: pointer;
 }
-.dock-tab.is-pink { --gel: var(--pink); --gel-hi: var(--pink-hi); --gel-lo: var(--pink-lo); }
-.dock-tab.is-lime { --gel: var(--lime); --gel-hi: var(--lime-hi); --gel-lo: var(--lime-lo); }
-.dock-tab.is-violet { --gel: var(--violet); --gel-hi: var(--violet-hi); --gel-lo: var(--violet-lo); }
-/* Gel rond : reflet, tranche et pictogramme blanc dessiné par un masque (fichiers assets/icons/dock-*.svg, couleur = --text). */
+/* Pictogramme : trait fin dessiné par un masque (assets/icons/dock-*.svg), de la couleur du libellé. Classes de ton posées par
+   bottom-nav.js (héritées de T41) : elles ne servent plus qu'à choisir le pictogramme. */
 .dock-icon {
-  position: relative;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: var(--gloss-layer), radial-gradient(circle at 50% 85%, var(--gel-hi), var(--gel) 55%, var(--gel-lo));
-  box-shadow: 0 0 0 2px var(--gel-lo), 0 3px 0 1px var(--gel-lo), 0 5px 8px var(--shade);
-  transition: transform 150ms;
-}
-.dock-icon::after {
-  content: "";
-  position: absolute;
-  inset: 9px;
-  background: var(--text);
+  width: 26px;
+  height: 26px;
+  background: currentColor;
   -webkit-mask: var(--icon) center / contain no-repeat;
   mask: var(--icon) center / contain no-repeat;
+  transition: transform 150ms;
 }
 .icon-pink { --icon: url("../assets/icons/dock-machines.svg"); }
 .icon-blue { --icon: url("../assets/icons/dock-files.svg"); }
 .icon-lime { --icon: url("../assets/icons/dock-web.svg"); }
-.icon-lime::after { background: var(--on-lime); }
 .icon-violet { --icon: url("../assets/icons/dock-folders.svg"); }
-.dock-tab:active .dock-icon { transform: translateY(3px); }
-/* Onglet de la page courante : gel plus gros qui sort de la barre, halo rose, libellé en pastille. */
-.dock-tab[aria-current="page"] .dock-icon { width: 52px; height: 52px; margin-top: -18px; box-shadow: 0 0 0 3px var(--text), 0 0 0 6px var(--gel), 0 0 16px 5px var(--glow-pink); }
-.dock-tab[aria-current="page"] .dock-label { padding: 2px 8px; border-radius: var(--pill); background: var(--gel); color: var(--text); text-shadow: 0 -1px 0 var(--shade); }
-.dock-tab.is-lime[aria-current="page"] .dock-label { color: var(--on-lime); text-shadow: none; }
-.dock-tab:focus-visible, .input-gamepad .dock-tab:focus { outline: 4px solid var(--focus); outline-offset: 2px; }
-.dock-tab:focus-visible .dock-label, .input-gamepad .dock-tab:focus .dock-label { padding: 2px 8px; border-radius: var(--pill); background: var(--accent); color: var(--on-accent); text-shadow: none; }
+.dock-tab:active .dock-icon { transform: translateY(2px); }
+@media (hover: hover) { .dock-tab:hover { color: var(--text); } }
+/* Onglet de la page courante : vert, et un point sous le libellé (forme, pas seulement la couleur). */
+.dock-tab[aria-current="page"] { color: var(--accent); }
+.dock-tab[aria-current="page"] .dock-label::after {
+  content: "";
+  display: block;
+  width: 5px;
+  height: 5px;
+  margin: 3px auto 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+.dock-tab:focus-visible, .input-gamepad .dock-tab:focus { outline: 3px solid var(--focus); outline-offset: 0; color: var(--text); }

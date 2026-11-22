@@ -204,7 +204,7 @@ export function createLinkScreen({ systems, source, onFinished = () => {}, focus
 
   const header = el('header', { class: 'grid-header' }, [
     el('a', { class: 'back-button', attrs: { href: buildHash({ name: 'home' }), 'aria-label': 'Retour aux machines' }, dataset: { nav: '', navId: LINK_BACK_NAV_ID } }, [
-      el('span', { text: '◀︎', attrs: { 'aria-hidden': 'true' } }, [], doc),
+      el('span', { class: 'back-arrow', attrs: { 'aria-hidden': 'true' } }, [], doc),
       el('span', { class: 'back-label', text: 'Machines' }, [], doc),
     ], doc),
     el('h2', { class: 'grid-title', text: 'Depuis une page web' }, [], doc),
