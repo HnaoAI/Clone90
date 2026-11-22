@@ -1,4 +1,4 @@
-// Tests du design (T24, palette et formes remplacées par le style Y2K de T41, maquette validée par Hicham le 2026-11-15) :
+// Tests du design (T24, style Y2K T41, puis style « Swared » T54, maquette validée par Hicham le 2026-11-22) :
 // palette et contrastes (calculés comme dans scripts/generate-logos.mjs), couleur déclarée une seule fois, animations couvertes par prefers-reduced-motion, clignotement sous le seuil WCAG, accessibilité du focus.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,36 +16,36 @@ const baseCss = css['base.css'];
 const c = readCssColors(baseCss);
 const rootBlock = /:root \{[^}]*\}/.exec(baseCss)[0];
 
-test('T41 CA1 palette Y2K : les variables de la maquette validée sont présentes avec leurs valeurs', () => {
+test('T54 CA1 palette Swared : les variables de la maquette validée sont présentes avec leurs valeurs', () => {
   const expected = {
-    '--sky': '#2a8cff', '--bg': '#1239b0', '--bg-mid': '#3a1690', '--band': '#8a0f6e',
-    '--panel': '#0d3fb8', '--panel-2': '#1a55d6', '--panel-3': '#2a62dc',
-    '--line': '#000000', '--text': '#ffffff', '--text-muted': '#d6e4ff',
-    '--accent': '#ffe11a', '--on-accent': '#2a1a00', '--focus': '#c8ff3d', '--danger': '#c4122a', '--danger-text': '#ffb3b8',
-    '--disabled-bg': '#4a5370',
-    '--pink': '#c8007f', '--blue': '#0f55d8', '--lime': '#7ee01a', '--on-lime': '#102600', '--violet': '#6a1fe0',
-    '--chrome': '#c9d2de', '--ink': '#16133a',
+    '--bg': '#1f1e1d', '--bg-top': '#34312f', '--bg-deep': '#0d0c0c', '--band-deep': '#141312',
+    '--panel': '#1d1c1b', '--panel-2': '#2b2a29', '--panel-3': '#363432',
+    '--line': '#000000', '--text': '#ffffff', '--text-muted': '#b3b0ad',
+    '--accent': '#3fd04a', '--on-accent': '#0c2a0e', '--focus': '#3fd04a', '--danger': '#c4122a', '--danger-text': '#ff8f87',
+    '--dock': '#3a393c', '--dock-text': '#c9c7cb',
   };
   for (const [name, value] of Object.entries(expected)) assert.equal(c[name], value, name);
+  for (const old of ['--pink', '--blue', '--lime', '--violet', '--chrome', '--sky', '--band:']) assert.ok(!rootBlock.includes(`${old}`), `${old} supprimée (style Y2K)`);
 });
 
-test('T41 CA2 contrastes texte 4.5:1 : texte et texte discret sur chaque fond, texte sombre sur le jaune et le chrome, texte sur les bulles et les couleurs machine', () => {
+test('T54 CA1 une seule couleur d\'accent : aucun ton saturé autre que le vert dans la palette (hors couleurs machine et danger)', () => {
+  const saturated = Object.entries(c).filter(([n]) => !n.startsWith('--m-') && !n.startsWith('--danger') && n !== '--logo-plaque')
+    .filter(([, v]) => { const [r, g, b] = hexToRgb(v); return Math.max(r, g, b) - Math.min(r, g, b) > 60; });
+  for (const [name, value] of saturated) { const [r, g, b] = hexToRgb(value); assert.ok(g > r && g > b, `${name} ${value} n'est pas un vert`); }
+});
+
+test('T54 CA2 contrastes texte 4.5:1 : texte et texte discret sur chaque fond, vert sur les fonds, texte sombre sur le vert, barre du bas', () => {
   const pairs = [
-    ['--text', '--bg'], ['--text', '--bg-mid'], ['--text', '--band'], ['--text', '--panel'], ['--text', '--panel-2'], ['--text', '--panel-3'],
-    ['--text', '--bg-deep'], ['--text', '--band-deep'],
-    ['--text-muted', '--bg'], ['--text-muted', '--bg-mid'], ['--text-muted', '--band'], ['--text-muted', '--panel'], ['--text-muted', '--panel-2'],
-    ['--text-muted', '--disabled-bg'], ['--text-muted', '--bg-deep'],
-    ['--accent', '--bg'], ['--accent', '--bg-mid'], ['--accent', '--band'], ['--accent', '--panel'], ['--accent', '--bg-deep'],
-    ['--on-accent', '--accent'], ['--text', '--danger'], ['--danger-text', '--panel'], ['--danger-text', '--bg-deep'], ['--danger-text', '--band-deep'],
-    ['--text', '--pink'], ['--text', '--blue'], ['--text', '--violet'], ['--on-lime', '--lime'], ['--text', '--disabled-bg'],
-    ['--ink', '--chrome'], ['--ink', '--chrome-hi'], ['--ink', '--logo-plaque'],
+    ...['--bg', '--bg-top', '--panel', '--panel-2', '--panel-3', '--bg-deep', '--band-deep', '--dock'].flatMap((bg) => [['--text', bg], ['--accent', bg]]),
+    ...['--bg', '--bg-top', '--panel', '--panel-2', '--panel-3', '--bg-deep'].flatMap((bg) => [['--text-muted', bg], ['--danger-text', bg]]),
+    ['--dock-text', '--dock'], ['--on-accent', '--accent'], ['--text', '--danger'],
     ...Object.keys(c).filter((n) => n.startsWith('--m-')).map((m) => ['--text', m]),
   ];
   for (const [fg, bg] of pairs) assert.ok(contrastRatio(c[fg], c[bg]) >= 4.5, `${fg} sur ${bg} : ${contrastRatio(c[fg], c[bg]).toFixed(2)}`);
 });
 
-test('T41 CA2 contrastes non textuels 3:1 : anneau de focus et halo jaune sur les fonds et les bulles', () => {
-  for (const bg of ['--bg', '--bg-mid', '--band', '--panel', '--panel-2', '--pink', '--blue', '--violet', '--bg-deep']) {
+test('T54 CA2 contrastes non textuels 3:1 : anneau de focus et bordure verte de sélection sur tous les fonds', () => {
+  for (const bg of ['--bg', '--bg-top', '--panel', '--panel-2', '--panel-3', '--bg-deep', '--dock']) {
     assert.ok(contrastRatio(c['--focus'], c[bg]) >= 3, `--focus sur ${bg}`);
     assert.ok(contrastRatio(c['--accent'], c[bg]) >= 3, `--accent sur ${bg}`);
   }
@@ -53,9 +53,8 @@ test('T41 CA2 contrastes non textuels 3:1 : anneau de focus et halo jaune sur le
 
 test('contrastes documentés : valeurs de docs/ux.md 5.2 retrouvées par le même calcul', () => {
   const near = (a, b, expected) => assert.ok(Math.abs(contrastRatio(c[a], c[b]) - expected) < 0.02, `${a}/${b} : ${contrastRatio(c[a], c[b]).toFixed(2)}`);
-  near('--text', '--bg', 9.38); near('--text', '--panel', 8.68); near('--text-muted', '--panel-2', 4.95);
-  near('--on-accent', '--accent', 12.87); near('--text', '--danger', 6.06); near('--danger-text', '--panel', 5.12);
-  near('--text', '--pink', 5.58); near('--on-lime', '--lime', 9.67); near('--ink', '--chrome', 11.58);
+  near('--text', '--bg', 16.64); near('--text-muted', '--panel-2', 6.64); near('--accent', '--panel', 8.37);
+  near('--on-accent', '--accent', 7.64); near('--text', '--danger', 6.06);
 });
 
 test('une seule source pour chaque couleur : aucune couleur littérale hors du bloc :root des feuilles de style', () => {
@@ -92,7 +91,7 @@ test('logos, manifeste, pages et icônes reprennent la palette de base.css (aucu
   for (const page of ['index.html', 'player.html']) assert.match(read(page), new RegExp(`<meta name="theme-color" content="${c['--bg']}">`), page);
   const rgb = drawIcon(192, 0.5);
   assert.deepEqual([...rgb.subarray(0, 3)], hexToRgb(c['--bg']), 'fond de l\'icône');
-  assert.ok(rgb.toString('hex').includes(Buffer.from(hexToRgb(c['--accent'])).toString('hex')), 'lettres de l\'icône en jaune');
+  assert.ok(rgb.toString('hex').includes(Buffer.from(hexToRgb(c['--accent'])).toString('hex')), 'lettres de l\'icône en vert (T54)');
 });
 
 test('prefers-reduced-motion : la règle coupe animations et transitions sur tous les éléments et pseudo-éléments', () => {
@@ -113,57 +112,88 @@ test('prefers-reduced-motion : toute animation déclarée dans css/ utilise un @
       assert.ok(keyframes.has(value.trim().split(/\s+/)[0]), `${file} : ${value}`);
     }
   }
-  // Curseur (base.css) et « PRÊT ? » (player.css) : les deux sont bien trouvés, donc couverts par le test ci-dessus.
-  assert.deepEqual([...new Set(withAnimation)].sort(), ['base.css', 'player.css']);
+  // T54 : plus de curseur ▶ ; « PRÊT ? » (player.css) reste, donc couvert par le test ci-dessus.
+  assert.deepEqual([...new Set(withAnimation)].sort(), ['player.css']);
   for (const page of ['index.html', 'player.html']) assert.match(read(page), /css\/base\.css/, `${page} charge base.css (règle reduced-motion)`);
 });
 
-test('clignotement : une période de 1 s (1 Hz), sous les 3 flashs par seconde de WCAG 2.3.1, pour le curseur et « PRÊT ? »', () => {
+test('clignotement : une période de 1 s (1 Hz), sous les 3 flashs par seconde de WCAG 2.3.1, pour « PRÊT ? » (seule animation depuis T54)', () => {
   const durations = Object.values(css).flatMap((t) => [...t.matchAll(/animation:\s*blink\s+([\d.]+)s/g)].map((m) => Number(m[1])));
-  assert.equal(durations.length, 2);
+  assert.equal(durations.length, 1);
   for (const d of durations) assert.ok(1 / d <= 1, `${d} s`);
-  assert.match(baseCss, /@keyframes blink \{ 50% \{ opacity: 0; \} \}/, 'le curseur ne fait que disparaître et revenir');
+  assert.match(baseCss, /@keyframes blink \{ 50% \{ opacity: 0; \} \}/, '« PRÊT ? » ne fait que disparaître et revenir');
 });
 
-test('accessibilité du focus : anneau de 4 px, curseur forme texte masqué à la technologie d\'assistance, plaque inversée, échelle 1.05', () => {
+test('T54 CA6 accessibilité du focus : anneau de 4 px, sélection des cartes = bordure verte, disque vert, nombre en vert et échelle 1.05', () => {
   assert.match(baseCss, /a:focus-visible, button:focus-visible,[^{]*\{\s*outline: 4px solid var\(--focus\)/);
-  assert.match(baseCss, /content: "\\25B6\\FE0E" \/ ""/, 'alternative vide : le curseur n\'est pas lu');
-  assert.match(css['home.css'], /machine-tile:focus-visible \.machine-name[^{]*\{[^}]*background: var\(--accent\)/);
-  assert.match(css['grid.css'], /game-tile:focus-visible \.game-title[^{]*\{[^}]*background: var\(--accent\)/);
-  assert.match(css['home.css'], /transform: scale\(1\.05\)/);
-  assert.match(css['home.css'], /prefers-reduced-motion[\s\S]*transform: none/, 'échelle supprimée en reduced-motion');
+  const home = css['home.css'];
+  assert.match(home, /\.machine-tile:focus-visible, \.input-gamepad \.machine-tile:focus \{[^}]*transform: scale\(1\.05\)[^}]*border-color: var\(--accent\)/);
+  assert.match(home, /\.machine-tile:focus-visible \.machine-go, \.input-gamepad \.machine-tile:focus \.machine-go \{[^}]*background: var\(--accent\)/, 'flèche dans un disque vert (forme, pas seulement la couleur)');
+  assert.match(home, /\.machine-tile:focus-visible \.machine-count, \.input-gamepad \.machine-tile:focus \.machine-count \{[^}]*color: var\(--accent\)/);
+  assert.match(css['grid.css'], /\.game-tile:focus-visible \.game-title, \.input-gamepad \.game-tile:focus \.game-title \{[^}]*color: var\(--accent\)/);
+  assert.match(css['grid.css'], /\.game-tile:focus-visible, \.input-gamepad \.game-tile:focus \{[^}]*transform: scale\(1\.05\)/);
+  assert.match(home, /prefers-reduced-motion[\s\S]*transform: none/, 'échelle supprimée en reduced-motion');
   assert.match(css['grid.css'], /prefers-reduced-motion[\s\S]*transform: none/);
+  assert.doesNotMatch(baseCss, /\\25B6/, 'plus de curseur ▶ clignotant sur les tuiles (T54)');
 });
 
-test('T41 CA4 accessibilité : cibles tactiles d\'au moins 48 px, formes arrondies, pas de clip-path (il couperait l\'anneau de focus)', () => {
+test('T54 CA8 accessibilité : cibles tactiles d\'au moins 48 px (Jouer 64 px), coins arrondis, pas de clip-path (il couperait l\'anneau de focus)', () => {
   assert.match(baseCss, /\.button, \.back-button, \.menu-button \{[^}]*min-height: 48px/);
   assert.match(css['player.css'], /\.play-button \{[^}]*min-height: 64px/);
-  assert.match(baseCss, /\.button, \.back-button, \.menu-button \{[^}]*border-radius: var\(--pill\)/, 'boutons en pilule');
-  assert.match(css['home.css'], /\.machine-tile \{[^}]*border-radius: var\(--round\)/, 'bulles des machines');
+  assert.match(baseCss, /\.button, \.back-button, \.menu-button \{[^}]*border-radius: var\(--round-sm\)/);
+  assert.match(css['home.css'], /\.machine-tile \{[^}]*border-radius: var\(--round\)/);
+  assert.match(css['grid.css'], /\.game-tile \{[^}]*border-radius: var\(--round\)/);
   for (const [file, text] of Object.entries(css)) assert.doesNotMatch(text.replace(/\/\*[\s\S]*?\*\//g, ''), /clip-path/, `css/${file}`);
 });
 
-test('T41 CA3 police : interface et titres en police arrondie, Press Start 2P gardée pour les visuels de repli et l\'écran de jeu', () => {
-  assert.match(rootBlock, /--font-text: "Trebuchet MS"/);
-  assert.match(rootBlock, /--font-title: "Arial Rounded MT Bold", "Trebuchet MS"/);
+test('T54 CA8 boutons : principal vert plein à texte sombre, secondaires sombres à fine bordure claire', () => {
+  assert.match(baseCss, /\.button \{[^}]*background: var\(--accent\);[^}]*color: var\(--on-accent\)/);
+  assert.match(baseCss, /\.back-button, \.menu-button, \.button\.is-secondary \{[^}]*background: var\(--panel-2\);[^}]*border: 1px solid var\(--edge\)/);
+  assert.match(baseCss, /\.dialog-button\.is-danger \{[^}]*background: var\(--danger\)/);
+});
+
+test('T54 CA3 police : Nunito intégrée (3 graisses, OFL) pour l\'interface, Press Start 2P gardée pour les visuels de repli et l\'écran de jeu', () => {
+  for (const w of [500, 700, 800]) {
+    assert.match(baseCss, new RegExp(`font-family: "Nunito";\\s*src: url\\("\\.\\./assets/fonts/Nunito-${w}\\.woff2"\\) format\\("woff2"\\);\\s*font-weight: ${w};`), `Nunito ${w}`);
+    assert.ok(readdirSync(join(PROJECT_ROOT, 'assets/fonts')).includes(`Nunito-${w}.woff2`));
+  }
+  assert.match(read('assets/fonts/Nunito-OFL.txt'), /SIL Open Font License/);
+  assert.match(rootBlock, /--font-text: "Nunito"/);
+  assert.match(rootBlock, /--font-title: "Nunito"/);
   assert.match(rootBlock, /--font-pixel: "Press Start 2P"/);
   assert.match(baseCss, /\.site-title \{[^}]*font-family: var\(--font-title\)/);
-  assert.match(baseCss, /\.screen-title \{[^}]*font-family: var\(--font-title\)/);
   assert.match(css['grid.css'], /\.grid-title \{[^}]*font-family: var\(--font-title\)/);
 });
 
-test('T41 CA5 accueil : bulles qui alternent quatre couleurs, voyants ronds, 0 jeu en chrome terne', () => {
+test('T54 CA5 accueil : cartes noires à fine bordure claire, logo dans une tuile, plus de voyants, 0 jeu délavé', () => {
   const home = css['home.css'];
-  for (const [n, tone] of [['4n+1', 'pink'], ['4n+2', 'blue'], ['4n+3', 'lime'], ['4n+4', 'violet']]) {
-    assert.match(home, new RegExp(`\\.machine-item:nth-child\\(${n.replace('+', '\\+')}\\) \\.machine-tile \\{[^}]*--gel: var\\(--${tone}\\)`), tone);
-  }
-  assert.match(home, /\.gauge i \{[^}]*border-radius: 50%/);
-  assert.match(home, /\.machine-tile\.is-empty[^{]*\{[^}]*--gel: var\(--disabled-bg\)/);
-  assert.match(home, /\.machine-count \{[^}]*background:[^;]*var\(--chrome\)/, 'pastille chromée');
+  assert.match(home, /\.machine-tile \{[^}]*background: var\(--panel\);[^}]*border: 2px solid var\(--edge\)/);
+  assert.match(home, /\.machine-logo \{[^}]*background: var\(--panel-2\)/);
+  assert.doesNotMatch(home, /\.gauge/);
+  assert.match(home, /\.machine-tile\.is-empty \.machine-logo img, \.machine-tile\.is-empty \.logo-fallback \{[^}]*filter: grayscale\(1\)/);
+  assert.match(home, /\.machine-tile\.is-empty \.machine-go \{[^}]*display: none/, 'pas de flèche sur une machine vide');
+  assert.match(home, /\.home-total \{[^}]*color: var\(--accent\)/, 'gros chiffre vert');
+});
+
+test('T54 CA9 barre du bas : grise flottante, onglet actif en vert avec un point', () => {
+  const dock = css['dock.css'];
+  assert.match(dock, /\.dock \{[^}]*background: var\(--dock\)/);
+  assert.match(dock, /\.dock-tab \{[^}]*color: var\(--dock-text\)/);
+  assert.match(dock, /\.dock-tab\[aria-current="page"\] \{[^}]*color: var\(--accent\)/);
+  assert.match(dock, /\.dock-tab\[aria-current="page"\] \.dock-label::after \{/, 'point sous le libellé actif (forme, pas seulement la couleur)');
+  assert.match(dock, /\.dock-icon \{[^}]*background: currentColor/, 'icône de la couleur du libellé');
 });
 
 test('mobile 360 px : pas de largeur fixe supérieure à l\'écran dans les règles mobiles (grilles à 2 colonnes souples)', () => {
   assert.match(css['grid.css'], /@media \(max-width: 599px\) \{ \.game-list \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css['home.css'], /@media \(max-width: 599px\) \{ \.machine-list \{ --cols: 2/);
   assert.match(baseCss, /overflow-x: hidden/);
+});
+
+test('T54 CA4 en-tête : marque « C90 » décorative et « 90 » en vert, plus de pastille rose ni de jauge ni de plaque chromée', () => {
+  const header = /<header class="app-header">([\s\S]*?)<\/header>/.exec(read('index.html'))?.[1] ?? '';
+  assert.match(header, /<svg class="header-mark"[^>]*aria-hidden="true"/);
+  assert.doesNotMatch(header, /header-orb|header-bars/);
+  assert.match(baseCss, /\.site-title-90 \{[^}]*color: var\(--accent\)/);
+  assert.doesNotMatch(baseCss, /\.app-header \{[^}]*box-shadow/, 'en-tête à plat, sans plaque');
 });

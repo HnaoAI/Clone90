@@ -31,8 +31,8 @@ test('T45 app.js : la ligne de l\'en-tête est remplie avant le chargement des d
   assert.ok(fill < app.indexOf('data = await loadAll()'), 'avant loadAll');
 });
 
-test('T45 css : ligne cachée sur ordinateur (le numéro reste en bas de l\'accueil), affichée sur téléphone, texte foncé sur le chrome', () => {
+test('T45 css : ligne cachée sur ordinateur (le numéro reste en bas de l\'accueil), affichée sur téléphone, texte discret (T54 : fond anthracite)', () => {
   assert.match(baseCss, /\.site-version \{[^}]*display: none/);
   assert.match(baseCss, /@media \(max-width: 599px\) \{[^@]*\.site-version \{[^}]*display: block/);
-  assert.match(baseCss, /\.site-version \{[^}]*color: var\(--ink\)/);
+  assert.match(baseCss, /\.site-version \{[^}]*color: var\(--text-muted\)/);
 });
