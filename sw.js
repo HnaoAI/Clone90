@@ -33,7 +33,7 @@ const SHELL_FILES = [
   'js/ui/password-toggle.js', 'js/local-games.js', 'js/local-game-delete.js', 'js/folder-scan.js', 'js/link-finder.js', 'js/link-explorer.js', 'js/link-download.js', 'js/update-check.js', 'js/update-schedule.js', 'js/offline-engine.js',
   'js/input/actions.js', 'js/input/focus-nav.js',
   'js/ui/bottom-nav.js', 'js/ui/dialog.js', 'js/ui/dom.js', 'js/ui/error-screen.js', 'js/ui/folders-panel.js', 'js/ui/format.js', 'js/ui/game-grid.js',
-  'js/ui/input-mode.js', 'js/ui/library-screen.js', 'js/ui/link-screen.js', 'js/ui/update-dialog.js', 'js/ui/logo.js', 'js/ui/machine-grid.js', 'js/ui/toast.js',
+  'js/ui/input-mode.js', 'js/ui/library-screen.js', 'js/ui/library-sections.js', 'js/ui/link-screen.js', 'js/ui/update-dialog.js', 'js/ui/logo.js', 'js/ui/machine-grid.js', 'js/ui/toast.js',
   'js/player/diagnostic-log.js', 'js/player/ejs-files.js', 'js/player/diagnostic-panel.js', 'js/player/disk-shortcut.js', 'js/player/ejs-start-watch.js', 'js/player/exit-guard.js', 'js/player/exit-hint.js', 'js/player/game-scale.js', 'js/player/launcher.js', 'js/player/player-main.js', 'js/player/player-ui.js', 'js/player/retroarch-cfg.js', 'js/player/virtual-stick.js',
   'js/pwa.js',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/icon-192-maskable.png', 'assets/icons/icon-512-maskable.png',

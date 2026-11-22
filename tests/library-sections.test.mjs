@@ -22,7 +22,7 @@ const nes = { id: 'nes', name: 'NES', extensions: ['nes'] };
 const noop = () => {};
 const base = { systems: [neogeo, nes], entries: [], supported: true, folderPicking: true, offlineSupported: true, onAddGames: noop, onAddBios: noop, onRemove: noop };
 const sync = { pairing: null, onPair: noop, onSyncNow: noop, onForget: noop };
-const toggles = (root) => find(root, (n) => /\blibrary-toggle\b/.test(n.attrs.class ?? ''));
+const toggles = (root) => find(root, (n) => /(^| )library-toggle( |$)/.test(n.attrs.class ?? ''));
 const toggle = (root, id) => toggles(root).find((n) => n.dataset.navId === sectionToggleNavId(id));
 const panel = (root, id) => find(root, (n) => n.attrs.id === `library-panel-${id}`)[0];
 const isOpen = (root, id) => toggle(root, id).attrs['aria-expanded'] === 'true' && panel(root, id).hidden === false;

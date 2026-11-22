@@ -174,13 +174,17 @@ const doc = { createElement: (t) => new FakeNode(t), createTextNode: (s) => ({ t
 const find = (root, pred) => { const out = []; root.walk((n) => pred(n) && out.push(n)); return out; };
 const base = { systems: [system('amiga'), system('neogeo')], entries: [], supported: true, onAddGames() {}, onAddBios() {}, onRemove() {} };
 
-test('T38 critère 9 : « Mes fichiers » propose « Choisir le dossier des jeux », en premier, navigable, action transmise', () => {
+test('T38 critère 9 : « Mes fichiers » propose « Choisir le dossier des jeux », en haut (T55 : tuile « Importer un dossier »), navigable, action transmise', () => {
   let scanned = 0;
   const root = renderLibrary({ ...base, folderPicking: true, onScanFolder: () => { scanned += 1; } }, doc);
   const buttons = find(root, (n) => n.tag === 'button');
   const scan = buttons.find((b) => b.dataset.navId === SCAN_FOLDER_NAV_ID);
   assert.ok(scan, 'bouton présent');
-  assert.equal(buttons[0], scan, 'premier bouton de l\'écran');
+  // T55 (maquette validée par Hicham le 2026-11-22) : l'écran commence par deux tuiles, « Ajouter des jeux » puis « Importer un dossier » ;
+  // le bouton est le premier de la rubrique de cette seconde tuile.
+  assert.equal(buttons[1].dataset.navId, 'section-folder', 'tuile « Importer un dossier » en haut de l\'écran');
+  const panel = find(root, (n) => n.attrs.id === buttons[1].attrs['aria-controls'])[0];
+  assert.equal(find(panel, (n) => n.tag === 'button')[0], scan, 'premier bouton de sa rubrique');
   assert.equal(scan.textContent, 'Choisir le dossier des jeux');
   assert.equal(scan.dataset.nav, '');
   scan.listeners.click();
