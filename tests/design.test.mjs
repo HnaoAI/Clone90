@@ -190,9 +190,9 @@ test('mobile 360 px : pas de largeur fixe supérieure à l\'écran dans les règ
   assert.match(baseCss, /overflow-x: hidden/);
 });
 
-test('T54 CA4 en-tête : marque « C90 » décorative et « 90 » en vert, plus de pastille rose ni de jauge ni de plaque chromée', () => {
+// T56 : la marque « C90 » de T54 est retirée à la demande de Hicham (tests/dossiers-machines.test.mjs, CA1).
+test('T54 CA4 en-tête : « 90 » en vert, plus de pastille rose ni de jauge ni de plaque chromée', () => {
   const header = /<header class="app-header">([\s\S]*?)<\/header>/.exec(read('index.html'))?.[1] ?? '';
-  assert.match(header, /<svg class="header-mark"[^>]*aria-hidden="true"/);
   assert.doesNotMatch(header, /header-orb|header-bars/);
   assert.match(baseCss, /\.site-title-90 \{[^}]*color: var\(--accent\)/);
   assert.doesNotMatch(baseCss, /\.app-header \{[^}]*box-shadow/, 'en-tête à plat, sans plaque');

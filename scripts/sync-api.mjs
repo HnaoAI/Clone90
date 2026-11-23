@@ -44,10 +44,11 @@ export function lanAddresses(interfaces = networkInterfaces()) {
  * @param {object} [options.pairing] appairage déjà créé (tests)
  * @param {() => Promise<unknown>} [options.regenerate] T44 : régénère games.json après un jeu reçu du téléphone (le vrai générateur par défaut)
  * @param {() => number} [options.now] horloge (tests)
+ * @param {() => Promise<unknown>} [options.prepareFolders] T56 : revérifie les dossiers des machines avant la liste envoyée au téléphone
  */
 export async function createSyncController({ root, enabled, getPort, syncPort = SYNC_PORT, getAddresses = () => lanAddresses(), getHostname = () => osHostname(),
   certificates = ensureCertificates, start = startSyncServer, pairing: givenPairing, baseHeaders = { 'X-Content-Type-Options': 'nosniff' },
-  regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }), now = Date.now }) {
+  regenerate = () => runGenerate({ root, log: () => {}, logError: () => {} }), now = Date.now, prepareFolders = async () => {} }) {
   const pairing = givenPairing ?? await createPairing({ root });
   let server = null;
   let tls = null;
@@ -64,6 +65,7 @@ export async function createSyncController({ root, enabled, getPort, syncPort = 
     getCa: () => tls?.ca ?? '',
     getName: () => localName(getHostname()),
     onUploaded: () => { regenerate().catch(() => {}); },
+    beforeManifest: prepareFolders, // T56 : le téléphone qui se synchronise fait revérifier les dossiers des machines du Mac
   });
 
   /** Certificat à jour pour les adresses actuelles (autre Wi-Fi : nouveau certificat, même autorité). */

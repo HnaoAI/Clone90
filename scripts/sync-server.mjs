@@ -101,11 +101,12 @@ function readBody(req, limit) {
  *   getFreeBytes?: (dir: string) => Promise<number>, now?: () => number, getBiosFiles?: () => Promise<Set<string>>, idleMs?: number}} options
  *   `getBiosFiles` (T52) : BIOS déclarés (declaredBiosFiles), refusés à l'envoi ; `idleMs` (T52) : délai sans donnée avant abandon d'un envoi
  *   `getName` (T51) : nom `<nom>.local` du Mac annoncé par /sync/hello ; `onUploaded` (T44) : appelé après chaque fichier reçu (régénère
- *   games.json) ; `getFreeBytes` : injectable pour les tests
+ *   games.json) ; `getFreeBytes` : injectable pour les tests ; `beforeManifest` (T56) : appelé avant la liste envoyée à un téléphone associé
+ *   (le Mac revérifie ses dossiers de machines), ses erreurs sont ignorées
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>}
  */
 export function createSyncHandler({ pairing, getDirs, getSystemIds, getBiosFiles = async () => new Set(), getCa, getName = () => null, onUploaded = () => {},
-  getFreeBytes, idleMs, now = Date.now }) {
+  getFreeBytes, idleMs, now = Date.now, beforeManifest = async () => {} }) {
   let uploading = false; // T44 : un seul envoi à la fois
   return async (req, res) => {
     // CORS : le téléphone appelle depuis le site de Clone90 (GitHub Pages) ; toute origine est acceptée, la protection est le jeton.
@@ -154,6 +155,7 @@ export function createSyncHandler({ pairing, getDirs, getSystemIds, getBiosFiles
       if (route !== SYNC_ROUTES.manifest && route !== SYNC_ROUTES.file) return send(404, { message: 'Introuvable' });
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(405, { message: 'Méthode non autorisée' }, { Allow: 'GET, HEAD' });
       if (!hasToken(req)) return send(401, NOT_PAIRED);
+      if (route === SYNC_ROUTES.manifest) await Promise.resolve().then(beforeManifest).catch(() => {});
       const dirs = await getDirs();
       const systemIds = await getSystemIds();
       if (route === SYNC_ROUTES.manifest) return send(200, { version: 1, uploads: pairing.acceptUploads === true, files: await buildManifest({ ...dirs, systemIds }) });

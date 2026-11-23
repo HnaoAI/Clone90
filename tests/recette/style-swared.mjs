@@ -70,7 +70,7 @@ try {
     verdict('T54-CA1-fond-anthracite', await style(page, 'body', 'backgroundColor') === 'rgb(31, 30, 29)', await style(page, 'body', 'backgroundColor'), label);
     verdict('T54-CA1-carte-noire', await style(page, '.machine-tile', 'backgroundColor') === 'rgb(29, 28, 27)', await style(page, '.machine-tile', 'backgroundColor'), label);
     verdict('T54-CA3-nunito-chargee', await page.evaluate(() => document.fonts.check('800 16px Nunito') && [...document.fonts].some((f) => f.family.replace(/"/g, '') === 'Nunito' && f.status === 'loaded')), '', label);
-    verdict('T54-CA4-marque-en-tete', await page.locator('.app-header .header-mark').isVisible() && await style(page, '.site-title-90', 'color') === GREEN, '', label);
+    verdict('T54-CA4-titre-en-tete', await page.locator('.app-header .header-mark').count() === 0 && await style(page, '.site-title-90', 'color') === GREEN, '', label); // T56 : marque retirée
     const total = await page.locator('.home-total').textContent();
     verdict('T54-CA5-total-vert', total === '55 jeux' && await style(page, '.home-total', 'color') === GREEN, String(total), label);
     const empties = await page.evaluate(() => {
