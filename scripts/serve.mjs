@@ -13,7 +13,8 @@ import { createSettingsApi } from './settings-api.mjs';
 import { isGameDeleteEnabled } from './game-delete.mjs';
 import { chooseFolderOnMac } from './mac-folder-dialog.mjs';
 import { createSyncController } from './sync-api.mjs';
-import { ensureRomFolders } from './rom-folders.mjs';
+import { createFolderKeeper, watchSystemsFile, withFolderCheck } from './rom-folders.mjs';
+import { runGenerate } from './generate-games.mjs';
 
 export const DEFAULT_PORT = 8080;
 /** Écoute sur toutes les interfaces par défaut (téléphone Android du même Wi-Fi). Le lanceur Mac (T20) passe --host 127.0.0.1. */
@@ -296,23 +297,23 @@ async function main() {
   }
   const settings = await readLocalSettings(PROJECT_ROOT);
   // T53 : dossiers roms/<machine> manquants créés (vides) au démarrage et après un changement de dossier ; rien n'est déplacé ni supprimé.
-  const prepareFolders = async ({ romsDir, biosDir }) => {
-    try {
-      const { systems } = JSON.parse(await readFile(join(PROJECT_ROOT, 'systems.json'), 'utf8'));
-      const { created, errors } = await ensureRomFolders({ romsDir, biosDir, systems });
-      if (created.length) console.log(`Dossiers des machines créés : ${created.map((id) => `roms/${id}`).join(', ')}`);
-      for (const e of errors) console.warn(`Avertissement : ${e}`);
-    } catch (err) {
-      console.warn(`Avertissement : dossiers des machines non vérifiés (${err.message})`);
-    }
-  };
+  // T56 : aussi dès que systems.json change (nouvelle machine sans relance), avant chaque games.json et avant la liste du téléphone.
+  const systemsFile = join(PROJECT_ROOT, 'systems.json');
+  const folderKeeper = createFolderKeeper({
+    getDirs: () => readLocalSettings(PROJECT_ROOT),
+    getSystems: async () => JSON.parse(await readFile(systemsFile, 'utf8')).systems,
+  });
+  const prepareFolders = (dirs) => folderKeeper.prepare(dirs);
+  const regenerate = withFolderCheck(() => folderKeeper.prepare(), () => runGenerate({ root: PROJECT_ROOT, log: () => {}, logError: () => {} }));
   await prepareFolders(settings);
+  const systemsWatcher = watchSystemsFile({ file: systemsFile, onChange: () => folderKeeper.prepare() });
   // T43 : partage avec le téléphone (serveur HTTPS à part, sync-api.mjs), commandé seulement depuis ce Mac, comme l'API des dossiers.
-  const sync = await createSyncController({ root: PROJECT_ROOT, enabled: isSettingsApiEnabled(host), getPort: () => server.address().port, baseHeaders: SECURITY_HEADERS });
+  const sync = await createSyncController({ root: PROJECT_ROOT, enabled: isSettingsApiEnabled(host), getPort: () => server.address().port, baseHeaders: SECURITY_HEADERS,
+    regenerate, prepareFolders: () => folderKeeper.prepare() });
   const settingsApi = createSettingsApi({
     root: PROJECT_ROOT, enabled: isSettingsApiEnabled(host), gamesEnabled: isGameDeleteEnabled(host), getPort: () => server.address().port,
-    applyFolders: (folders) => { server.setFolders(folders); prepareFolders(folders); }, chooseFolder: chooseFolderOnMac, baseHeaders: SECURITY_HEADERS,
-    restart: () => { sync.stop().finally(() => restart()); }, // T43 : le port du partage est libéré avant la relance (sinon le nouveau serveur ne peut pas le reprendre)
+    applyFolders: (folders) => { server.setFolders(folders); prepareFolders(folders); }, chooseFolder: chooseFolderOnMac, baseHeaders: SECURITY_HEADERS, regenerate,
+    restart: () => { systemsWatcher.close(); sync.stop().finally(() => restart()); }, // T43 : le port du partage est libéré avant la relance (sinon le nouveau serveur ne peut pas le reprendre)
   });
   const api = { handle: (req, res) => (sync.owns((req.url ?? '').split('?')[0]) ? sync.handle(req, res) : settingsApi.handle(req, res)) };
   const server = createStaticServer({ root: PROJECT_ROOT, romsDir: settings.romsDir, biosDir: settings.biosDir, api });
